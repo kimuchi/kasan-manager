@@ -45,7 +45,7 @@
           </div>
           <div class="field">
             <label for="office_code">事業所コード（任意）</label>
-            <input type="text" id="office_code" placeholder="例: 1370012345" />
+            <input type="text" id="office_code" placeholder="例: DEMO-0004" />
           </div>
           <div class="field">
             <label for="region">所在地・地域単価区分（任意）</label>
@@ -54,30 +54,70 @@
         </div>
         <div class="field">
           <label for="staff_summary">職員構成（任意）</label>
-          <textarea id="staff_summary" rows="4" placeholder="例: 常勤介護福祉士4名、看護師1名、管理栄養士は外部連携、機能訓練指導員は柔整師1名"></textarea>
+          <textarea id="staff_summary" rows="3" placeholder="例: 常勤介護福祉士4名、看護師1名、機能訓練指導員は柔整師1名"></textarea>
         </div>
         <div class="field">
           <label for="user_summary">利用者構成（任意）</label>
-          <textarea id="user_summary" rows="3" placeholder="例: 利用者40名、要介護3以上67%、認知症自立度Ⅱ以上が35%、医療的ケア5名"></textarea>
+          <textarea id="user_summary" rows="3" placeholder="例: 利用者40名、要介護3以上67%、認知症自立度Ⅱ以上が35%"></textarea>
         </div>
         <div class="field">
           <label for="current_kasans">現在算定中の加算（任意）</label>
-          <textarea id="current_kasans" rows="3" placeholder="例: サービス提供体制強化加算Ⅱ、入浴介助加算Ⅰ、処遇改善加算Ⅰ"></textarea>
+          <textarea id="current_kasans" rows="2" placeholder="例: サービス提供体制強化加算Ⅱ、入浴介助加算Ⅰ、処遇改善加算Ⅰ"></textarea>
         </div>
         <div class="field">
           <label for="concerns">気になっていること・確認したい加算（任意）</label>
-          <textarea id="concerns" rows="3" placeholder="例: 口腔機能向上加算が取れるか / 福祉専門職員配置等加算は何級まで取れるか"></textarea>
+          <textarea id="concerns" rows="2" placeholder="例: 口腔機能向上加算が取れるか / 福祉専門職員配置等加算は何級まで取れるか"></textarea>
         </div>
       </section>
 
       <section class="card">
         <h2>3. ファイルをアップロード（任意）</h2>
-        <p class="lead">介護給付費明細書PDF・職員一覧CSV・利用者集計などを添付すると、より具体的な提案が出ます。</p>
+        <p class="lead">レセプトPDFや、職員/利用者集計の JSON を添付すると、決定的判定が動きます。</p>
+
+        <div class="upload-grid">
+          <div class="field">
+            <label for="pdf" class="upload-area small">
+              <span class="upload-icon">📄</span>
+              <span class="upload-main">介護給付費明細書PDF</span>
+              <span class="upload-sub">通所介護 / 訪問介護 / 居宅介護支援 / 訪問看護(介護)</span>
+              <span class="upload-sub" id="pdf-name">未選択</span>
+              <input type="file" id="pdf" accept=".pdf" />
+            </label>
+          </div>
+          <div class="field">
+            <label for="tenant_status_json" class="upload-area small">
+              <span class="upload-icon">🗂️</span>
+              <span class="upload-main">tenant_status.json</span>
+              <span class="upload-sub">事業所ステータス（任意）</span>
+              <span class="upload-sub" id="tenant-name">未選択</span>
+              <input type="file" id="tenant_status_json" accept=".json" />
+            </label>
+          </div>
+          <div class="field">
+            <label for="staff_json" class="upload-area small">
+              <span class="upload-icon">👥</span>
+              <span class="upload-main">staff.json</span>
+              <span class="upload-sub">職員集計（公開デモ用）</span>
+              <span class="upload-sub" id="staff-name">未選択</span>
+              <input type="file" id="staff_json" accept=".json" />
+            </label>
+          </div>
+          <div class="field">
+            <label for="user_summary_json" class="upload-area small">
+              <span class="upload-icon">🧑‍🤝‍🧑</span>
+              <span class="upload-main">user_summary.json</span>
+              <span class="upload-sub">利用者集計（公開デモ用）</span>
+              <span class="upload-sub" id="user-name">未選択</span>
+              <input type="file" id="user_summary_json" accept=".json" />
+            </label>
+          </div>
+        </div>
+
         <div class="field">
           <label for="attachments" class="upload-area">
             <span class="upload-icon">⬆</span>
-            <span class="upload-main">クリックしてファイルを選択（最大5件）</span>
-            <span class="upload-sub">PDF / CSV / TXT / JSON など。1ファイル最大20MB</span>
+            <span class="upload-main">その他の参考ファイル（最大5件）</span>
+            <span class="upload-sub">PDF / CSV / TXT / JSON / Markdown — 1ファイル最大20MB</span>
             <input type="file" id="attachments" multiple accept=".pdf,.csv,.tsv,.txt,.json,.md" />
           </label>
           <ul id="file-list" class="file-list"></ul>
@@ -86,16 +126,39 @@
       </section>
 
       <section class="card cta-card">
-        <h2>4. AI で分析する</h2>
-        <button id="analyze-btn" class="primary-btn">
-          <span class="btn-icon">▶</span>
-          <span>分析を実行する</span>
-        </button>
-        <p class="hint" id="analyze-hint">Gemini で 10〜30 秒程度の分析を行います。お待ちください。</p>
+        <h2>4. 分析を実行する</h2>
+        <div class="cta-buttons">
+          <button id="analyze-btn" class="primary-btn">
+            <span class="btn-icon">▶</span>
+            <span>判定 + AI で分析する</span>
+          </button>
+          <button id="judge-btn" class="secondary-btn">
+            <span class="btn-icon">⚙</span>
+            <span>判定エンジンのみ実行</span>
+          </button>
+        </div>
+        <p class="hint" id="analyze-hint">
+          「判定 + AI」: 加算マスタ判定 + Gemini で取り方アクションを生成（10〜30秒）<br />
+          「判定エンジンのみ」: マスタ + DSL のみで素早く判定（数秒）
+        </p>
+      </section>
+
+      <section id="judge-section" class="card hidden">
+        <h2>📋 決定的判定エンジン結果</h2>
+        <div id="judge-meta" class="result-meta"></div>
+        <div id="judge-summary" class="judge-summary"></div>
+        <h3 class="result-h3">📑 加算別判定一覧</h3>
+        <div id="judge-table-wrap" class="judge-table-wrap"></div>
+        <h3 class="result-h3">🧾 不足証跡チェックリスト</h3>
+        <div id="judge-checklist"></div>
+        <details class="raw-toggle">
+          <summary>Markdown レポートを表示</summary>
+          <pre id="judge-markdown"></pre>
+        </details>
       </section>
 
       <section id="result-section" class="card result-card hidden">
-        <h2>分析結果</h2>
+        <h2>🤖 Gemini 補完分析</h2>
         <div id="result-meta" class="result-meta"></div>
         <div id="result-summary" class="result-summary"></div>
         <div id="result-revenue" class="result-revenue"></div>
@@ -103,7 +166,7 @@
         <h3 class="result-h3">🎯 すぐ着手すべきアクション</h3>
         <div id="result-actions" class="action-list"></div>
 
-        <h3 class="result-h3">📊 取得候補の加算</h3>
+        <h3 class="result-h3">📊 取得候補の加算（AI 提案）</h3>
         <div id="result-candidates" class="candidate-list"></div>
 
         <h3 class="result-h3">⚠️ 注意事項</h3>

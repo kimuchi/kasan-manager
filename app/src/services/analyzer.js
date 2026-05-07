@@ -1,160 +1,260 @@
+// Gemini を使った augmented 分析。
+// 既存の `judge` エンジンが返す決定的レポート（JSON / Markdown）に Gemini で
+// 「取り方アクション」「不足情報の補完案」「アップロード追加資料からの示唆」を加える。
+
 import { generateAnalysis, getModelName } from './gemini.js';
-import { loadMaster, summarizeKasansForPrompt } from './regulator.js';
+import { run as runJudge } from './judge.js';
+import { renderMarkdown } from './markdown-report.js';
+import { runExtraction } from './receipt-pdf.js';
+import { summarizeKasansForPrompt, loadMaster as loadServiceMaster } from './regulator.js';
 
 const SYSTEM_PROMPT = `あなたは日本の介護保険・障害福祉に精通した加算（報酬加算）分析の専門家です。
-事業所が提供する情報（職員構成・利用者構成・現状の体制・アップロード資料の抜粋など）と、与えられる加算マスタを照合して、
-「取り漏れている可能性が高い加算」「すぐに整備すれば取得できる加算」「現状要件を満たしていない加算」を仕分けして提案します。
+渡された決定的判定エンジンの結果（取得済み・確認待ち・対象外・情報不足の仕分け）と、
+事業所が補足した自由記述・添付ファイル抜粋を組み合わせて、
+「次にとるべきアクション」「取り漏れの可能性が高い加算」「現場で見落とされやすい OR 条件・代替資格・外部連携ルート」
+を構造化された日本語 JSON で返してください。
 
-重要な姿勢:
-- 「取れない」で終わらせず、「どうすれば取れるか」を必ず示す。
-- 法令上の OR 条件・代替資格・外部連携ルートを意識する（例: 機能訓練指導員は PT/OT/ST だけでなく看護師・柔整師等でも可）。
-- 公開情報の範囲で答え、最終確認は自治体・社労士に委ねる旨を明記する（推測を断定として書かない）。
-- 数値（利用者数・職員数）は与えられた範囲で計算し、不明な場合は assumption に明示する。
-- 障害福祉では「処遇改善」「福祉専門職員配置」「ピアサポート」「目標工賃達成指導員」など独特の加算に配慮する。
-- 必ず JSON 形式で返す。日本語で記述し、固有名詞や法令名は省略しない。`;
+姿勢:
+- 決定的判定エンジンが waiting / unknown とした加算には、判定で必要な追加情報・確認手順を必ず添える。
+- 「取れない」で終わらせず、最短で取得できるルートを示す（例: 介護福祉士70%が無理でも勤続10年以上25%ルート）。
+- 公開情報の範囲で答え、最終確認は自治体・社労士に委ねる旨を明記する。
+- 障害福祉では処遇改善・福祉専門職員配置・目標工賃達成指導員・ピアサポート・特定事業所・福祉専門職員配置等加算を意識する。
+- 増収目安は判定エンジンが計算済みの値があればそれを尊重し、独自に上書きしない。`;
 
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
-    summary: {
-      type: 'string',
-      description: '事業所の状況を踏まえた総合所見（300〜500字程度）',
-    },
+    summary: { type: 'string', description: '300〜500字の総合所見（決定的判定の結論を踏まえる）' },
     estimated_total_revenue_increase: {
       type: 'string',
-      description: '取得候補が全て成立した場合の月次/年次の概算増収（例: 「月+約25万円 / 年+約300万円」）',
+      description: '取得候補が成立した場合の月次/年次の概算（判定エンジンの「取得可能性が高い加算」セクションを集計）',
     },
     top_actions: {
       type: 'array',
-      description: 'すぐ着手すべきアクションを優先順に最大5つ',
+      description: '優先順位付きで最大5件のアクション',
       items: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: '短いアクション名' },
-          why: { type: 'string', description: 'なぜ重要か（1〜2文）' },
-          steps: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '具体的な着手ステップ',
-          },
+          title: { type: 'string' },
+          why: { type: 'string' },
+          steps: { type: 'array', items: { type: 'string' } },
         },
         required: ['title', 'why', 'steps'],
       },
     },
     candidates: {
       type: 'array',
-      description: '取得可能性が高い加算',
+      description: '取得候補・優先確認候補の加算',
       items: {
         type: 'object',
         properties: {
-          kasan_key: { type: 'string', description: 'マスタ上のキー（不明なら空文字）' },
+          kasan_key: { type: 'string' },
           name: { type: 'string' },
-          status: {
-            type: 'string',
-            description: 'ready / waiting / blocked / unknown のいずれか',
-          },
-          unit: { type: 'string', description: '単位数と単位タイプ（例: 45単位/日）' },
+          status: { type: 'string', description: 'ready / waiting / blocked / unknown のいずれか' },
+          unit: { type: 'string' },
           requirement_summary: { type: 'string' },
-          missing_info: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '判定に追加で必要な情報',
-          },
-          recommended_actions: {
-            type: 'array',
-            items: { type: 'string' },
-          },
-          revenue_estimate: {
-            type: 'string',
-            description: '月次/年次の増収見込み（不明なら「不明」）',
-          },
+          missing_info: { type: 'array', items: { type: 'string' } },
+          recommended_actions: { type: 'array', items: { type: 'string' } },
+          revenue_estimate: { type: 'string' },
         },
         required: ['name', 'status', 'requirement_summary', 'recommended_actions'],
       },
     },
-    cautions: {
-      type: 'array',
-      items: { type: 'string' },
-      description: '注意事項・前提条件・確認すべき法令や自治体ルール',
-    },
-    assumptions: {
-      type: 'array',
-      items: { type: 'string' },
-      description: '入力情報の不足を補うために置いた前提',
-    },
+    cautions: { type: 'array', items: { type: 'string' } },
+    assumptions: { type: 'array', items: { type: 'string' } },
   },
   required: ['summary', 'top_actions', 'candidates', 'cautions'],
 };
 
-function buildUserPrompt({ service, master, officeInfo, freeText, attachments }) {
-  const serviceLabel = master.display_name || service;
-  const masterMeta = master?.master?._meta || {};
-  const masterSummary = summarizeKasansForPrompt(master);
+function judgementsToPromptLines(result) {
+  const lines = [];
+  const j = result.judgements || {};
+  const buckets = ['clear', 'waiting', 'currently_claimed', 'claimed_but_requirements_unknown', 'not_clear', 'unknown'];
+  for (const bucket of buckets) {
+    const items = Object.entries(j).filter(([, v]) => v.algorithm_judgement === bucket);
+    if (!items.length) continue;
+    lines.push(`【${bucket}】`);
+    for (const [k, v] of items.slice(0, 25)) {
+      const reasons = Object.entries(v.requirements_judgement || {})
+        .map(([rk, rj]) => `${rk}=${rj.status}${rj.reason ? `(${rj.reason})` : ''}`)
+        .join('; ');
+      lines.push(`- ${v.name} [${k}] ${reasons || '(要件未記載)'}`);
+    }
+    if (items.length > 25) lines.push(`  ... 他 ${items.length - 25} 件`);
+  }
+  if (result.evidence_applied && result.evidence) {
+    lines.push('【PDF evidence】');
+    const counts = result.evidence.current_kasan_counts || {};
+    for (const [k, c] of Object.entries(counts).slice(0, 20)) {
+      lines.push(`- ${k}: ${c}件`);
+    }
+    if (result.evidence.yokaigo_3plus_ratio != null) {
+      lines.push(`- yokaigo_3plus_ratio: ${(result.evidence.yokaigo_3plus_ratio * 100).toFixed(1)}%`);
+    }
+  }
+  return lines.join('\n');
+}
 
+function buildUserPrompt({ judgeResult, master, officeInfo, freeText, attachments }) {
+  const masterSummary = summarizeKasansForPrompt(master);
+  const sd = judgeResult.service_def || {};
+  const judgeLines = judgementsToPromptLines(judgeResult);
   const attachmentText =
     attachments && attachments.length
       ? attachments
-          .map(
-            (a, i) =>
-              `--- 添付${i + 1}: ${a.filename}（${a.kind}, ${a.size_bytes}B）---\n${a.text_excerpt}`,
-          )
+          .map((a, i) => `--- 添付${i + 1}: ${a.filename}（${a.kind}, ${a.size_bytes}B）---\n${a.text_excerpt}`)
           .join('\n\n')
       : '（添付なし）';
 
   return `# 分析対象サービス
-- サービス: ${serviceLabel}（service_key: ${service}）
-- ドメイン: ${master.domain} / 支払者: ${master.payer}
-- マスタ版: ${masterMeta.version || '?'} / 改定タグ: ${masterMeta.revision_tag || '?'}
-- マスタ状況: ${master.status}（${masterMeta.source_status || ''}）
+- ${sd.display_name}（service_key: ${judgeResult.service}）
+- ドメイン: ${sd.domain} / 支払者: ${sd.payer}
+- マスタ版: ${(judgeResult.master_meta || {}).version || '?'} / 改定タグ: ${(judgeResult.master_meta || {}).revision_tag || '?'}
 
 # 事業所基本情報（フォーム入力）
 ${formatOfficeInfo(officeInfo)}
 
-# 利用者から記載された自由記述・気になっている加算
+# 自由記述
 ${freeText || '（記載なし）'}
 
 # 添付ファイルからの抜粋テキスト
 ${attachmentText}
 
-# 加算マスタ（このサービスで主に対象となる加算）
+# 決定的判定エンジンの結果（既に確定値）
+${judgeLines || '（判定対象加算なし）'}
+
+# 加算マスタ
 ${masterSummary}
 
 # 出力指示
-- 上記の情報のみから判断できる範囲で、JSON スキーマに従った構造化レポートを返してください。
-- candidates には可能な限り kasan_key を上記マスタからコピーしてください（マスタにない場合は空文字）。
-- 「unknown」「missing_info」を恥ずかしがらず使い、根拠が薄い断定は避けてください。
-- 月次・年次の増収見込みは可能な範囲で計算（地域単価が不明な場合は10円/単位と仮定し、その旨を assumptions に記載）。
-- 障害福祉サービスの場合は処遇改善加算・福祉専門職員配置加算・地域加算・ピアサポート等の検討を必ず含めてください。`;
+- 上記の決定的判定を出発点に、不足情報・代替ルート・取得手順を提案してください。
+- candidates の status は ready/waiting/blocked/unknown のいずれかを使用。
+- 月次/年次の増収見込みは判定エンジン側のヒントを尊重し、独自計算を断定しない。
+- 障害福祉対象の場合は処遇改善・福祉専門職員配置・目標工賃達成指導員・ピアサポート・特定事業所等にも触れる。`;
 }
 
 function formatOfficeInfo(info = {}) {
-  if (!info || Object.keys(info).length === 0) return '（未入力）';
+  if (!info || !Object.keys(info).length) return '（未入力）';
   return Object.entries(info)
-    .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    .filter(([, v]) => v !== '' && v != null)
     .map(([k, v]) => `- ${k}: ${v}`)
     .join('\n');
 }
 
-export async function analyzeOffice({ service, officeInfo, freeText, attachments }) {
-  const master = await loadMaster(service);
-  const userPrompt = buildUserPrompt({ service, master, officeInfo, freeText, attachments });
-  const { json, text, parseError } = await generateAnalysis({
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt,
-    responseSchema: RESPONSE_SCHEMA,
+export async function analyzeOffice({
+  service,
+  office,
+  officeInfo,
+  freeText,
+  attachments,
+  pdfFile,
+  tenantStatusFile,
+  staffFile,
+  userSummaryFile,
+  useGemini = true,
+}) {
+  // 1. PDF があればその場で evidence を作る（保存はしない）
+  let inlineEvidence = null;
+  if (pdfFile) {
+    const r = await runExtraction({
+      office: office || 'unknown',
+      service,
+      pdfBuffer: pdfFile.buffer,
+      sourceName: pdfFile.originalname,
+    });
+    inlineEvidence = r.evidence;
+  }
+
+  // 2. 一時 JSON ファイルを使わずに、tenantStatus / staff / user_summary は inline で渡せる経路を持たせる
+  const inlineFiles = {
+    tenantStatus: tenantStatusFile ? JSON.parse(tenantStatusFile.buffer.toString('utf-8')) : null,
+    staff: staffFile ? JSON.parse(staffFile.buffer.toString('utf-8')) : null,
+    userSummary: userSummaryFile ? JSON.parse(userSummaryFile.buffer.toString('utf-8')) : null,
+  };
+
+  // 3. 判定エンジンを実行
+  const judgeResult = await runJudge({
+    service,
+    office,
+    applyEvidence: Boolean(inlineEvidence),
+    inlineEvidence,
+    // inline JSON は executive helper を介して評価
   });
+
+  // 4. inline tenant_status / staff / user_summary を後付けで反映（DSL facts のみ）
+  if (inlineFiles.tenantStatus || inlineFiles.staff || inlineFiles.userSummary) {
+    const { evaluateRequirementLogic, buildFactsFromEvidence, mergeDemoTenantFacts,
+      buildFactsFromStaffData, buildFactsFromUserSummary, mergeRequirementFacts,
+      buildStaffSummaryDisplay, buildUserSummaryDisplay,
+      loadEvidenceLabels, buildEvidenceChecklist,
+    } = await import('./dsl.js');
+
+    let facts = buildFactsFromEvidence(judgeResult.evidence, judgeResult.tenant_status);
+    if (inlineFiles.tenantStatus) facts = mergeDemoTenantFacts(facts, inlineFiles.tenantStatus);
+    const staffFacts = inlineFiles.staff ? buildFactsFromStaffData(inlineFiles.staff, service) : {};
+    const userFacts = inlineFiles.userSummary ? buildFactsFromUserSummary(inlineFiles.userSummary, service) : {};
+    facts = mergeRequirementFacts(facts, staffFacts, userFacts);
+
+    const master = await loadServiceMaster(service);
+    const kasans = master.master?.kasans || {};
+    const dslResults = {};
+    for (const [kasanKey, kasanDef] of Object.entries(kasans)) {
+      let itemMeta;
+      if (kasanDef.applicability === 'not_applicable') {
+        itemMeta = {
+          source_status: kasanDef.source_status,
+          applicability: 'not_applicable',
+          applicability_reason: kasanDef.applicability_reason,
+        };
+      } else {
+        itemMeta = { source_status: kasanDef.source_status || 'checked' };
+      }
+      dslResults[kasanKey] = evaluateRequirementLogic(kasanDef.requirement_logic, facts, itemMeta);
+    }
+    judgeResult.dsl_results = dslResults;
+    judgeResult.staff_summary_display = buildStaffSummaryDisplay(staffFacts);
+    judgeResult.user_summary_display = buildUserSummaryDisplay(userFacts);
+    judgeResult.staff_data_loaded = Boolean(inlineFiles.staff);
+    judgeResult.user_summary_loaded = Boolean(inlineFiles.userSummary);
+    judgeResult.demo_tenant_status_loaded = Boolean(inlineFiles.tenantStatus);
+
+    const labelConfig = await loadEvidenceLabels();
+    judgeResult.evidence_checklist = buildEvidenceChecklist(dslResults, judgeResult.judgements, labelConfig);
+  }
+
+  // 5. Markdown レポートを生成
+  const markdown = renderMarkdown(judgeResult);
+
+  // 6. Gemini で augment
+  let geminiResult = null;
+  let geminiError = null;
+  if (useGemini) {
+    try {
+      const master = await loadServiceMaster(service);
+      const userPrompt = buildUserPrompt({ judgeResult, master, officeInfo, freeText, attachments });
+      const { json, text, parseError } = await generateAnalysis({
+        systemPrompt: SYSTEM_PROMPT,
+        userPrompt,
+        responseSchema: RESPONSE_SCHEMA,
+      });
+      geminiResult = { model: getModelName(), analysis: json, raw_text: json ? null : text, parse_error: parseError ?? null };
+    } catch (err) {
+      geminiError = err.message || String(err);
+    }
+  }
+
   return {
-    model: getModelName(),
     service: {
       key: service,
-      display_name: master.display_name,
-      domain: master.domain,
-      payer: master.payer,
-      revision_tag: master?.master?._meta?.revision_tag,
-      master_version: master?.master?._meta?.version,
+      display_name: judgeResult.service_def?.display_name,
+      domain: judgeResult.service_def?.domain,
+      payer: judgeResult.service_def?.payer,
+      revision_tag: judgeResult.master_meta?.revision_tag,
+      master_version: judgeResult.master_meta?.version,
     },
-    analysis: json,
-    raw_text: json ? null : text,
-    parse_error: parseError ?? null,
+    judge: judgeResult,
+    markdown,
+    gemini: geminiResult,
+    gemini_error: geminiError,
   };
 }

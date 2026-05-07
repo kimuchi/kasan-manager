@@ -9,6 +9,16 @@ const STATUS_LABEL = {
   unknown: '❔ 情報不足',
 };
 
+const ALG_LABEL = {
+  clear: '✅ 取得済/要件クリア',
+  waiting: '⏸ 確認待ち',
+  not_clear: '❌ 対象外/不可',
+  unknown: '❔ 情報不足',
+  currently_claimed: '💰 算定中（要件クリア）',
+  claimed_but_requirements_unknown: '💰❔ 算定中（要件未確認）',
+  not_applicable: '🚫 当サービスでは算定対象外',
+};
+
 const DOMAIN_LABEL = {
   kaigo: '介護保険',
   medical: '医療保険',
@@ -18,8 +28,8 @@ const DOMAIN_LABEL = {
 document.addEventListener('DOMContentLoaded', () => {
   initStatusPill();
   initServices();
-  initFileInput();
-  initAnalyzeButton();
+  initFileInputs();
+  initAnalyzeButtons();
 });
 
 async function initStatusPill() {
@@ -33,7 +43,7 @@ async function initStatusPill() {
       text.textContent = `Gemini 接続OK（${json.model}）`;
     } else {
       pill.classList.add('error');
-      text.textContent = 'Gemini API キー未設定';
+      text.textContent = 'Gemini API キー未設定（判定エンジンのみ利用可）';
     }
   } catch (err) {
     pill.classList.add('error');
@@ -56,7 +66,7 @@ async function initServices() {
     for (const s of services) {
       (grouped[s.domain] || (grouped[s.domain] = { label: s.domain_label, items: [] })).items.push(s);
     }
-    for (const [domain, group] of Object.entries(grouped)) {
+    for (const [, group] of Object.entries(grouped)) {
       if (!group.items.length) continue;
       const og = document.createElement('optgroup');
       og.label = `【${group.label}】`;
@@ -64,8 +74,6 @@ async function initServices() {
         const opt = document.createElement('option');
         opt.value = s.service_key;
         opt.textContent = `${s.display_name}（${s.status_label || s.status}）`;
-        opt.dataset.domain = domain;
-        opt.dataset.status = s.status;
         og.appendChild(opt);
       }
       select.appendChild(og);
@@ -76,7 +84,20 @@ async function initServices() {
   }
 }
 
-function initFileInput() {
+function initFileInputs() {
+  const updates = [
+    ['#pdf', '#pdf-name'],
+    ['#tenant_status_json', '#tenant-name'],
+    ['#staff_json', '#staff-name'],
+    ['#user_summary_json', '#user-name'],
+  ];
+  for (const [inputSel, labelSel] of updates) {
+    $(inputSel).addEventListener('change', () => {
+      const f = $(inputSel).files[0];
+      $(labelSel).textContent = f ? `${f.name}（${humanFileSize(f.size)}）` : '未選択';
+    });
+  }
+
   const input = $('#attachments');
   const list = $('#file-list');
   input.addEventListener('change', () => {
@@ -95,22 +116,12 @@ function humanFileSize(n) {
   return `${(n / 1024 / 1024).toFixed(1)}MB`;
 }
 
-function initAnalyzeButton() {
-  const btn = $('#analyze-btn');
-  btn.addEventListener('click', async () => {
-    const service = $('#service').value;
-    if (!service) {
-      alert('対象サービスを選択してください。');
-      return;
-    }
-    runAnalyze(btn);
-  });
+function initAnalyzeButtons() {
+  $('#analyze-btn').addEventListener('click', () => runAnalyze({ includeGemini: true }));
+  $('#judge-btn').addEventListener('click', () => runAnalyze({ includeGemini: false }));
 }
 
-async function runAnalyze(btn) {
-  hide('#error-section');
-  hide('#result-section');
-
+function buildFormData(includeAttachments = true) {
   const formData = new FormData();
   formData.append('service', $('#service').value);
   formData.append('office_name', $('#office_name').value);
@@ -122,24 +133,65 @@ async function runAnalyze(btn) {
   formData.append('concerns', $('#concerns').value);
   formData.append('free_text', '');
 
-  const files = $('#attachments').files;
-  for (const f of files) formData.append('attachments', f);
+  const pdf = $('#pdf').files[0];
+  const tenantStatus = $('#tenant_status_json').files[0];
+  const staff = $('#staff_json').files[0];
+  const userSummary = $('#user_summary_json').files[0];
+  if (pdf) formData.append('pdf', pdf);
+  if (tenantStatus) formData.append('tenant_status_json', tenantStatus);
+  if (staff) formData.append('staff_json', staff);
+  if (userSummary) formData.append('user_summary_json', userSummary);
 
+  if (includeAttachments) {
+    for (const f of $('#attachments').files) formData.append('attachments', f);
+  }
+  return formData;
+}
+
+async function runAnalyze({ includeGemini }) {
+  if (!$('#service').value) {
+    alert('対象サービスを選択してください。');
+    return;
+  }
+  hide('#error-section');
+  hide('#result-section');
+  hide('#judge-section');
+
+  const btn = includeGemini ? $('#analyze-btn') : $('#judge-btn');
   const originalLabel = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span><span>分析中…（10〜30秒）</span>';
+  $('#analyze-btn').disabled = true;
+  $('#judge-btn').disabled = true;
+  btn.innerHTML = `<span class="spinner"></span><span>${includeGemini ? '判定 + AI 分析中…' : '判定中…'}</span>`;
 
   try {
-    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(json.error || `HTTP ${res.status}`);
+    if (includeGemini) {
+      const formData = buildFormData(true);
+      const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      renderJudge(json.judge, json.markdown, json.service);
+      if (json.gemini && json.gemini.analysis) {
+        renderGeminiResult(json.gemini, json.service);
+      } else if (json.gemini_error) {
+        showError(`Gemini 補完に失敗しました: ${json.gemini_error}`);
+      } else if (json.gemini && !json.gemini.analysis) {
+        $('#result-summary').textContent = 'Gemini 応答を JSON として解釈できませんでした。';
+        show('#result-section');
+      }
+    } else {
+      const formData = buildFormData(false);
+      const res = await fetch('/api/judge', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      renderJudge(json.judge, json.markdown, json.judge.service_def);
     }
-    renderResult(json);
   } catch (err) {
     showError(err.message);
   } finally {
     btn.disabled = false;
+    $('#analyze-btn').disabled = false;
+    $('#judge-btn').disabled = false;
     btn.innerHTML = originalLabel;
   }
 }
@@ -150,24 +202,133 @@ function showError(msg) {
   $('#error-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderResult(payload) {
-  show('#result-section');
+function renderJudge(judge, markdown, service) {
+  show('#judge-section');
+  const metaEl = $('#judge-meta');
+  const sd = judge.service_def || service || {};
+  const mm = judge.master_meta || {};
+  metaEl.innerHTML = `
+    <div>
+      <strong>${escapeHtml(sd.display_name || service?.display_name || '?')}</strong>
+      ${domainTag(sd.domain || service?.domain)}
+      <span class="status-tag">マスタ版 ${escapeHtml(mm.version || '-')}</span>
+      <span class="status-tag">改定 ${escapeHtml(mm.revision_tag || '-')}</span>
+      ${judge.evidence_applied ? '<span class="status-tag implemented">📄 PDF反映済</span>' : ''}
+      ${judge.staff_data_loaded ? '<span class="status-tag implemented">👥 staff.json反映済</span>' : ''}
+      ${judge.user_summary_loaded ? '<span class="status-tag implemented">🧑 user_summary反映済</span>' : ''}
+    </div>
+  `;
 
+  const s = judge.summary || {};
+  $('#judge-summary').innerHTML = `
+    <div class="summary-grid">
+      ${summaryTile('✅ 取得済/要件クリア', (s.clear || []).length, 'ok')}
+      ${summaryTile('⏸ 確認待ち', (s.waiting || []).length, 'warn')}
+      ${summaryTile('❌ 対象外/不可', (s.not_clear || []).length, 'err')}
+      ${summaryTile('❔ 情報不足', (s.unknown || []).length, 'mute')}
+      ${(s.currently_claimed || []).length ? summaryTile('💰 算定中（クリア）', (s.currently_claimed || []).length, 'ok') : ''}
+      ${(s.claimed_but_requirements_unknown || []).length ? summaryTile('💰❔ 算定中（未確認）', (s.claimed_but_requirements_unknown || []).length, 'warn') : ''}
+    </div>
+    <p class="hint">全${judge.kasan_count}加算中、取得可能性が高い加算は <strong>${(s.waiting || []).length + (s.clear || []).length}件</strong></p>
+  `;
+
+  const tableEl = $('#judge-table-wrap');
+  const rows = Object.entries(judge.judgements || {}).map(([k, j]) => {
+    const algLabel = ALG_LABEL[j.algorithm_judgement] || j.algorithm_judgement;
+    const dsl = (judge.dsl_results || {})[k] || {};
+    const dslLabel = dslStatusLabel(dsl.status);
+    const route = (dsl.satisfied_route || []).join(' / ') || '-';
+    const missing = (dsl.missing_evidence || []).join(', ') || '-';
+    return `
+      <tr>
+        <td><strong>${escapeHtml(j.name)}</strong><br><code>${escapeHtml(k)}</code></td>
+        <td>${escapeHtml(algLabel)}</td>
+        <td>${escapeHtml(unitText(j))}</td>
+        <td>${escapeHtml(dslLabel)}</td>
+        <td>${escapeHtml(route)}</td>
+        <td>${escapeHtml(missing)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tableEl.innerHTML = `
+    <table class="judge-table">
+      <thead>
+        <tr><th>加算</th><th>判定</th><th>単位</th><th>DSL評価</th><th>達成ルート</th><th>不足証跡</th></tr>
+      </thead>
+      <tbody>${rows || '<tr><td colspan="6">対象加算なし</td></tr>'}</tbody>
+    </table>
+  `;
+
+  const checklist = judge.evidence_checklist || [];
+  $('#judge-checklist').innerHTML = checklist.length
+    ? `<ul class="checklist">${checklist
+        .map((c) => `
+          <li>
+            <span class="priority ${escapeHtml(priorityClass(c.priority))}">${escapeHtml(c.priority || '中')}</span>
+            <strong>${escapeHtml(c.kasan_name)}</strong>: ${escapeHtml(c.label)}
+            <div class="hint">推奨資料: ${(c.recommended_documents || []).map(escapeHtml).join('・') || '-'}</div>
+            <div class="hint">次アクション: ${escapeHtml(c.next_action || '-')}</div>
+          </li>`)
+        .join('')}</ul>`
+    : '<p class="hint">不足証跡はありません（または DSL ロジック未実装）。</p>';
+
+  $('#judge-markdown').textContent = markdown || '(markdown 未生成)';
+  $('#judge-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function summaryTile(label, count, kind) {
+  return `
+    <div class="summary-tile ${kind}">
+      <div class="summary-count">${count}</div>
+      <div class="summary-label">${escapeHtml(label)}</div>
+    </div>
+  `;
+}
+
+function unitText(j) {
+  if (j.unit_per_month) return `${j.unit_per_month}単位/月`;
+  if (j.unit_per_day) return `${j.unit_per_day}単位/日`;
+  if (j.unit_per_visit) return `${j.unit_per_visit}単位/回`;
+  if (j.rate != null) return `所定単位×${Math.round(j.rate * 100)}%`;
+  return '-';
+}
+
+function dslStatusLabel(s) {
+  switch (s) {
+    case 'clear': return '✅ clear';
+    case 'not_clear': return '❌ not_clear';
+    case 'partially_clear': return '🟡 partially_clear';
+    case 'blocked_by_missing_evidence': return '📭 不足証跡あり';
+    case 'blocked_by_unverified_mapping': return '🔒 mapping保留';
+    case 'not_evaluated_source_required': return '⏳ 根拠未確認';
+    case 'not_evaluated_logic_unchecked': return '⏳ ロジック未確認';
+    case 'not_applicable': return '🚫 対象外';
+    case 'unknown': return '❔ unknown';
+    default: return s || '-';
+  }
+}
+
+function priorityClass(p) {
+  if (p === '高' || p === 'High') return 'high';
+  if (p === '低' || p === 'Low') return 'low';
+  return 'mid';
+}
+
+function renderGeminiResult(gemini, service) {
+  show('#result-section');
   const meta = $('#result-meta');
-  const svc = payload.service || {};
+  const svc = service || {};
   meta.innerHTML = `
     <div>
       <strong>${escapeHtml(svc.display_name || '?')}</strong>
       ${domainTag(svc.domain)}
-      <span class="status-tag">マスタ版 ${escapeHtml(svc.master_version || '-')}</span>
-      <span class="status-tag">改定 ${escapeHtml(svc.revision_tag || '-')}</span>
-      <span class="status-tag">model: ${escapeHtml(payload.model || '-')}</span>
+      <span class="status-tag">model: ${escapeHtml(gemini.model || '-')}</span>
     </div>
   `;
-
-  const a = payload.analysis;
+  const a = gemini.analysis;
   if (!a) {
-    $('#result-summary').textContent = 'AI 応答を JSON として解釈できませんでした。生レスポンスをご確認ください。';
+    $('#result-summary').textContent = 'Gemini 応答を JSON として解釈できませんでした。生レスポンスを参照してください。';
     $('#result-revenue').textContent = '';
     $('#result-actions').innerHTML = '';
     $('#result-candidates').innerHTML = '';
@@ -178,7 +339,6 @@ function renderResult(payload) {
     $('#result-revenue').textContent = a.estimated_total_revenue_increase
       ? `💰 増収見込み: ${a.estimated_total_revenue_increase}`
       : '';
-
     $('#result-actions').innerHTML = (a.top_actions || [])
       .map(
         (act) => `
@@ -189,22 +349,17 @@ function renderResult(payload) {
       </div>`,
       )
       .join('') || '<p>アクション提案がありません。</p>';
-
     $('#result-candidates').innerHTML = (a.candidates || [])
       .map((c) => candidateBlock(c))
       .join('') || '<p>取得候補が見つかりませんでした。</p>';
-
     $('#result-cautions').innerHTML = (a.cautions || [])
       .map((c) => `<li>${escapeHtml(c)}</li>`)
       .join('') || '<li>（特になし）</li>';
-
     $('#result-assumptions').innerHTML = (a.assumptions || [])
       .map((c) => `<li>${escapeHtml(c)}</li>`)
       .join('') || '<li>（前提なし）</li>';
   }
-
-  $('#result-raw').textContent = JSON.stringify(payload, null, 2);
-  $('#result-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('#result-raw').textContent = JSON.stringify(gemini, null, 2);
 }
 
 function candidateBlock(c) {
@@ -222,21 +377,16 @@ function candidateBlock(c) {
         ${c.revenue_estimate ? `増収: ${escapeHtml(c.revenue_estimate)}` : ''}
       </div>
       <div class="candidate-req">${escapeHtml(c.requirement_summary || '')}</div>
-
       ${
         c.recommended_actions && c.recommended_actions.length
           ? `<div class="candidate-block-title">▶ 取るためのアクション</div>
-             <ul class="candidate-actions">${c.recommended_actions
-               .map((a) => `<li>${escapeHtml(a)}</li>`)
-               .join('')}</ul>`
+             <ul class="candidate-actions">${c.recommended_actions.map((a) => `<li>${escapeHtml(a)}</li>`).join('')}</ul>`
           : ''
       }
       ${
         c.missing_info && c.missing_info.length
           ? `<div class="candidate-block-title">❔ 追加で必要な情報</div>
-             <ul class="candidate-missing">${c.missing_info
-               .map((a) => `<li>${escapeHtml(a)}</li>`)
-               .join('')}</ul>`
+             <ul class="candidate-missing">${c.missing_info.map((a) => `<li>${escapeHtml(a)}</li>`).join('')}</ul>`
           : ''
       }
     </div>
@@ -259,10 +409,5 @@ function escapeHtml(s) {
     .replaceAll("'", '&#39;');
 }
 
-function show(sel) {
-  $(sel).classList.remove('hidden');
-}
-
-function hide(sel) {
-  $(sel).classList.add('hidden');
-}
+function show(sel) { $(sel).classList.remove('hidden'); }
+function hide(sel) { $(sel).classList.add('hidden'); }
