@@ -1,72 +1,122 @@
-# 加算管理マネージャー（仮称）
+# 加算マネージャー Web 版
 
-## コンセプト
-**「加算が取れない」を「どうすれば取れるか」に変える**
+> 介護保険・障害福祉の **加算（報酬加算）取得を AI で支援する** Web アプリです。
+> 事業所の情報・レセプト PDF・職員/利用者集計をブラウザからアップロードすると、
+> 取り漏れの可能性が高い加算と「どうすれば取れるか」を返します。
 
-介護事業所の加算取得を支援するAIツール。
-一般の介護ソフトは算定基準の表面的なチェックのみだが、
-本ツールは解釈通知・例外規定・自治体ごとの運用まで把握した上で
-**「どうすれば加算が取れるか」を具体的に提案**する。
+- **稼働環境**: Google Cloud Run（カスタムドメイン運用前提）
+- **AI**: Google Gemini API
+- **判定エンジン**: マスタ JSON + 要件論理式 DSL（Node.js）
+- **対応分野**: 介護保険（通所/訪問/居宅介護支援/訪問看護）、医療保険（訪問看護）、障害福祉（居宅介護/就労継続支援 A 型/B 型）
 
-## 差別化ポイント
+---
 
-| 一般の介護ソフト | 加算管理マネージャー |
-|----------------|-------------------|
-| 「この加算は取れません」で終わり | 「この条件を整えれば取れます」と提案 |
-| 基準の表面チェック | 解釈通知・Q&A・例外規定まで網羅 |
-| 単一事業所の分析 | 法人全体の横断分析（事業所間ベンチマーク） |
-| 加算の有無のみ | 増収シミュレーション付き |
-| 手動チェック | データ連携による自動検知 |
+## 5 分でデプロイ
 
-## 機能一覧
+```bash
+# 1. リポジトリ取得
+git clone <repository-url>
+cd kasan-manager
 
-### 1. 加算チェッカー
-- 事業所のデータ（請求実績・職員情報）を読み込み
-- 現在算定中の加算を自動特定
-- 未取得だが要件を満たしている可能性のある加算を検出
-- 上位区分への移行可能性を判定
+# 2. .env を作成して値を埋める
+cp .env.example .env
+# 編集: GCP_PROJECT_ID / GCP_REGION / CLOUD_RUN_SERVICE_NAME / CLOUD_RUN_CUSTOM_DOMAIN
 
-### 2. 増収シミュレーター
-- 各加算の取得による月次・年次の売上増加額を試算
-- 地域単価（1〜7級地）を自動反映
-- 対象利用者数に基づいた精緻な計算
+# 3. 依存パッケージ
+npm run install:app
 
-### 3. 届出書類ジェネレーター（開発中）
-- 加算取得に必要な届出書類を自動生成
-- 事業所データから記入可能な項目を自動充填
-- 不明箇所にフラグを立てて確認を促す
-- 自治体別の様式に対応
+# 4. gcloud 認証
+gcloud auth login
+gcloud auth application-default login
 
-### 4. 監査準備チェッカー（開発中）
-- 実地指導で確認される書類の存在チェック
-- 不足書類のアラート
-- 加算算定根拠となる記録の整備状況確認
+# 5. プロビジョニング（API 有効化・Artifact Registry・Secret 作成・IAM 付与）
+npm run setup:gcp -- --gemini-key=<Gemini API キー>
 
-## 対応サービス種類
+# 6. デプロイ
+npm run deploy:cloudrun
 
-| サービス | 状態 |
-|---------|------|
-| 小規模多機能型居宅介護 | ✅ テスト完了 |
-| 通所介護 | ✅ テスト完了 |
-| 訪問看護 | ✅ テスト完了 |
-| 訪問介護 | ⏳ データ待ち |
-| 居宅介護支援 | ⏳ データ待ち |
-| 福祉用具貸与 | ⏳ データ待ち |
-| 認知症対応型通所介護 | 未着手 |
-| 特定施設入居者生活介護 | 未着手 |
-| 介護老人福祉施設 | 未着手 |
+# 7. カスタムドメイン
+npm run setup:domain -- --domain=kasan.example.jp
+# → 表示された CNAME / A レコードを DNS に登録
+# → 5〜60 分で証明書発行 → https://kasan.example.jp で公開
+```
 
-## 技術スタック
-- データ連携: トリケアトプスCSV + マネーフォワード給与CSV
-- 分析エンジン: Python + Claude Code
-- 加算マスタ: operations/common/KASAN_CHECK.md
-- 地域単価DB: 厚労省告示に基づく全国テーブル
+詳細は [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) を参照。
 
-## ビジネスモデル（検討中）
-- SaaS（月額課金）
-- 事業所あたり月額○円
-- 初期費用: データ連携セットアップ
-- 無料トライアル: 1事業所・1ヶ月
+---
 
-## 開発ロードマップ
-→ STATUS.md を参照
+## マニュアル一覧
+
+| 対象 | ファイル | 内容 |
+|---|---|---|
+| 事業所スタッフ・管理者 | [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) | Web UI の使い方・結果の読み方 |
+| インフラ担当 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | GCP プロビジョニング・Cloud Run・カスタムドメイン・運用 |
+| 開発者 | [docs/TECHNICAL.md](./docs/TECHNICAL.md) | アーキテクチャ・API・データモデル・カスタマイズ |
+| 開発者 | [docs/CLI.md](./docs/CLI.md) | CLI コマンド一覧（judge / import-receipt / setup / deploy / logs） |
+| 設計思想 | [DESIGN_PHILOSOPHY.md](./DESIGN_PHILOSOPHY.md) | 加算チェッカーの 5 つの設計原則・知識グラフ構造 |
+
+---
+
+## 主要機能
+
+### 1. AI 補完分析（`POST /api/analyze`）
+
+ブラウザから事業所情報を入力 → 判定エンジンで加算別ステータスを生成 → Gemini で「取り方アクション」「OR 条件」「代替ルート」を補完 → 構造化 JSON で返却。
+
+### 2. 決定的判定エンジン（`POST /api/judge`）
+
+Gemini 不要。マスタ JSON + 要件論理式 DSL のみで加算を `clear / waiting / not_clear / unknown` に分類。Markdown レポートも同時生成。
+
+### 3. レセプト PDF 取込（`POST /api/import-receipt`）
+
+介護給付費明細書 PDF からサービスコード・要介護度分布・算定中加算を機械抽出（個人情報は意図的に非保存）。
+
+### 4. CLI ツール
+
+```bash
+npm run judge -- --service tsusho_kaigo --office DEMO-0004 --report-md out.md
+npm run import-receipt -- --service tsusho_kaigo --office DEMO-0004 --pdf receipt.pdf --evidence-out tenant_data/evidence/DEMO-0004/
+```
+
+---
+
+## 対応サービス（10 種）
+
+| ドメイン | サービス | 状態 |
+|---|---|---|
+| 介護保険 | 通所介護 | ✅ implemented |
+| 介護保険 | 訪問介護 | ✅ implemented |
+| 介護保険 | 居宅介護支援 | ✅ implemented |
+| 介護保険 | 訪問看護（介護保険） | ✅ implemented |
+| 介護保険 | 小規模多機能型居宅介護 | 🟡 draft |
+| 介護保険 | 特別養護老人ホーム | ⏳ planned |
+| 医療保険 | 訪問看護（医療保険） | 🟡 draft |
+| 障害福祉 | 居宅介護 | 🟡 draft（代表加算マスタ化済） |
+| 障害福祉 | 就労継続支援 A 型 | 🟡 draft（代表加算マスタ化済） |
+| 障害福祉 | 就労継続支援 B 型 | 🟡 draft（代表加算マスタ化済） |
+
+---
+
+## アーキテクチャ概略
+
+```
+Browser → Cloud Run (Node.js + Express)
+              │
+              ├─ 判定エンジン (judge.js + dsl.js)
+              ├─ PDF 抽出 (receipt-pdf.js)
+              ├─ Markdown レポート (markdown-report.js)
+              └─ Gemini 補完 (analyzer.js → gemini.js)
+                        │
+                        ▼
+                Google Gemini API
+```
+
+詳細: [docs/TECHNICAL.md](./docs/TECHNICAL.md)
+
+---
+
+## ライセンス
+
+UNLICENSED（ケア・プランニング株式会社・東京都荒川区）
+
+> ⚠️ **本ツールは加算算定可否を法的に保証するものではありません。** 取得候補・確認待ち項目・必要書類・増収目安を提示する**支援ツール**です。実際の届出・算定は所管自治体の指導課・社労士・行政書士にご確認ください。

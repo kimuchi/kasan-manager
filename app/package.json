@@ -1,6 +1,6 @@
 {
   "name": "kasan-manager-web",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "加算マネージャー Web版（Cloud Run対応）— 介護保険・障害福祉の加算取得支援AIツール",
   "main": "src/server.js",
   "type": "module",
@@ -16,8 +16,11 @@
     "dev": "node --watch src/server.js",
     "judge": "node bin/judge-kasan.js",
     "import-receipt": "node bin/import-receipt-pdf.js",
+    "setup:gcp": "node bin/setup-gcp.js",
+    "setup:domain": "node bin/setup-domain.js",
     "deploy:cloudrun": "node bin/deploy-cloudrun.js",
     "deploy:cloudrun:local": "node bin/deploy-cloudrun.js local",
+    "logs": "node bin/logs.js",
     "test:smoke": "node bin/smoke-test.js"
   },
   "dependencies": {

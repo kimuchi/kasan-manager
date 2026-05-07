@@ -339,7 +339,7 @@ export async function run({
   if (staffDataPath) {
     const staffData = await loadStaffData(staffDataPath);
     staffSummaryFacts = buildFactsFromStaffData(staffData, service);
-    staffSummaryDisplay = buildStaffSummaryDisplay(staffSummaryFacts);
+    staffSummaryDisplay = buildStaffSummaryDisplay(staffSummaryFacts, service);
   }
 
   let userSummaryFacts = {};
@@ -347,7 +347,7 @@ export async function run({
   if (userSummaryPath) {
     const userSummary = await loadUserSummary(userSummaryPath);
     userSummaryFacts = buildFactsFromUserSummary(userSummary, service);
-    userSummaryDisplay = buildUserSummaryDisplay(userSummaryFacts);
+    userSummaryDisplay = buildUserSummaryDisplay(userSummaryFacts, service);
   }
   facts = mergeRequirementFacts(facts, staffSummaryFacts, userSummaryFacts);
 

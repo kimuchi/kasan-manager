@@ -15,11 +15,17 @@ import { run } from '../src/services/judge.js';
 import { renderMarkdown } from '../src/services/markdown-report.js';
 
 function parseArgs(argv) {
+  // --flag=value / --flag value / --flag (boolean) に対応
   const out = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (!a.startsWith('--')) continue;
     const key = a.slice(2);
+    const eq = key.indexOf('=');
+    if (eq >= 0) {
+      out[key.slice(0, eq)] = key.slice(eq + 1);
+      continue;
+    }
     const next = argv[i + 1];
     if (next == null || next.startsWith('--')) {
       out[key] = true;
@@ -31,10 +37,18 @@ function parseArgs(argv) {
   return out;
 }
 
+const STATUS_FILTER_CHOICES = ['implemented', 'draft', 'planned'];
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.service) {
     console.error('ERROR: --service は必須です');
+    process.exit(1);
+  }
+  if (args['status-filter'] && !STATUS_FILTER_CHOICES.includes(String(args['status-filter']))) {
+    console.error(
+      `ERROR: --status-filter は ${STATUS_FILTER_CHOICES.join(' | ')} のいずれかを指定してください`,
+    );
     process.exit(1);
   }
 

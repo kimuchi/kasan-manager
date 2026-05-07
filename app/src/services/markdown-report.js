@@ -134,8 +134,9 @@ export function renderMarkdown(result) {
     L.push(`- 推定利用者数: **${ev.total_users_estimated || 0}名**`);
     const cl = ev.care_level_distribution || {};
     if (Object.keys(cl).length) {
+      // Python の sorted(dict.items()) と同じコードポイント順（要介護1, 要介護2, ... 要介護5）
       const parts = Object.entries(cl)
-        .sort((a, b) => a[0].localeCompare(b[0]))
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
         .map(([k, v]) => `${k}: ${v}名`);
       L.push(`- 要介護度分布: ${parts.join(' / ')}`);
     }
@@ -363,8 +364,11 @@ export function renderMarkdown(result) {
     for (const [k, v] of Object.entries(inquiry)) {
       if (['remaining_5_items', 'saseki_status', 'helper_count'].includes(k)) continue;
       if (v && typeof v === 'object' && 'current' in v) {
+        // Python の v.get('current', 0) と同じく null/undefined のときは 0 として表示
+        const cur = ((v.current ?? 0) * 100).toFixed(1);
+        const tgt = ((v.target ?? 0) * 100).toFixed(1);
         L.push(
-          `- ⏸ **${k}**: 現状${joinPercent(v.current)} / 目標${joinPercent(v.target)} — ${v.needed_subtraction_for_clear || ''}`,
+          `- ⏸ **${k}**: 現状${cur}% / 目標${tgt}% — ${v.needed_subtraction_for_clear || ''}`,
         );
       }
     }

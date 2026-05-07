@@ -8,6 +8,8 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+// Python 版との互換性: 既存 evidence JSON は v2026.05.06-alpha.4.4 (Python) で生成済の場合あり。
+// Node.js 版は同等のロジックだが extraction_version でランタイムを識別できるようにサフィックスを付与。
 export const EXTRACTION_VERSION = 'v2026.05.06-alpha.4.4-nodejs';
 
 export const SERVICE_CODE_MAPPING_STATUS = {
@@ -24,12 +26,12 @@ export const SERVICE_CODE_MAPPING_STATUS = {
   kyotaku_shien: {
     status: 'pattern_based_unverified',
     source: '社内資料 skills/regulatory/KYOTAKU_SHIEN.md + 加算マスタ kyotaku_shien.json + DEMO fixture',
-    note: '居宅介護支援のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。特定事業所加算(I)の40%要件は地域包括紹介除外などPDFのみでは確定できない。',
+    note: '居宅介護支援のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。特定事業所加算(I)の40%要件は地域包括紹介除外などPDFのみでは確定できない。帳票形式により抽出精度が変動する。',
   },
   houmon_kango_kaigo: {
     status: 'pattern_based_unverified',
     source: '社内資料 skills/regulatory/HOUMON_KANGO.md + 加算マスタ houmon_kango_kaigo.json + DEMO fixture',
-    note: '訪問看護（介護保険）のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。介護保険版のみ対応・医療保険版（訪問看護療養費）は別管理。',
+    note: '訪問看護（介護保険）のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。介護保険版のみ対応・医療保険版（訪問看護療養費）は別管理。帳票形式により抽出精度が変動する。',
   },
 };
 
@@ -161,7 +163,7 @@ export function analyzeText(text, serviceKey) {
   if (!(serviceKey in SERVICE_PATTERNS)) {
     return {
       warnings: [
-        `service_key=${serviceKey}はPDF取込未対応。tsusho_kaigo / houmon_kaigo / kyotaku_shien / houmon_kango_kaigo のみ対応。医療保険版（houmon_kango_iryo）は別管理で準備中。`,
+        `service_key=${serviceKey}はalpha.4.4ではPDF取込未対応。tsusho_kaigo / houmon_kaigo / kyotaku_shien / houmon_kango_kaigoのみ対応。医療保険版（houmon_kango_iryo）は別管理で準備中。`,
       ],
       current_kasan_counts: {},
       current_kasan_ratios: {},
@@ -247,10 +249,11 @@ export function analyzeText(text, serviceKey) {
     warnings.push('care_level: 要介護度を1件も抽出できず（PDFフォーマット要確認）');
   if (!kasanCounter.size && total > 0)
     warnings.push('kasan: 算定中加算を1件も抽出できず（PDFフォーマット要確認）');
-  if (unknownCodes.size)
-    warnings.push(
-      `unknown_service_code: 既知パターン外のサービスコードを検出 ${JSON.stringify([...unknownCodes].sort())}`,
-    );
+  if (unknownCodes.size) {
+    // Python の sorted(unknown_codes) と同じ「シングルクォート + カンマ＋空白」表記に合わせる
+    const formatted = `[${[...unknownCodes].sort().map((c) => `'${c}'`).join(', ')}]`;
+    warnings.push(`unknown_service_code: 既知パターン外のサービスコードを検出 ${formatted}`);
+  }
 
   const isKyotakuShien = serviceKey === 'kyotaku_shien';
   if (isKyotakuShien) {

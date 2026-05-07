@@ -1,27 +1,38 @@
 # =====================================================
 # 加算マネージャー Web版 — Cloud Run 用 Dockerfile
-# Node.js 20-alpine ベース。/regulatory_master を取り込んで起動。
+# Node.js 20-alpine + 加算マスタ JSON。Python 一切不要。
 # =====================================================
-FROM node:20-alpine AS base
+FROM node:20-alpine AS deps
 
-WORKDIR /workspace
-
-# regulatory_master / schemas / config はマスタとして読み込む
-COPY regulatory_master ./regulatory_master
-COPY schemas ./schemas
-COPY config ./config
-
-# アプリ
 WORKDIR /workspace/app
 COPY app/package.json app/package-lock.json* ./
 RUN npm ci --omit=dev
 
-COPY app ./
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /workspace
+
+# regulatory_master / schemas / config はマスタとして読み込む（非 root ユーザでも読める権限）
+COPY --chown=node:node regulatory_master ./regulatory_master
+COPY --chown=node:node schemas ./schemas
+COPY --chown=node:node config ./config
+
+WORKDIR /workspace/app
+COPY --chown=node:node --from=deps /workspace/app/node_modules ./node_modules
+COPY --chown=node:node app/package.json ./package.json
+COPY --chown=node:node app/src ./src
+COPY --chown=node:node app/public ./public
+COPY --chown=node:node app/bin ./bin
 
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOST=0.0.0.0
 EXPOSE 8080
 
-# Cloud Run は起動コマンドを CMD に従って呼び出す
+# Cloud Run は Dockerfile HEALTHCHECK を無視するが、ローカル docker run / Compose 互換のため残す
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
+
+USER node
 CMD ["node", "src/server.js"]

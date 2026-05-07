@@ -1,6 +1,6 @@
 {
   "name": "kasan-manager",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "加算マネージャー — 介護保険・障害福祉の加算取得支援AIツール（リポジトリルート）",
   "private": true,
   "engines": {
@@ -12,8 +12,11 @@
     "dev": "npm --prefix app run dev",
     "judge": "npm --prefix app run judge --silent --",
     "import-receipt": "npm --prefix app run import-receipt --silent --",
+    "setup:gcp": "npm --prefix app run setup:gcp --silent --",
+    "setup:domain": "npm --prefix app run setup:domain --silent --",
     "deploy:cloudrun": "npm --prefix app run deploy:cloudrun --silent",
     "deploy:cloudrun:local": "npm --prefix app run deploy:cloudrun:local --silent",
+    "logs": "npm --prefix app run logs --silent --",
     "test:smoke": "npm --prefix app run test:smoke --silent"
   }
 }

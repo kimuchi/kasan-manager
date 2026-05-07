@@ -298,14 +298,12 @@ export function evaluateRequirementLogic(logic, facts, itemMeta) {
 }
 
 export function buildFactsFromEvidence(evidence, tenantStatus) {
+  // evidence は {evidence: [...]} 形式 / フラット形式 / null のいずれでも受け付ける
   const facts = { receipt_pdf: {}, tenant_status: {} };
   if (evidence) {
-    let e = evidence;
-    if (Array.isArray(evidence.evidence) && evidence.evidence.length) {
-      e = evidence.evidence[0];
-    } else if (evidence.evidence) {
-      e = evidence;
-    }
+    const e = Array.isArray(evidence.evidence) && evidence.evidence.length
+      ? evidence.evidence[0]
+      : evidence;
     const keys = [
       'total_users_estimated', 'yokaigo_3plus_ratio', 'raw_yokaigo_3plus_ratio',
       'extraction_confidence', 'service_code_mapping_status',
@@ -482,7 +480,8 @@ export function mergeRequirementFacts(baseFacts, staffSummaryFacts, userSummaryF
   return out;
 }
 
-export function buildStaffSummaryDisplay(staffSummaryFacts) {
+// Python 版とのシグネチャ互換: serviceKey は受け取るが未使用（将来の service 別表示用に予約）
+export function buildStaffSummaryDisplay(staffSummaryFacts, _serviceKey = null) {
   if (!staffSummaryFacts) return {};
   const out = {};
   for (const [k, v] of Object.entries(staffSummaryFacts)) {
@@ -526,7 +525,8 @@ function userSummaryIsSafe(userSummary) {
   return !walk(userSummary);
 }
 
-export function buildFactsFromUserSummary(userSummary) {
+// Python 版とのシグネチャ互換: serviceKey は受け取るが未使用（将来の service 別 facts 拡張用に予約）
+export function buildFactsFromUserSummary(userSummary, _serviceKey = null) {
   const out = {};
   if (!userSummary) return out;
   if (userSummary.sample_policy !== 'public_demo_synthetic') return out;
@@ -558,7 +558,8 @@ export function buildFactsFromUserSummary(userSummary) {
   return out;
 }
 
-export function buildUserSummaryDisplay(userSummaryFacts) {
+// Python 版とのシグネチャ互換: serviceKey は受け取るが未使用
+export function buildUserSummaryDisplay(userSummaryFacts, _serviceKey = null) {
   if (!userSummaryFacts) return {};
   const out = {};
   for (const [k, v] of Object.entries(userSummaryFacts)) {

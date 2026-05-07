@@ -8,11 +8,17 @@ import path from 'node:path';
 import { runExtraction } from '../src/services/receipt-pdf.js';
 
 function parseArgs(argv) {
+  // --flag=value / --flag value / --flag (boolean) に対応
   const out = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (!a.startsWith('--')) continue;
     const key = a.slice(2);
+    const eq = key.indexOf('=');
+    if (eq >= 0) {
+      out[key.slice(0, eq)] = key.slice(eq + 1);
+      continue;
+    }
     const next = argv[i + 1];
     if (next == null || next.startsWith('--')) {
       out[key] = true;

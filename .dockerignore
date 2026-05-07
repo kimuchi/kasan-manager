@@ -2,7 +2,7 @@
 **/node_modules/
 **/npm-debug.log*
 
-# Env
+# Env / secrets
 .env
 .env.local
 .env.*.local
@@ -19,17 +19,12 @@
 .idea
 .DS_Store
 
-# 大きめのリリース・出力物（コンテナには不要）
-out/
-releases/
-docs/
+# テスト・サンプルデータ・ドキュメント（コンテナでは不要）
 tenant_data/
-scripts/
-__pycache__
-*.pyc
-*.pyo
-
-# Markdown / 設計書（コンテナでは不要、必要なら個別に COPY）
+docs/
 DESIGN_PHILOSOPHY.md
-README*.md
-STATUS.md
+README.md
+
+# トップレベルの開発用 package.json（app/package.json のみ使う）
+package.json
+package-lock.json

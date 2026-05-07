@@ -212,8 +212,8 @@ export async function analyzeOffice({
       dslResults[kasanKey] = evaluateRequirementLogic(kasanDef.requirement_logic, facts, itemMeta);
     }
     judgeResult.dsl_results = dslResults;
-    judgeResult.staff_summary_display = buildStaffSummaryDisplay(staffFacts);
-    judgeResult.user_summary_display = buildUserSummaryDisplay(userFacts);
+    judgeResult.staff_summary_display = buildStaffSummaryDisplay(staffFacts, service);
+    judgeResult.user_summary_display = buildUserSummaryDisplay(userFacts, service);
     judgeResult.staff_data_loaded = Boolean(inlineFiles.staff);
     judgeResult.user_summary_loaded = Boolean(inlineFiles.userSummary);
     judgeResult.demo_tenant_status_loaded = Boolean(inlineFiles.tenantStatus);
