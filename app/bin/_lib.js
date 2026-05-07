@@ -1,31 +1,15 @@
 // 全 bin スクリプトで使う共通 exec ユーティリティ。
-// Windows では gcloud / npm 等の実体が .cmd / .bat なので、Node の spawn が
-// PATHEXT を見ない問題に対処する（spawn ENOENT エラーの修正）。
+//
+// Windows の問題を 1 ライブラリで解決するため cross-spawn を使う:
+//   1) PATHEXT 解決 (gcloud → gcloud.cmd) を Node の spawn は行わない
+//   2) Node 18.20.2+/20.12.2+/21.7.2+ では .cmd/.bat を shell: true 無しで
+//      spawn すると EINVAL を投げる（CVE-2024-27980 対策）
+//   3) cmd.exe での引数エスケープ
+// cross-spawn は 上記すべてを自動でハンドルする。
 
-import { spawn } from 'node:child_process';
+import crossSpawn from 'cross-spawn';
 
-const IS_WINDOWS = process.platform === 'win32';
-
-// Windows で .cmd / .bat 拡張子が必要な CLI を解決する
-const WIN_EXT_MAP = {
-  gcloud: '.cmd',
-  npm: '.cmd',
-  npx: '.cmd',
-  node: '.exe',
-  // docker と git は通常 .exe で PATH 解決されるが念のため
-  docker: '.exe',
-  git: '.exe',
-};
-
-export function resolveCommand(cmd) {
-  if (!IS_WINDOWS) return cmd;
-  // 既に拡張子が付いていればそのまま
-  if (/\.(cmd|bat|exe|ps1)$/i.test(cmd)) return cmd;
-  const ext = WIN_EXT_MAP[cmd];
-  return ext ? `${cmd}${ext}` : cmd;
-}
-
-// 共通 exec ヘルパー。各 bin スクリプトの重複した spawn ラッパーを置き換える。
+// 共通 exec ヘルパー。各 bin スクリプトの spawn ラッパーとして使う。
 //
 // opts:
 //   captureOutput  bool   stdout/stderr を文字列で返す（インライン処理用）
@@ -33,9 +17,7 @@ export function resolveCommand(cmd) {
 //   allowFail      bool   非ゼロ終了でも reject せずに code を返す
 //   cwd            string 実行カレント
 //   env            object 追加の環境変数
-//   inherit        bool   stdio: 'inherit' を強制（既定は captureOutput / stdin で自動判定）
 export async function execCommand(cmd, args, opts = {}) {
-  const resolved = resolveCommand(cmd);
   const useStdin = typeof opts.stdin === 'string';
 
   let stdio;
@@ -44,7 +26,7 @@ export async function execCommand(cmd, args, opts = {}) {
   else stdio = 'inherit';
 
   return new Promise((resolve, reject) => {
-    const child = spawn(resolved, args, {
+    const child = crossSpawn(cmd, args, {
       stdio,
       cwd: opts.cwd,
       env: { ...process.env, ...(opts.env || {}) },
@@ -62,14 +44,13 @@ export async function execCommand(cmd, args, opts = {}) {
     }
 
     child.on('error', (err) => {
-      // ENOENT (コマンド未インストール) を分かりやすいメッセージで包む
       if (err.code === 'ENOENT') {
         reject(new Error(
           `${cmd} コマンドが見つかりません（spawn ENOENT）。\n` +
           `   ${cmd} がインストールされていて PATH に通っているか確認してください。\n` +
           (cmd === 'gcloud'
             ? `   Windows の場合は Google Cloud SDK を https://cloud.google.com/sdk/docs/install からインストールし、\n` +
-              `   インストーラ最後の "Run gcloud init" にチェックを入れて PATH を通してください。\n` +
+              `   インストーラ最後の "Add gcloud to PATH" にチェックを入れてください。\n` +
               `   インストール後は PowerShell / ターミナルを再起動してください（PATH 更新を反映するため）。`
             : ''),
         ));
