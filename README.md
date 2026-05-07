@@ -18,9 +18,9 @@
 git clone <repository-url>
 cd kasan-manager
 
-# 2. .env を作成して値を埋める
+# 2. .env を作成して値を埋める（GEMINI_API_KEY と GCP 関連のみで OK）
 cp .env.example .env
-# 編集: GCP_PROJECT_ID / GCP_REGION / CLOUD_RUN_SERVICE_NAME / CLOUD_RUN_CUSTOM_DOMAIN
+# 編集: GEMINI_API_KEY / GCP_PROJECT_ID / CLOUD_RUN_CUSTOM_DOMAIN
 
 # 3. 依存パッケージ
 npm run install:app
@@ -29,10 +29,10 @@ npm run install:app
 gcloud auth login
 gcloud auth application-default login
 
-# 5. プロビジョニング（API 有効化・Artifact Registry・Secret 作成・IAM 付与）
-npm run setup:gcp -- --gemini-key=<Gemini API キー>
+# 5. プロビジョニング（API 有効化・Artifact Registry・IAM 付与）
+npm run setup:gcp
 
-# 6. デプロイ
+# 6. デプロイ（.env の GEMINI_API_KEY を Cloud Run の環境変数として渡します）
 npm run deploy:cloudrun
 
 # 7. カスタムドメイン
@@ -40,6 +40,10 @@ npm run setup:domain -- --domain=kasan.example.jp
 # → 表示された CNAME / A レコードを DNS に登録
 # → 5〜60 分で証明書発行 → https://kasan.example.jp で公開
 ```
+
+> ℹ **`GEMINI_API_KEY` は `.env` で一元管理**。Cloud Run へのデプロイ時に
+> `gcloud run deploy --set-env-vars=GEMINI_API_KEY=...` で渡されます。Secret Manager は不要です
+> （高セキュリティ要件の場合は opt-in 可能。[DEPLOYMENT.md](./docs/DEPLOYMENT.md#8-secret-manager-連携opt-in) 参照）。
 
 詳細は [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) を参照。
 

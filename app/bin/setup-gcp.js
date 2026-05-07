@@ -4,14 +4,16 @@
 // このスクリプトは GCP プロジェクトを Cloud Run へ初めてデプロイする際に必要な
 // 1) API の有効化
 // 2) Artifact Registry リポジトリの作成
-// 3) Secret Manager に GEMINI_API_KEY を登録（既存値があればスキップ）
-// 4) Cloud Build の Cloud Run デプロイ権限の付与
+// 3) Cloud Build SA に Cloud Run / Artifact Registry の権限を付与
 // を冪等に実行する。.env を読み込むため、先に `.env` を作成しておくこと。
 //
+// 本構成では GEMINI_API_KEY は `.env` で管理し、`npm run deploy:cloudrun` 実行時に
+// `gcloud run deploy --set-env-vars=GEMINI_API_KEY=...` で Cloud Run へ渡す。
+// Secret Manager は使わない（必要なら --use-secret で従来挙動）。
+//
 // 使い方:
-//   npm run setup:gcp
-//   npm run setup:gcp -- --gemini-key=<api-key>     # Secret 登録もまとめて
-//   npm run setup:gcp -- --skip-secret              # Secret 登録は別途手動
+//   npm run setup:gcp                       # API 有効化 + Artifact Registry + IAM
+//   npm run setup:gcp -- --use-secret       # Secret Manager 連携を併用したい場合
 
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -31,10 +33,10 @@ const REQUIRED_APIS = [
   'run.googleapis.com',
   'cloudbuild.googleapis.com',
   'artifactregistry.googleapis.com',
-  'secretmanager.googleapis.com',
   'iamcredentials.googleapis.com',
   'compute.googleapis.com', // ロードバランサ経由の独自ドメインで使用
 ];
+const SECRET_MANAGER_API = 'secretmanager.googleapis.com';
 
 function parseArgs(argv) {
   const out = {};
@@ -99,10 +101,11 @@ async function getProjectNumber(projectId) {
   return r.stdout.trim();
 }
 
-async function enableApis(projectId) {
+async function enableApis(projectId, includeSecret) {
+  const apis = includeSecret ? [...REQUIRED_APIS, SECRET_MANAGER_API] : REQUIRED_APIS;
   console.log('▶ 必須 API を有効化（既に有効ならスキップされます）');
-  await exec('gcloud', ['services', 'enable', ...REQUIRED_APIS, '--project', projectId]);
-  console.log(`   有効化対象: ${REQUIRED_APIS.join(', ')}`);
+  await exec('gcloud', ['services', 'enable', ...apis, '--project', projectId]);
+  console.log(`   有効化対象: ${apis.join(', ')}`);
 }
 
 async function ensureRepo({ repo, region, projectId }) {
@@ -125,32 +128,27 @@ async function ensureRepo({ repo, region, projectId }) {
   }
 }
 
-async function ensureSecret({ secretName, projectId, geminiKey, skipSecret }) {
-  if (skipSecret) {
-    console.log('▶ --skip-secret 指定により Secret Manager の処理をスキップ');
-    return;
-  }
+async function ensureSecretOptIn({ secretName, projectId, geminiKey }) {
+  console.log('▶ Secret Manager 連携が要求されました（--use-secret）');
   const exists = await exec('gcloud', ['secrets', 'describe', secretName, '--project', projectId], {
     captureOutput: true,
     allowFail: true,
   });
   if (exists.code !== 0) {
-    console.log(`▶ Secret Manager に "${secretName}" を作成`);
+    console.log(`   Secret "${secretName}" を作成`);
     await exec('gcloud', [
       'secrets', 'create', secretName,
       '--replication-policy=automatic',
       `--project=${projectId}`,
     ]);
   } else {
-    console.log(`▶ Secret Manager に "${secretName}" 既に存在`);
+    console.log(`   Secret "${secretName}" 既に存在`);
   }
 
   let key = geminiKey;
   if (!key) {
     const rl = readline.createInterface({ input: stdin, output: stdout });
-    const ans = (await rl.question(
-      `Gemini API キーを今すぐ Secret Manager に保存しますか？ (空 Enter でスキップ): `,
-    )).trim();
+    const ans = (await rl.question('   Gemini API キーを今すぐ Secret に保存しますか？ (空 Enter でスキップ): ')).trim();
     rl.close();
     if (!ans) {
       console.log('   Secret 登録をスキップしました。後で `gcloud secrets versions add` で登録してください。');
@@ -158,16 +156,15 @@ async function ensureSecret({ secretName, projectId, geminiKey, skipSecret }) {
     }
     key = ans;
   }
-  console.log('▶ Secret に新しいバージョンを登録');
   await exec(
     'gcloud',
     ['secrets', 'versions', 'add', secretName, '--data-file=-', '--project', projectId],
     { stdin: key },
   );
+  console.log('   Secret に新しいバージョンを登録しました');
 }
 
-async function grantCloudBuildRoles({ projectId, projectNumber, secretName }) {
-  // Cloud Build SA に Cloud Run / SA User / Secret アクセス権を付与
+async function grantCloudBuildRoles({ projectId, projectNumber, includeSecret, secretName }) {
   const cbServiceAccount = `${projectNumber}@cloudbuild.gserviceaccount.com`;
   const computeServiceAccount = `${projectNumber}-compute@developer.gserviceaccount.com`;
   console.log(`▶ Cloud Build SA (${cbServiceAccount}) に Cloud Run デプロイ権限を付与`);
@@ -191,21 +188,22 @@ async function grantCloudBuildRoles({ projectId, projectNumber, secretName }) {
     if (r.code !== 0) console.warn(`   ⚠️  ${role} の付与に失敗: ${r.stderr.trim()}`);
   }
 
-  // Secret アクセス権（Cloud Run の実行 SA = compute SA に付与）
-  const secretAccessor = await exec(
-    'gcloud',
-    [
-      'secrets', 'add-iam-policy-binding', secretName,
-      `--member=serviceAccount:${computeServiceAccount}`,
-      '--role=roles/secretmanager.secretAccessor',
-      '--project', projectId,
-    ],
-    { captureOutput: true, allowFail: true },
-  );
-  if (secretAccessor.code !== 0) {
-    console.warn(`   ⚠️  Secret アクセス権の付与に失敗。デプロイ後に Cloud Run が Secret を参照できない場合は手動で付与してください: ${secretAccessor.stderr.trim()}`);
-  } else {
-    console.log(`   Secret 読み取り権限を ${computeServiceAccount} に付与済`);
+  if (includeSecret) {
+    const r = await exec(
+      'gcloud',
+      [
+        'secrets', 'add-iam-policy-binding', secretName,
+        `--member=serviceAccount:${computeServiceAccount}`,
+        '--role=roles/secretmanager.secretAccessor',
+        '--project', projectId,
+      ],
+      { captureOutput: true, allowFail: true },
+    );
+    if (r.code !== 0) {
+      console.warn(`   ⚠️  Secret アクセス権の付与に失敗: ${r.stderr.trim()}`);
+    } else {
+      console.log(`   Secret 読み取り権限を ${computeServiceAccount} に付与済`);
+    }
   }
 }
 
@@ -218,11 +216,13 @@ async function main() {
   if (!projectId) fail('GCP_PROJECT_ID が .env で未設定です');
   const region = process.env.GCP_REGION || 'asia-northeast1';
   const repo = process.env.GCP_ARTIFACT_REPO || 'kasan-manager';
-  const secretName = process.env.CLOUD_RUN_SECRET_NAME || 'gemini-api-key';
 
   const args = parseArgs(process.argv);
+  const useSecret = Boolean(args['use-secret']);
+  const secretName = process.env.CLOUD_RUN_SECRET_NAME || 'gemini-api-key';
 
   console.log(`▶ プロジェクト: ${projectId} / リージョン: ${region}`);
+  console.log(`▶ Gemini API キー管理: ${useSecret ? 'Secret Manager（--use-secret 指定）' : '.env による直接渡し'}`);
 
   await ensureGcloud();
   await ensureLoggedIn();
@@ -230,19 +230,24 @@ async function main() {
   const projectNumber = await getProjectNumber(projectId);
   console.log(`▶ プロジェクト番号: ${projectNumber}`);
 
-  await enableApis(projectId);
+  await enableApis(projectId, useSecret);
   await ensureRepo({ repo, region, projectId });
-  await ensureSecret({
-    secretName,
-    projectId,
-    geminiKey: typeof args['gemini-key'] === 'string' ? args['gemini-key'] : null,
-    skipSecret: Boolean(args['skip-secret']),
-  });
-  await grantCloudBuildRoles({ projectId, projectNumber, secretName });
+  if (useSecret) {
+    const geminiKeyArg = typeof args['gemini-key'] === 'string' ? args['gemini-key'] : null;
+    await ensureSecretOptIn({ secretName, projectId, geminiKey: geminiKeyArg });
+  }
+  await grantCloudBuildRoles({ projectId, projectNumber, includeSecret: useSecret, secretName });
 
   console.log('');
   console.log('✅ プロビジョニング完了。次のコマンドでデプロイできます:');
   console.log('   npm run deploy:cloudrun');
+  console.log('');
+  if (!useSecret) {
+    console.log('ℹ  GEMINI_API_KEY は .env から読み込み、デプロイ時に Cloud Run の環境変数として渡されます。');
+    console.log('   .env を最新の値にしてから deploy を実行してください。');
+  } else {
+    console.log('ℹ  Secret Manager 連携モードです。デプロイ時に --use-secret フラグを併用してください。');
+  }
   console.log('');
   console.log('カスタムドメインを設定する場合は:');
   console.log('   npm run setup:domain -- --domain=kasan.example.jp');

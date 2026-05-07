@@ -154,7 +154,7 @@ API レスポンス（JSON）を直接欲しい場合は、ブラウザのデベ
 ## 5. よくある質問
 
 **Q. 「Gemini API キー未設定」と表示される**
-A. Cloud Run 側に Gemini API キーが渡っていません。管理者に Secret Manager の登録を依頼してください（[デプロイマニュアル](./DEPLOYMENT.md) 参照）。
+A. Cloud Run 側に Gemini API キーが渡っていません。管理者に `.env` の更新と再デプロイ（`npm run deploy:cloudrun -- --skip-build`）を依頼してください（[デプロイマニュアル](./DEPLOYMENT.md) 参照）。
 
 **Q. PDF をアップロードしても加算が検出されない**
 A. レセプト帳票の形式（介護ソフトベンダー差異・自治体差異）により抽出精度が変動します。PDF 検出ゼロ ≠ 未算定 です。判定エンジンが `not_detected_in_pdf` を表示した場合は、要件マスタ側で取得候補があるかを確認してください。
