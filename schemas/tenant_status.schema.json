@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "tenant_status",
+  "description": "事業所別ステータスJSON。テナント運用データ。",
+  "type": "object",
+  "required": ["_meta", "requirement_status"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["schema", "office_code", "service_key", "tenant_id"],
+      "properties": {
+        "schema": {"const": "tenant_status"},
+        "schema_version": {"type": "string"},
+        "office_code": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "office_name": {"type": "string"},
+        "service_key": {"type": "string"},
+        "tenant_id": {"type": "string"},
+        "as_of": {"type": "string"},
+        "owner": {"type": "string"},
+        "updated": {"type": "string"}
+      }
+    },
+    "inquiry": {"type": "object"},
+    "requirement_status": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z0-9_]+$": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": {"type": "string", "enum": ["clear", "waiting", "not_clear", "unknown"]},
+            "value": {},
+            "note": {"type": "string"},
+            "linked_inquiry": {"type": "string"},
+            "evidence": {"type": "string"}
+          }
+        }
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "event"],
+        "properties": {
+          "date": {"type": "string"},
+          "event": {"type": "string"},
+          "owner": {"type": "string"}
+        }
+      }
+    }
+  }
+}

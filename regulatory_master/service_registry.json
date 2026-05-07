@@ -1,0 +1,133 @@
+{
+  "_meta": {
+    "schema": "service_registry",
+    "schema_version": "1.0",
+    "updated": "2026-05-06",
+    "description": "CareLinker加算チェッカーがサポートする全サービスのレジストリ。domain/payer/statusで検索可能。"
+  },
+  "services": [
+    {
+      "service_key": "tsusho_kaigo",
+      "display_name": "通所介護",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken",
+      "status": "implemented",
+      "master_file": "regulatory_master/kaigo/tsusho_kaigo.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_2024_04",
+      "source_required": false
+    },
+    {
+      "service_key": "kyotaku_shien",
+      "display_name": "居宅介護支援",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken",
+      "status": "implemented",
+      "master_file": "regulatory_master/kaigo/kyotaku_shien.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_2024_04_plus_2026_06_shougu",
+      "source_required": false
+    },
+    {
+      "service_key": "houmon_kaigo",
+      "display_name": "訪問介護",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken",
+      "status": "implemented",
+      "master_file": "regulatory_master/kaigo/houmon_kaigo.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_2024_04",
+      "source_required": false
+    },
+    {
+      "service_key": "houmon_kango_kaigo",
+      "display_name": "訪問看護（介護保険）",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken",
+      "status": "implemented",
+      "master_file": "regulatory_master/kaigo/houmon_kango_kaigo.json",
+      "effective_from": "2024-06-01",
+      "revision_tag": "R6_2024_06_plus_2026_06_shougu_alpha4_5",
+      "source_required": false,
+      "source_required_count": 0,
+      "implemented_scope": "all_kasans_checked",
+      "_scope_note": "全加算 checked（alpha.4.5でWAM NETサービスコード表に基づき残3件を確認・昇格または対象外確定）。複数名訪問看護加算Ⅰ/Ⅱ×30分未満/30分以上の4件＋長時間訪問看護加算 checked昇格、認知症専門ケア加算は訪問看護では算定対象外と確定。"
+    },
+    {
+      "service_key": "shokibo_takino",
+      "display_name": "小規模多機能型居宅介護",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken",
+      "status": "draft",
+      "master_file": "regulatory_master/kaigo/shokibo_takino.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_2024_04",
+      "source_required": true
+    },
+    {
+      "service_key": "tokuyo",
+      "display_name": "特別養護老人ホーム",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken",
+      "status": "planned",
+      "master_file": "regulatory_master/kaigo/tokuyo.json",
+      "effective_from": null,
+      "revision_tag": null,
+      "source_required": true
+    },
+    {
+      "service_key": "houmon_kango_iryo",
+      "display_name": "訪問看護（医療保険）",
+      "domain": "medical",
+      "payer": "medical_hoken",
+      "status": "draft",
+      "master_file": "regulatory_master/medical/houmon_kango_iryo.json",
+      "effective_from": "2024-06-01",
+      "revision_tag": "R6_iryou_2024_06",
+      "source_required": true
+    },
+    {
+      "service_key": "kyotaku_kaigo_shogai",
+      "display_name": "居宅介護（障害福祉）",
+      "domain": "disability",
+      "payer": "disability_welfare",
+      "status": "draft",
+      "master_file": "regulatory_master/disability/kyotaku_kaigo_shogai.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_shogai_2024_04",
+      "source_required": true
+    },
+    {
+      "service_key": "shugyo_keizoku_a",
+      "display_name": "就労継続支援A型",
+      "domain": "disability",
+      "payer": "disability_welfare",
+      "status": "draft",
+      "master_file": "regulatory_master/disability/shugyo_keizoku_a.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_shogai_2024_04",
+      "source_required": true
+    },
+    {
+      "service_key": "shugyo_keizoku_b",
+      "display_name": "就労継続支援B型",
+      "domain": "disability",
+      "payer": "disability_welfare",
+      "status": "draft",
+      "master_file": "regulatory_master/disability/shugyo_keizoku_b.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_shogai_2024_04",
+      "source_required": true
+    }
+  ],
+  "domains": {
+    "kaigo": {"display_name": "介護保険", "payer_default": "kaigo_hoken"},
+    "medical": {"display_name": "医療保険", "payer_default": "medical_hoken"},
+    "disability": {"display_name": "障害福祉", "payer_default": "disability_welfare"}
+  },
+  "statuses": {
+    "implemented": "実装済み・本番判定可",
+    "draft": "スケルトンあり・要件は source_required=true で未確定",
+    "planned": "登録のみ・マスタ未着手"
+  }
+}

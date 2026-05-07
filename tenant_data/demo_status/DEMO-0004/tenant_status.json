@@ -1,0 +1,25 @@
+{
+  "office_code": "DEMO-0004",
+  "service_key": "tsusho_kaigo",
+  "status_version": "v2026.05.06-alpha.5.2",
+  "sample_policy": "public_demo_synthetic",
+  "facts": {
+    "tenant_status.kango_kaigo_2nin_kahai.status": "clear",
+    "tenant_status.kango_jikantai_haichi.status": "missing"
+  },
+  "evidence_metadata": {
+    "tenant_status.kango_kaigo_2nin_kahai.status": {
+      "evidence_label": "看護介護職員2名以上加配",
+      "last_checked_date": "2026-05-06"
+    },
+    "tenant_status.kango_jikantai_haichi.status": {
+      "evidence_label": "看護職員時間帯配置",
+      "evidence_available": false,
+      "public_note": "DEMO設定: 専従看護職員の時間帯配置未確認の状態を再現"
+    }
+  },
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "実事業所の届出状況・職員情報・利用者情報ではありません。"
+  ]
+}

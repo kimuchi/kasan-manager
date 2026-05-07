@@ -1,0 +1,31 @@
+{
+  "office_code": "DEMO-0007",
+  "service_key": "houmon_kango_kaigo",
+  "status_version": "v2026.05.06-alpha.5.2",
+  "sample_policy": "public_demo_synthetic",
+  "facts": {
+    "tenant_status.kinkyu_houmon_todoke.status": "clear",
+    "tenant_status.joji_taiou_taisei.status": "clear",
+    "tenant_status.kinkyu_kango_setsumei_doui.status": "missing"
+  },
+  "evidence_metadata": {
+    "tenant_status.kinkyu_houmon_todoke.status": {
+      "evidence_label": "緊急時訪問看護加算 届出書",
+      "last_checked_date": "2026-05-06"
+    },
+    "tenant_status.joji_taiou_taisei.status": {
+      "evidence_label": "24時間連絡体制マニュアル",
+      "last_checked_date": "2026-05-06"
+    },
+    "tenant_status.kinkyu_kango_setsumei_doui.status": {
+      "evidence_label": "担当看護師指定 利用者同意書",
+      "evidence_available": false,
+      "public_note": "DEMO設定: 担当看護師指定の同意書整備が一部未了の状態を再現"
+    }
+  },
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "実事業所の届出状況・職員情報・利用者情報ではありません。",
+    "訪問看護(介護保険)版のみ対応。医療保険版とは別管理です。"
+  ]
+}

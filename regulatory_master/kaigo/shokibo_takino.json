@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "service_key": "shokibo_takino",
+    "display_name": "小規模多機能型居宅介護",
+    "domain": "kaigo",
+    "payer": "kaigo_hoken",
+    "service_code_prefix": "73",
+    "version": "0.1.0",
+    "effective_from": "2024-04-01",
+    "updated": "2026-05-06",
+    "revision_tag": "R6_2024_04",
+    "source": "指定地域密着型サービスの事業の人員・設備・運営基準 / 指定地域密着型サービスに要する費用の額の算定に関する基準 / 大臣基準告示 / R6改定",
+    "source_status": "source_required",
+    "_note": "未実装。基本報酬は要介護度別・登録定員別。看護職員配置加算・若年性認知症利用者受入加算・看取り連携体制加算・生活機能向上連携加算・口腔栄養スクリーニング加算等を要調査。"
+  },
+  "kasans": {}
+}
