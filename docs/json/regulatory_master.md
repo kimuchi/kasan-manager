@@ -57,7 +57,7 @@
 npm run validate:json -- --kind regulatory_master --input regulatory_master/kaigo/tsusho_kaigo.json
 ```
 
-スキーマ: [regulatory_master.schema.json](/docs/raw/../schemas/regulatory_master.schema.json)
+スキーマ: [regulatory_master.schema.json](/schemas/regulatory_master.schema.json)
 
 ## 関連
 

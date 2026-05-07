@@ -8,13 +8,13 @@
 
 | JSON | 用途 | 個人情報 | スキーマ |
 |---|---|---:|---|
-| [`tenant_status.json`](./tenant_status.md) | 事業所別の要件確認状態 | 原則なし | [schema](/docs/raw/../schemas/tenant_status.schema.json) |
-| [`staff.json`](./staff.md) | 職員・資格・常勤換算 | あり得る | [schema](/docs/raw/../schemas/staff.schema.json) |
-| [`user.json`](./user.md) | 利用者個別状態 | あり得る | [schema](/docs/raw/../schemas/user.schema.json) |
-| [`user_summary.json`](./user_summary.md) | 利用者集計 | なし | [schema](/docs/raw/../schemas/user_summary.schema.json) |
-| [`evidence.json`](./evidence.md) | PDF/請求等の証跡集計 | なし | [schema](/docs/raw/../schemas/evidence.schema.json) |
-| [`regulatory_master.json`](./regulatory_master.md) | 加算マスタ | なし | [schema](/docs/raw/../schemas/regulatory_master.schema.json) |
-| [`cpos_export_bundle.json`](./cpos_export_bundle.md) | CPOS 連携用集約形式 | なし | [schema](/docs/raw/../schemas/cpos_export_bundle.schema.json) |
+| [`tenant_status.json`](./tenant_status.md) | 事業所別の要件確認状態 | 原則なし | [schema](/schemas/tenant_status.schema.json) |
+| [`staff.json`](./staff.md) | 職員・資格・常勤換算 | あり得る | [schema](/schemas/staff.schema.json) |
+| [`user.json`](./user.md) | 利用者個別状態 | あり得る | [schema](/schemas/user.schema.json) |
+| [`user_summary.json`](./user_summary.md) | 利用者集計 | なし | [schema](/schemas/user_summary.schema.json) |
+| [`evidence.json`](./evidence.md) | PDF/請求等の証跡集計 | なし | [schema](/schemas/evidence.schema.json) |
+| [`regulatory_master.json`](./regulatory_master.md) | 加算マスタ | なし | [schema](/schemas/regulatory_master.schema.json) |
+| [`cpos_export_bundle.json`](./cpos_export_bundle.md) | CPOS 連携用集約形式 | なし | [schema](/schemas/cpos_export_bundle.schema.json) |
 
 ## 推奨匿名化レベル
 

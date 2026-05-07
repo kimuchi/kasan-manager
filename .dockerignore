@@ -19,11 +19,11 @@
 .idea
 .DS_Store
 
-# テスト・サンプルデータ・ドキュメント（コンテナでは不要）
+# テスト・サンプルデータ（コンテナでは不要）
 tenant_data/
-docs/
 DESIGN_PHILOSOPHY.md
 README.md
+# docs/ は意図的にコンテナへ含める（/docs/* で配信するため）
 
 # トップレベルの開発用 package.json（app/package.json のみ使う）
 package.json

@@ -75,7 +75,7 @@
 npm run validate:json -- --kind tenant_status --input path/to/tenant_status.json
 ```
 
-スキーマ: [tenant_status.schema.json](/docs/raw/../schemas/tenant_status.schema.json)
+スキーマ: [tenant_status.schema.json](/schemas/tenant_status.schema.json)
 
 ## CPOS から自動生成される場合のマッピング
 

@@ -73,7 +73,7 @@
 npm run validate:json -- --kind evidence --input path/to/evidence.json
 ```
 
-スキーマ: [evidence.schema.json](/docs/raw/../schemas/evidence.schema.json)
+スキーマ: [evidence.schema.json](/schemas/evidence.schema.json)
 
 ## 関連
 

@@ -13,10 +13,11 @@ FROM node:20-alpine AS runtime
 
 WORKDIR /workspace
 
-# regulatory_master / schemas / config はマスタとして読み込む（非 root ユーザでも読める権限）
+# regulatory_master / schemas / config はマスタとして読み込む。docs は /docs/* で配信。
 COPY --chown=node:node regulatory_master ./regulatory_master
 COPY --chown=node:node schemas ./schemas
 COPY --chown=node:node config ./config
+COPY --chown=node:node docs ./docs
 
 WORKDIR /workspace/app
 COPY --chown=node:node --from=deps /workspace/app/node_modules ./node_modules

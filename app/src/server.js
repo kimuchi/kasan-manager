@@ -75,6 +75,16 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // 静的ファイル（CSS/JS/画像）
 app.use(express.static(path.join(APP_ROOT, 'public'), { maxAge: '5m' }));
 
+// /schemas/*.json を読み取り専用で配信（ドキュメントから参照可能にする）
+const PROJECT_ROOT_FOR_SCHEMA = path.resolve(APP_ROOT, '..');
+app.use(
+  '/schemas',
+  express.static(path.join(PROJECT_ROOT_FOR_SCHEMA, 'schemas'), {
+    maxAge: '5m',
+    extensions: ['json'],
+  }),
+);
+
 // /docs/* で Markdown ドキュメントを HTML 配信
 app.use('/docs', docsRouter);
 
@@ -110,9 +120,15 @@ app.get('/api/health', (req, res) => {
       min_score: recaptchaConfig.min_score,
     },
     cpos: {
-      enabled: isSessionSecretConfigured(),
-      default_base_url: defaultBaseUrl(),
+      // panel_visible: 連携機能の存在をユーザに知らせるため、常に true。実際にログインできるかは ready で判断
+      panel_visible: true,
+      // ready: PAT 入力 → 接続まで完了できるサーバ設定が整っているか
+      ready: isSessionSecretConfigured(),
       session_secret_configured: isSessionSecretConfigured(),
+      default_base_url: defaultBaseUrl(),
+      not_ready_message: isSessionSecretConfigured()
+        ? null
+        : 'CPOS 連携にはサーバ管理者が KASAN_SESSION_SECRET を設定する必要があります。',
     },
     csrf: {
       cookie_name: CSRF_COOKIE_NAME,

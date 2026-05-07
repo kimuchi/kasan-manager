@@ -99,7 +99,7 @@
 npm run validate:json -- --kind staff --input path/to/staff.json
 ```
 
-スキーマ: [staff.schema.json](/docs/raw/../schemas/staff.schema.json)
+スキーマ: [staff.schema.json](/schemas/staff.schema.json)
 
 ## CPOS から自動生成される場合のマッピング
 

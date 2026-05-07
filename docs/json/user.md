@@ -51,7 +51,7 @@
 npm run validate:json -- --kind user --input path/to/user.json
 ```
 
-スキーマ: [user.schema.json](/docs/raw/../schemas/user.schema.json)
+スキーマ: [user.schema.json](/schemas/user.schema.json)
 
 ## CPOS から自動生成される場合
 

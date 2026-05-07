@@ -34,8 +34,19 @@
       <section id="cpos-section" class="card cpos-card hidden">
         <h2>🔐 CPOS と連携して分析する（任意）</h2>
 
+        <!-- サーバ側で連携が無効になっている場合の案内 -->
+        <div id="cpos-not-ready-panel" class="hidden">
+          <p class="lead">
+            CPOS 連携は管理者により未設定です。サーバ側で <code>KASAN_SESSION_SECRET</code> を設定するとこのパネルから PAT 入力が可能になります。
+          </p>
+          <p class="hint" id="cpos-not-ready-message"></p>
+          <p class="hint">
+            手順は <a href="/docs/CPOS_TOKEN.md" target="_blank">CPOS PAT 接続ガイド</a> を参照してください。
+          </p>
+        </div>
+
         <!-- 未接続パネル: PAT 入力 -->
-        <div id="cpos-disconnected-panel">
+        <div id="cpos-disconnected-panel" class="hidden">
           <p class="lead">
             あなた個人の <strong>CPOS API トークン</strong>（cpos_pat_...）を入力すると、
             あなたの権限内の事業所データを CPOS から取得して分析できます。

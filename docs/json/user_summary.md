@@ -73,7 +73,7 @@
 npm run validate:json -- --kind user_summary --input path/to/user_summary.json
 ```
 
-スキーマ: [user_summary.schema.json](/docs/raw/../schemas/user_summary.schema.json)
+スキーマ: [user_summary.schema.json](/schemas/user_summary.schema.json)
 
 ## CPOS から自動生成される場合のマッピング
 
