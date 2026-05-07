@@ -1,0 +1,150 @@
+{
+  "_meta": {
+    "schema": "cpos_addon_mapping",
+    "schemaVersion": "1.0",
+    "updated": "2026-05-07",
+    "description": "CPOS の addOnKey / addOnName / serviceCode を 加算マネージャの kasan_key（regulatory_master 配下）にマッピングするテーブル。CPOS の /api/billing/v1/addon-summary などで使われる。"
+  },
+  "mappings": [
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "nyuyoku_I",
+      "cpos_addon_keys": ["nyuyoku_kaijo_i", "nyuyoku_I"],
+      "aliases": ["入浴介助加算I", "入浴介助加算Ⅰ"],
+      "service_code_patterns": ["155301"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "nyuyoku_II",
+      "cpos_addon_keys": ["nyuyoku_kaijo_ii", "nyuyoku_II"],
+      "aliases": ["入浴介助加算II", "入浴介助加算Ⅱ"],
+      "service_code_patterns": ["155302"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "kobetsu_kinou_I_i",
+      "cpos_addon_keys": ["individual_function_training_i", "kobetsu_kinou_I_i"],
+      "aliases": ["個別機能訓練加算I(イ)", "個別機能訓練加算Ⅰ(イ)"],
+      "service_code_patterns": ["155051"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "kobetsu_kinou_I_ro",
+      "cpos_addon_keys": ["individual_function_training_i_ro", "kobetsu_kinou_I_ro"],
+      "aliases": ["個別機能訓練加算I(ロ)", "個別機能訓練加算Ⅰ(ロ)"],
+      "service_code_patterns": ["155053"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "kobetsu_kinou_II_life",
+      "cpos_addon_keys": ["individual_function_training_ii", "kobetsu_kinou_II"],
+      "aliases": ["個別機能訓練加算II", "個別機能訓練加算Ⅱ"],
+      "service_code_patterns": ["155052"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "koukuu_kinou_I",
+      "cpos_addon_keys": ["oral_function_improvement_i", "koukuu_kinou_I"],
+      "aliases": ["口腔機能向上加算I", "口腔機能向上加算Ⅰ"],
+      "service_code_patterns": ["155501"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "eiyou_assessment",
+      "cpos_addon_keys": ["nutrition_assessment", "eiyou_assessment"],
+      "aliases": ["栄養アセスメント加算"],
+      "service_code_patterns": ["156116"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "eiyou_kaizen",
+      "cpos_addon_keys": ["nutrition_improvement", "eiyou_kaizen"],
+      "aliases": ["栄養改善加算"],
+      "service_code_patterns": ["156112"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "kagakuteki_kaigo",
+      "cpos_addon_keys": ["scientific_care_promotion", "kagakuteki_kaigo"],
+      "aliases": ["科学的介護推進体制加算"],
+      "service_code_patterns": ["156361"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "tsusho_kaigo",
+      "cpos_service_type_code": "15",
+      "kasan_key": "chujudosha_care_taisei",
+      "cpos_addon_keys": ["medium_severe_care_system", "chujudosha_care_taisei"],
+      "aliases": ["中重度者ケア体制加算"],
+      "service_code_patterns": ["156271"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "houmon_kaigo",
+      "cpos_service_type_code": "11",
+      "kasan_key": "tokutei_jigyousho_I",
+      "cpos_addon_keys": ["specified_office_i", "tokutei_jigyousho_I"],
+      "aliases": ["特定事業所加算I", "特定事業所加算Ⅰ"],
+      "service_code_patterns": ["116100"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "houmon_kaigo",
+      "cpos_service_type_code": "11",
+      "kasan_key": "shokai_kasan",
+      "cpos_addon_keys": ["initial_addon", "shokai_kasan"],
+      "aliases": ["初回加算"],
+      "service_code_patterns": ["116200"],
+      "confidence": "manual_checked",
+      "notes": ""
+    },
+    {
+      "service_key": "kyotaku_shien",
+      "cpos_service_type_code": "43",
+      "kasan_key": "tokutei_jigyousho_I",
+      "cpos_addon_keys": ["specified_office_i", "tokutei_jigyousho_I"],
+      "aliases": ["特定事業所加算I", "特定事業所加算Ⅰ"],
+      "service_code_patterns": ["438100"],
+      "confidence": "manual_checked",
+      "notes": "居宅介護支援"
+    },
+    {
+      "service_key": "houmon_kango_kaigo",
+      "cpos_service_type_code": "13",
+      "kasan_key": "kango_taisei_kyouka_kasan_I",
+      "cpos_addon_keys": ["nursing_system_strengthening_i", "kango_taisei_I"],
+      "aliases": ["看護体制強化加算I", "看護体制強化加算Ⅰ"],
+      "service_code_patterns": ["136400"],
+      "confidence": "manual_checked",
+      "notes": ""
+    }
+  ]
+}

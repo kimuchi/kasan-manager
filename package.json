@@ -12,6 +12,8 @@
     "dev": "npm --prefix app run dev",
     "judge": "npm --prefix app run judge --silent --",
     "import-receipt": "npm --prefix app run import-receipt --silent --",
+    "cpos:bootstrap": "npm --prefix app run cpos:bootstrap --silent --",
+    "cpos:analyze": "npm --prefix app run cpos:analyze --silent --",
     "setup:gcp": "npm --prefix app run setup:gcp --silent --",
     "setup:domain": "npm --prefix app run setup:domain --silent --",
     "deploy:cloudrun": "npm --prefix app run deploy:cloudrun --silent",

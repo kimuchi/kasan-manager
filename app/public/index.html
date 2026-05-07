@@ -23,6 +23,34 @@
     </header>
 
     <main>
+      <section id="cpos-section" class="card cpos-card hidden">
+        <h2>🔗 CPOS データで分析する</h2>
+        <p class="lead">
+          CPOS（介護記録・請求基盤）に接続済みです。事業所と対象月を選ぶと、利用者・職員・請求の集計を取得して、加算分析にそのまま使えます。
+          <strong>個人情報はサーバ間でのみやりとりされ、ブラウザには送られません。</strong>
+        </p>
+        <div class="grid">
+          <div class="field">
+            <label for="cpos_facility">事業所（CPOS から取得）</label>
+            <select id="cpos_facility">
+              <option value="">— 読み込み中 —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cpos_month">対象月（YYYY-MM）</label>
+            <input type="month" id="cpos_month" />
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button id="cpos-analyze-btn" class="primary-btn cpos-btn">
+              <span class="btn-icon">▶</span>
+              <span>CPOS データで判定する</span>
+            </button>
+          </div>
+        </div>
+        <p class="hint" id="cpos-status-hint">CPOS 接続: 未確認</p>
+      </section>
+
       <section class="card">
         <h2>1. 分析するサービスを選ぶ</h2>
         <p class="lead">介護保険の通所介護・訪問介護のほか、障害福祉の就労継続支援などにも対応しています。</p>

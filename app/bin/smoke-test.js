@@ -26,6 +26,16 @@ import {
 } from '../src/services/judge.js';
 import { renderMarkdown } from '../src/services/markdown-report.js';
 import { listServices, loadMaster, summarizeKasansForPrompt } from '../src/services/regulator.js';
+import {
+  toEngineInputs as toCposEngineInputs,
+  loadAddonMapping,
+  resolveKasanKey,
+  inferServiceKey,
+} from '../src/services/cpos/transform.js';
+import { validateAnalysisSource, validateBootstrap } from '../src/services/cpos/schemas.js';
+import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
+import { isConfigured as isCposConfigured } from '../src/services/cpos/client.js';
+import { readFile } from 'node:fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -294,6 +304,125 @@ await test('Regulator: 障害福祉のマスタが拡充されている', async 
   const summary = summarizeKasansForPrompt(m);
   assert.ok(summary.includes('目標工賃達成指導員配置加算'));
   assert.ok(summary.includes('ピアサポート'));
+});
+
+// =====================================================================
+// CPOS 連携: フィクスチャベース（live API は呼ばない）
+// =====================================================================
+const FIXTURE_PATH = path.join(__dirname, '..', 'tests', 'fixtures', 'cpos_analysis_source.sample.json');
+
+await test('CPOS: errors / config types を読み込める', () => {
+  assert.ok(CposApiError);
+  assert.ok(CposNotConfiguredError);
+  // CPOS_BASE_URL 未設定なら isConfigured は false
+  const original = process.env.CPOS_BASE_URL;
+  delete process.env.CPOS_BASE_URL;
+  try {
+    assert.equal(isCposConfigured(), false);
+  } finally {
+    if (original) process.env.CPOS_BASE_URL = original;
+  }
+});
+
+await test('CPOS: validateBootstrap が必須フィールドを検証', () => {
+  const ok = validateBootstrap({ connected: true, user: { userId: 'u' }, facilities: [] });
+  assert.equal(ok.connected, true);
+  assert.throws(() => validateBootstrap({}));
+  assert.throws(() => validateBootstrap({ connected: true })); // user 欠落
+});
+
+await test('CPOS: validateAnalysisSource が schema/facility/serviceMonth を検証', async () => {
+  const fix = JSON.parse(await readFile(FIXTURE_PATH, 'utf-8'));
+  const ok = validateAnalysisSource(fix);
+  assert.equal(ok.schemaVersion, '1.0');
+  assert.throws(() => validateAnalysisSource({}));
+});
+
+await test('CPOS: inferServiceKey が serviceTypeCodes から推定', () => {
+  assert.equal(inferServiceKey({ serviceTypeCodes: ['15'] }), 'tsusho_kaigo');
+  assert.equal(inferServiceKey({ serviceTypeCodes: ['11'] }), 'houmon_kaigo');
+  assert.equal(inferServiceKey({ serviceTypeCodes: ['43'] }), 'kyotaku_shien');
+  assert.equal(inferServiceKey({ serviceTypeCodes: [] }), null);
+});
+
+await test('CPOS: addon mapping が 1 件以上ロードできる', async () => {
+  const mapping = await loadAddonMapping();
+  assert.ok(Array.isArray(mapping.mappings));
+  assert.ok(mapping.mappings.length >= 5);
+});
+
+await test('CPOS: resolveKasanKey が cpos_addon_key で kasan_key を返す', async () => {
+  const mapping = await loadAddonMapping();
+  const r = resolveKasanKey(mapping, { serviceKey: 'tsusho_kaigo', addOnKey: 'nyuyoku_kaijo_ii' });
+  assert.ok(r);
+  assert.equal(r.kasanKey, 'nyuyoku_II');
+  assert.equal(r.via, 'cpos_addon_key');
+});
+
+await test('CPOS: resolveKasanKey は未登録なら null を返す', async () => {
+  const mapping = await loadAddonMapping();
+  const r = resolveKasanKey(mapping, { serviceKey: 'tsusho_kaigo', addOnKey: 'totally_unknown_addon_xyz' });
+  assert.equal(r, null);
+});
+
+await test('CPOS: toEngineInputs がフィクスチャを変換する', async () => {
+  const fix = JSON.parse(await readFile(FIXTURE_PATH, 'utf-8'));
+  const inputs = await toCposEngineInputs(fix);
+
+  assert.equal(inputs.service_key, 'tsusho_kaigo');
+  assert.ok(inputs.user_summary);
+  assert.equal(inputs.user_summary.users_total, 42);
+  assert.ok(inputs.user_summary.care_level_distribution.youkaigo_3 === 7);
+  assert.equal(inputs.user_summary.care_level_3_or_higher_count, 13);
+
+  assert.ok(inputs.staff_data.staff.length >= 14, `staff合成数=${inputs.staff_data.staff.length}`);
+  assert.equal(inputs.staff_data.sample_policy, 'public_demo_synthetic');
+
+  // claim_evidence の current_kasan_counts が CPOS addon → kasan_key にマップ済
+  const counts = inputs.claim_evidence.evidence[0].current_kasan_counts;
+  assert.equal(counts.nyuyoku_II, 28, `nyuyoku_II=${counts.nyuyoku_II}`);
+  assert.equal(counts.kobetsu_kinou_I_i, 22);
+  assert.equal(counts.eiyou_assessment, 12);
+
+  // metadata
+  assert.equal(inputs.metadata.source, 'cpos.analysis-source');
+  assert.equal(inputs.metadata.facilityId, 'facility-a');
+  assert.equal(inputs.metadata.dataCompleteness.provision, 'missing');
+  assert.equal(inputs.metadata.hasExternalPtOtSt, true);
+});
+
+await test('CPOS: 変換結果で judge.run() が落ちずに通る', async () => {
+  const fix = JSON.parse(await readFile(FIXTURE_PATH, 'utf-8'));
+  const inputs = await toCposEngineInputs(fix);
+  const { run } = await import('../src/services/judge.js');
+  const result = await run({
+    service: inputs.service_key,
+    office: inputs.facility?.id || null,
+    applyEvidence: true,
+    inlineEvidence: inputs.claim_evidence,
+  });
+  assert.ok(result);
+  assert.equal(result.service, 'tsusho_kaigo');
+  // PDF 検出（CPOS 由来 evidence）が反映され、claimed_but_requirements_unknown が出る
+  const claimedUnknown = (result.summary.claimed_but_requirements_unknown || []).length;
+  assert.ok(claimedUnknown >= 1, `claimed_but_requirements_unknown=${claimedUnknown}`);
+});
+
+await test('CPOS: Markdown レポートに「CPOS データ整備状況」セクションが入る', async () => {
+  const fix = JSON.parse(await readFile(FIXTURE_PATH, 'utf-8'));
+  const inputs = await toCposEngineInputs(fix);
+  const { run } = await import('../src/services/judge.js');
+  const result = await run({
+    service: inputs.service_key,
+    office: inputs.facility?.id,
+    applyEvidence: true,
+    inlineEvidence: inputs.claim_evidence,
+  });
+  result.cpos_metadata = inputs.metadata;
+  const md = renderMarkdown(result);
+  assert.ok(md.includes('🔗 CPOS データ整備状況'), 'CPOS セクション欠落');
+  assert.ok(md.includes('給付管理'), '給付管理項目欠落');
+  assert.ok(md.includes('外部 PT/OT/ST'), '外部 PT/OT/ST 注記欠落');
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

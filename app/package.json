@@ -16,6 +16,8 @@
     "dev": "node --watch src/server.js",
     "judge": "node bin/judge-kasan.js",
     "import-receipt": "node bin/import-receipt-pdf.js",
+    "cpos:bootstrap": "node bin/cpos-bootstrap.js",
+    "cpos:analyze": "node bin/cpos-analyze.js",
     "setup:gcp": "node bin/setup-gcp.js",
     "setup:domain": "node bin/setup-domain.js",
     "deploy:cloudrun": "node bin/deploy-cloudrun.js",

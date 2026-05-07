@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0",
+  "organizationId": "default",
+  "facility": {
+    "id": "facility-a",
+    "name": "デイほっと",
+    "businessNumber": "1234567890",
+    "serviceTypeCodes": ["15"],
+    "facilityCategoryCode": "25",
+    "regionClass": "6"
+  },
+  "serviceMonth": "2026-04",
+  "privacy": {
+    "includePii": false,
+    "userIdentifierType": "anonymousUserKey"
+  },
+  "userSummary": {
+    "activeUserCount": 42,
+    "careLevelDistribution": {
+      "support1": 3,
+      "support2": 4,
+      "care1": 10,
+      "care2": 12,
+      "care3": 7,
+      "care4": 4,
+      "care5": 2
+    },
+    "care3PlusCount": 13,
+    "care3PlusRatio": 0.3095,
+    "newUsersInMonth": 2,
+    "endedUsersInMonth": 1
+  },
+  "staffSummary": {
+    "qualifiedPersonCountByProfession": {
+      "nurse": 3,
+      "physical_therapist": 1,
+      "care_worker": 8,
+      "care_manager": 2
+    },
+    "fteByProfession": {
+      "nurse": 2.4,
+      "physical_therapist": 0.2,
+      "care_worker": 6.8,
+      "care_manager": 1.0
+    },
+    "hasExternalPtOtSt": true,
+    "warnings": []
+  },
+  "claimSummary": {
+    "source": "claim_lines",
+    "claimStatementsCount": 42,
+    "totalUnits": 123456,
+    "currentAddOnCounts": {
+      "nyuyoku_kaijo_ii": 28,
+      "individual_function_training_i": 22,
+      "scientific_care_promotion": 1,
+      "nutrition_assessment": 12
+    },
+    "currentAddOnUnits": {
+      "nyuyoku_kaijo_ii": 1540
+    },
+    "warnings": ["PDF取込由来の請求明細が含まれます"]
+  },
+  "provisionSummary": {
+    "recordsCount": 0,
+    "limitUnitsTotal": 0,
+    "plannedUnitsTotal": 0,
+    "actualUnitsTotal": 0,
+    "overLimitUserCount": 0,
+    "warnings": ["給付管理データはまだ登録されていません"]
+  },
+  "recordsSummary": {
+    "recordsCount": 1582,
+    "recordTypeCounts": {
+      "daily": 1200,
+      "bath": 300,
+      "functional_training": 82
+    },
+    "evidenceSignals": {
+      "bath_records_count": 300,
+      "nutrition_assessment_records_count": 12,
+      "functional_training_records_count": 82
+    },
+    "warnings": []
+  },
+  "dataCompleteness": {
+    "facility": "complete",
+    "users": "partial",
+    "staffing": "partial",
+    "billing": "partial",
+    "provision": "missing",
+    "records": "partial"
+  },
+  "warnings": [
+    "常勤換算が未登録のため、職員要件の一部は判定できません"
+  ]
+}

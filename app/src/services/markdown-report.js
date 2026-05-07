@@ -66,6 +66,66 @@ function joinPercent(v, digits = 1) {
   return `${(v * 100).toFixed(digits)}%`;
 }
 
+const COMPLETENESS_LABEL = {
+  complete: '✅ 完全',
+  partial: '🟡 一部',
+  missing: '❌ 未登録',
+};
+
+const COMPLETENESS_IMPACT = {
+  facility: { label: '事業所マスタ', impact: '事業所判定の前提', action: 'CPOS の事業所マスタを更新' },
+  users: { label: '利用者マスタ', impact: '要介護度割合の精度に影響', action: 'CPOS で利用者マスタを更新' },
+  staffing: { label: '常勤換算', impact: '職員配置要件が判定不可', action: 'CPOS で常勤換算を登録' },
+  qualifiedPersons: { label: '有資格者名簿', impact: '配置要件の OR 条件判定が不完全', action: 'CPOS で有資格者を登録' },
+  billing: { label: '請求', impact: '現在算定中加算の検出に一部不足', action: 'CPOS の請求 PDF を取込または手入力' },
+  provision: { label: '給付管理', impact: '限度額・利用実績との照合不可', action: 'CPOS で給付管理を登録' },
+  records: { label: '記録', impact: '加算根拠記録の有無を判定不可', action: 'CPOS で記録の整備を進める' },
+};
+
+function renderCposSection(L, meta) {
+  L.push('## 🔗 CPOS データ整備状況');
+  L.push('');
+  L.push('> 本レポートは CPOS の analysis-source API から取得したデータで作成されています（PII 非含有・集計値のみ）。');
+  L.push(`> 事業所: \`${meta.facilityId || '-'}\`${meta.facilityName ? `（${meta.facilityName}）` : ''} / 対象月: \`${meta.serviceMonth || '-'}\``);
+  L.push(`> 取得元: ${meta.source || 'cpos.analysis-source'} / schemaVersion: \`${meta.schemaVersion || '-'}\``);
+  if (meta.includePii) {
+    L.push('> ⚠️ includePii=true で取得しています。個人情報の取り扱いに注意してください。');
+  }
+  L.push('');
+
+  const dc = meta.dataCompleteness || {};
+  if (Object.keys(dc).length) {
+    L.push('| データ | 状態 | 分析への影響 | 次のアクション |');
+    L.push('|---|---|---|---|');
+    for (const [k, state] of Object.entries(dc)) {
+      const m = COMPLETENESS_IMPACT[k] || { label: k, impact: '-', action: '-' };
+      const label = COMPLETENESS_LABEL[state] || state;
+      L.push(`| ${m.label} | ${label} | ${m.impact} | ${m.action} |`);
+    }
+    L.push('');
+  }
+
+  const allWarnings = [
+    ...(meta.warnings || []),
+    ...(meta.staffSummaryWarnings || []),
+    ...(meta.claimSummaryWarnings || []),
+    ...(meta.provisionSummaryWarnings || []),
+  ];
+  if (allWarnings.length) {
+    L.push('**CPOS 側の警告:**');
+    for (const w of allWarnings) L.push(`- ⚠️ ${w}`);
+    L.push('');
+  }
+
+  if (meta.hasExternalPtOtSt) {
+    L.push('- ℹ️ 外部 PT/OT/ST の関与あり（機能訓練指導員・個別機能訓練の OR ルートとして検討可）');
+    L.push('');
+  }
+
+  L.push('---');
+  L.push('');
+}
+
 export function renderMarkdown(result) {
   const sd = result.service_def || {};
   const mm = result.master_meta || {};
@@ -285,6 +345,11 @@ export function renderMarkdown(result) {
 
   L.push('---');
   L.push('');
+
+  // CPOS 連携セクション（指示書 §5.7）。CPOS analysis-source 由来のときだけ表示。
+  if (result.cpos_metadata) {
+    renderCposSection(L, result.cpos_metadata);
+  }
 
   L.push('## 1. 取得可能性が高い加算（waiting + clear）');
   L.push('');

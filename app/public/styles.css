@@ -523,6 +523,33 @@ main {
   font-size: 14px;
 }
 
+.cpos-card {
+  background: linear-gradient(180deg, #f8f4ff, #f4f7ff);
+  border: 1.5px solid #6a3fbf;
+}
+
+.cpos-card h2 {
+  color: #5128a8;
+}
+
+.cpos-btn {
+  background: #6a3fbf;
+  box-shadow: 0 6px 18px rgba(106, 63, 191, 0.32);
+}
+
+.cpos-btn:hover { background: #5128a8; }
+.cpos-btn:disabled { background: #b09bd0; box-shadow: none; }
+
+#cpos_facility,
+#cpos_month {
+  font-size: var(--font-base);
+  padding: 14px 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 10px;
+  background: #fff;
+  width: 100%;
+}
+
 /* reCAPTCHA v3 バッジを右下に固定（標準位置）。
    モバイル等で UI と被るとき用に上方向にオフセット。 */
 .grecaptcha-badge {

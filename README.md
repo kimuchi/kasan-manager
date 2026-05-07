@@ -58,8 +58,9 @@ npm run setup:domain -- --domain=kasan.example.jp
 |---|---|---|
 | 事業所スタッフ・管理者 | [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) | Web UI の使い方・結果の読み方 |
 | インフラ担当 | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) | GCP プロビジョニング・Cloud Run・カスタムドメイン・運用 |
+| 連携担当 | [docs/CPOS_INTEGRATION.md](./docs/CPOS_INTEGRATION.md) | CPOS 連携の設定・CLI・API・データ変換の流れ |
 | 開発者 | [docs/TECHNICAL.md](./docs/TECHNICAL.md) | アーキテクチャ・API・データモデル・カスタマイズ |
-| 開発者 | [docs/CLI.md](./docs/CLI.md) | CLI コマンド一覧（judge / import-receipt / setup / deploy / logs） |
+| 開発者 | [docs/CLI.md](./docs/CLI.md) | CLI コマンド一覧（judge / import-receipt / cpos / setup / deploy / logs） |
 | 設計思想 | [DESIGN_PHILOSOPHY.md](./DESIGN_PHILOSOPHY.md) | 加算チェッカーの 5 つの設計原則・知識グラフ構造 |
 
 ---
@@ -83,7 +84,15 @@ Gemini 不要。マスタ JSON + 要件論理式 DSL のみで加算を `clear /
 ```bash
 npm run judge -- --service tsusho_kaigo --office DEMO-0004 --report-md out.md
 npm run import-receipt -- --service tsusho_kaigo --office DEMO-0004 --pdf receipt.pdf --evidence-out tenant_data/evidence/DEMO-0004/
+
+# CPOS 連携（.env に CPOS_BASE_URL を設定後）
+npm run cpos:bootstrap                                                              # 接続確認
+npm run cpos:analyze -- --facility=facility-a --month=2026-04 --report-md=out.md    # CPOS から取得して分析
 ```
+
+### 5. CPOS 連携（任意）
+
+`.env` に `CPOS_BASE_URL` と `CPOS_API_TOKEN` を設定すると、Web UI の冒頭に「🔗 CPOS データで分析する」パネルが自動表示されます。CPOS の事業所・利用者・職員・請求の集計データを直接判定エンジンに投入できます。詳細は [docs/CPOS_INTEGRATION.md](./docs/CPOS_INTEGRATION.md)。
 
 ---
 

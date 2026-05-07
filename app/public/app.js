@@ -25,11 +25,12 @@ const DOMAIN_LABEL = {
   disability: '障害福祉',
 };
 
-// /api/health で取得した設定を保持（reCAPTCHA / レート制限）
+// /api/health で取得した設定を保持（reCAPTCHA / レート制限 / CPOS）
 const appConfig = {
   recaptcha_enabled: false,
   recaptcha_site_key: null,
   recaptcha_loaded: false,
+  cpos_configured: false,
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,6 +42,9 @@ async function initApp() {
   initServices();
   initFileInputs();
   initAnalyzeButtons();
+  if (appConfig.cpos_configured) {
+    await initCposPanel();
+  }
 }
 
 async function initStatusPill() {
@@ -62,6 +66,10 @@ async function initStatusPill() {
       appConfig.recaptcha_site_key = json.recaptcha.site_key;
       $('#recaptcha-notice').classList.remove('hidden');
       loadRecaptchaScript(json.recaptcha.site_key);
+    }
+    if (json.cpos?.configured) {
+      appConfig.cpos_configured = true;
+      show('#cpos-section');
     }
   } catch (err) {
     pill.classList.add('error');
@@ -496,3 +504,94 @@ function escapeHtml(s) {
 
 function show(sel) { $(sel).classList.remove('hidden'); }
 function hide(sel) { $(sel).classList.add('hidden'); }
+
+// ─────────────────────────────────────────────────────────
+// CPOS 連携パネル
+// ─────────────────────────────────────────────────────────
+async function initCposPanel() {
+  const hint = $('#cpos-status-hint');
+  const select = $('#cpos_facility');
+  const monthInput = $('#cpos_month');
+
+  // 当月を初期値に
+  const now = new Date();
+  monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  try {
+    const res = await fetch('/api/cpos/facilities');
+    const json = await res.json();
+    if (!res.ok) {
+      hint.textContent = `CPOS 接続エラー: ${json.message || json.error}`;
+      hint.style.color = '#b3261e';
+      return;
+    }
+    const facilities = json.facilities || [];
+    select.innerHTML = '<option value="">— 事業所を選択 —</option>';
+    for (const f of facilities) {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = `${f.name || f.id}（${(f.serviceTypeCodes || []).join(',') || '-'}）`;
+      select.appendChild(opt);
+    }
+    hint.textContent = `CPOS 接続: OK（${facilities.length} 事業所アクセス可能）`;
+    hint.style.color = 'var(--ok)';
+  } catch (err) {
+    hint.textContent = `CPOS 接続失敗: ${err.message}`;
+    hint.style.color = '#b3261e';
+  }
+
+  $('#cpos-analyze-btn').addEventListener('click', () => runCposAnalyze());
+}
+
+async function runCposAnalyze() {
+  const facilityId = $('#cpos_facility').value;
+  const serviceMonth = $('#cpos_month').value;
+  if (!facilityId) {
+    alert('CPOS の事業所を選択してください。');
+    return;
+  }
+  if (!serviceMonth) {
+    alert('対象月（YYYY-MM）を入力してください。');
+    return;
+  }
+
+  hide('#error-section');
+  hide('#result-section');
+  hide('#judge-section');
+
+  const btn = $('#cpos-analyze-btn');
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span><span>${appConfig.recaptcha_enabled ? '安全確認中…' : 'CPOS から取得中…'}</span>`;
+
+  try {
+    let recaptchaToken = null;
+    if (appConfig.recaptcha_enabled) {
+      try {
+        recaptchaToken = await getRecaptchaToken('cpos_analyze');
+      } catch (err) {
+        throw new Error(`reCAPTCHA トークンの取得に失敗しました: ${err.message}`);
+      }
+    }
+    btn.innerHTML = `<span class="spinner"></span><span>CPOS 連携で判定中…</span>`;
+
+    const body = { facilityId, serviceMonth };
+    if (recaptchaToken) body.recaptcha_token = recaptchaToken;
+
+    const res = await fetch('/api/cpos/analyze', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(formatApiError(res.status, json));
+
+    renderJudge(json.judge, json.markdown, json.judge.service_def);
+    // CPOS 由来は Gemini 補完を呼ばないので、結果セクションは判定のみ
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
+}

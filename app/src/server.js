@@ -25,6 +25,10 @@ import { renderMarkdown } from './services/markdown-report.js';
 import { runExtraction } from './services/receipt-pdf.js';
 import { generalLimiter, heavyLimiter, rateLimitConfig } from './middleware/rate-limit.js';
 import { recaptchaMiddleware, recaptchaConfig } from './middleware/recaptcha.js';
+import { CposClient, readClientConfig, isConfigured as isCposConfigured } from './services/cpos/client.js';
+import { validateAnalysisSource, validateBootstrap } from './services/cpos/schemas.js';
+import { CposApiError, CposNotConfiguredError } from './services/cpos/errors.js';
+import { toEngineInputs as toCposEngineInputs } from './services/cpos/transform.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +77,143 @@ app.get('/api/health', (_req, res) => {
       site_key: recaptchaConfig.site_key,
       min_score: recaptchaConfig.min_score,
     },
+    cpos: {
+      configured: isCposConfigured(),
+      base_url: isCposConfigured() ? process.env.CPOS_BASE_URL : null,
+    },
   });
+});
+
+// ============================================================
+// CPOS 連携エンドポイント（指示書 §5.5）
+// CPOS API への中継。CPOS トークンはサーバの .env で管理し、ブラウザに渡さない。
+// ============================================================
+function cposClientOrError(res) {
+  if (!isCposConfigured()) {
+    res.status(503).json({
+      error: 'cpos_not_configured',
+      message: 'サーバ側で CPOS 接続が設定されていません。.env の CPOS_BASE_URL / CPOS_API_TOKEN を確認してください。',
+    });
+    return null;
+  }
+  try {
+    return new CposClient(readClientConfig());
+  } catch (err) {
+    if (err instanceof CposNotConfiguredError) {
+      res.status(503).json({ error: 'cpos_not_configured', message: err.message });
+      return null;
+    }
+    throw err;
+  }
+}
+
+function handleCposError(err, res) {
+  if (err instanceof CposApiError) {
+    return res.status(err.statusCode || 500).json({
+      error: 'cpos_api_error',
+      status_code: err.statusCode,
+      message: err.message,
+      hint: err.hint,
+    });
+  }
+  if (err instanceof CposNotConfiguredError) {
+    return res.status(503).json({ error: 'cpos_not_configured', message: err.message });
+  }
+  console.error('[cpos] unexpected:', err);
+  return res.status(500).json({ error: 'cpos_unexpected_error', message: err?.message || String(err) });
+}
+
+app.get('/api/cpos/status', (_req, res) => {
+  res.json({
+    configured: isCposConfigured(),
+    base_url: isCposConfigured() ? process.env.CPOS_BASE_URL : null,
+    has_token: Boolean(process.env.CPOS_API_TOKEN),
+  });
+});
+
+app.get('/api/cpos/bootstrap', async (_req, res) => {
+  const client = cposClientOrError(res);
+  if (!client) return;
+  try {
+    const payload = validateBootstrap(await client.getBootstrap());
+    res.json(payload);
+  } catch (err) {
+    handleCposError(err, res);
+  }
+});
+
+app.get('/api/cpos/facilities', async (_req, res) => {
+  const client = cposClientOrError(res);
+  if (!client) return;
+  try {
+    const payload = validateBootstrap(await client.getBootstrap());
+    res.json({ facilities: payload.facilities || [] });
+  } catch (err) {
+    handleCposError(err, res);
+  }
+});
+
+app.get('/api/cpos/monthly-status', async (req, res) => {
+  const client = cposClientOrError(res);
+  if (!client) return;
+  const facilityId = String(req.query.facilityId || '').trim();
+  const serviceMonth = String(req.query.serviceMonth || '').trim();
+  if (!facilityId || !serviceMonth) {
+    return res.status(400).json({ error: 'bad_request', message: 'facilityId と serviceMonth は必須です' });
+  }
+  try {
+    const payload = await client.getMonthlyStatus({ facilityId, serviceMonth });
+    res.json(payload);
+  } catch (err) {
+    handleCposError(err, res);
+  }
+});
+
+// CPOS 由来の判定（Gemini なし）。/api/judge と同じレスポンス形を返すが、入力は CPOS から取る。
+app.post('/api/cpos/analyze', heavyLimiter, recaptchaMiddleware('cpos_analyze'), async (req, res) => {
+  const client = cposClientOrError(res);
+  if (!client) return;
+  const facilityId = String(req.body.facilityId || '').trim();
+  const serviceMonth = String(req.body.serviceMonth || '').trim();
+  if (!facilityId || !serviceMonth) {
+    return res.status(400).json({ error: 'bad_request', message: 'facilityId と serviceMonth は必須です' });
+  }
+  try {
+    const source = validateAnalysisSource(
+      await client.getAnalysisSource({
+        facilityId,
+        serviceMonth,
+        includePii: false,
+      }),
+    );
+    const inputs = await toCposEngineInputs(source);
+    const judgeResult = await runJudge({
+      service: inputs.service_key,
+      office: inputs.facility?.id || null,
+      applyEvidence: true,
+      inlineEvidence: inputs.claim_evidence,
+    });
+    // tenant_status / staff / user の inline 適用（runJudge は path のみ受けるので applyInlineFiles 経由）
+    const inlineFiles = {
+      tenant_status_json: [{ buffer: Buffer.from(JSON.stringify(inputs.tenant_status), 'utf-8') }],
+      staff_json: [{ buffer: Buffer.from(JSON.stringify(inputs.staff_data), 'utf-8') }],
+      user_summary_json: [{ buffer: Buffer.from(JSON.stringify(inputs.user_summary), 'utf-8') }],
+    };
+    const enriched = await applyInlineFiles(judgeResult, inputs.service_key, inlineFiles);
+    enriched.cpos_metadata = inputs.metadata;
+    enriched.cpos_metadata.serviceMonth = source.serviceMonth;
+    res.json({
+      judge: enriched,
+      markdown: renderMarkdown(enriched),
+      cpos: {
+        facilityId,
+        serviceMonth,
+        schemaVersion: source.schemaVersion,
+      },
+    });
+  } catch (err) {
+    handleCposError(err, res);
+  }
 });
 
 app.get('/api/services', async (_req, res) => {
@@ -279,4 +419,5 @@ app.listen(PORT, HOST, () => {
   console.log(`[kasan-manager] gemini_configured=${isConfigured()} model=${isConfigured() ? getModelName() : '-'}`);
   console.log(`[kasan-manager] rate_limit_enabled=${rateLimitConfig.enabled} (general=${rateLimitConfig.general.max}/${rateLimitConfig.general.window_ms}ms, heavy=${rateLimitConfig.heavy.max}/${rateLimitConfig.heavy.window_ms}ms)`);
   console.log(`[kasan-manager] recaptcha_enabled=${recaptchaConfig.enabled} (min_score=${recaptchaConfig.min_score})`);
+  console.log(`[kasan-manager] cpos_configured=${isCposConfigured()} (base_url=${isCposConfigured() ? process.env.CPOS_BASE_URL : '-'})`);
 });
