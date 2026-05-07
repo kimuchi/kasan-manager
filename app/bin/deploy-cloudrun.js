@@ -18,12 +18,12 @@
 //   3) `npm run setup:gcp` で API 有効化と Artifact Registry を作成済み
 
 import 'dotenv/config';
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { config as dotenvConfig } from 'dotenv';
+import { execCommand, ensureInstalled } from './_lib.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,27 +43,7 @@ function parseFlags(argv) {
   return out;
 }
 
-async function exec(cmd, args, opts = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
-      stdio: opts.captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-      cwd: opts.cwd || PROJECT_ROOT,
-      env: { ...process.env, ...(opts.env || {}) },
-    });
-    let stdout = '';
-    let stderr = '';
-    if (opts.captureOutput) {
-      child.stdout.on('data', (b) => { stdout += b.toString(); });
-      child.stderr.on('data', (b) => { stderr += b.toString(); });
-    }
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) resolve({ stdout, stderr });
-      else if (opts.allowFail) resolve({ stdout, stderr, code });
-      else reject(new Error(`${cmd} ${args.join(' ')} exited with code ${code}\n${stderr}`));
-    });
-  });
-}
+const exec = (cmd, args, opts = {}) => execCommand(cmd, args, { cwd: PROJECT_ROOT, ...opts });
 
 function fail(msg) {
   console.error(`❌ ${msg}`);
@@ -71,11 +51,7 @@ function fail(msg) {
 }
 
 async function ensureGcloud() {
-  try {
-    await exec('gcloud', ['--version'], { captureOutput: true });
-  } catch {
-    fail('gcloud CLI が見つかりません。https://cloud.google.com/sdk/docs/install から導入してください。');
-  }
+  await ensureInstalled('gcloud', 'https://cloud.google.com/sdk/docs/install');
 }
 
 async function ensureRepo({ repo, region, projectId }) {

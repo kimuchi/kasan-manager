@@ -484,6 +484,16 @@ gcloud run services update kasan-manager \
 
 ## 10. トラブルシュート
 
+### Q. Windows で `spawn gcloud ENOENT` が出る
+
+Google Cloud SDK のインストールが PATH に通っているか確認してください。Windows では `gcloud` の実体が `gcloud.cmd` ですが、本リポジトリの bin スクリプトは内部で自動的に `.cmd` を付与して解決します。それでも ENOENT が出る場合:
+
+1. PowerShell / コマンドプロンプトを再起動（インストール後の PATH 反映待ち）
+2. 直接実行できるか確認: `gcloud --version`
+3. `where.exe gcloud` で PATH を確認
+4. インストール時に「Run gcloud init」「Add to PATH」にチェックを入れたか
+5. それでも駄目なら `gcloud` のフルパス（例: `C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`）を含むディレクトリを `PATH` 環境変数に手動追加
+
 ### Q. デプロイ時に `Permission denied`
 
 Cloud Build SA に IAM が付与されていない可能性。`npm run setup:gcp` を再実行してください。

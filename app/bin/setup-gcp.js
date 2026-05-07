@@ -16,13 +16,14 @@
 //   npm run setup:gcp -- --use-secret       # Secret Manager 連携を併用したい場合
 
 import 'dotenv/config';
-import { spawn } from 'node:child_process';
 import { config as dotenvConfig } from 'dotenv';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import readline from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+
+import { execCommand, ensureInstalled } from './_lib.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,31 +49,7 @@ function parseArgs(argv) {
   return out;
 }
 
-async function exec(cmd, args, opts = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, {
-      stdio: opts.captureOutput ? ['ignore', 'pipe', 'pipe'] : (opts.stdin ? ['pipe', 'inherit', 'inherit'] : 'inherit'),
-      cwd: opts.cwd || PROJECT_ROOT,
-      env: { ...process.env, ...(opts.env || {}) },
-    });
-    let stdout = '';
-    let stderr = '';
-    if (opts.captureOutput) {
-      child.stdout.on('data', (b) => { stdout += b.toString(); });
-      child.stderr.on('data', (b) => { stderr += b.toString(); });
-    }
-    if (opts.stdin) {
-      child.stdin.write(opts.stdin);
-      child.stdin.end();
-    }
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) resolve({ stdout, stderr });
-      else if (opts.allowFail) resolve({ stdout, stderr, code });
-      else reject(new Error(`${cmd} ${args.join(' ')} exited with code ${code}\n${stderr}`));
-    });
-  });
-}
+const exec = (cmd, args, opts = {}) => execCommand(cmd, args, { cwd: PROJECT_ROOT, ...opts });
 
 function fail(msg) {
   console.error(`❌ ${msg}`);
@@ -80,8 +57,7 @@ function fail(msg) {
 }
 
 async function ensureGcloud() {
-  const r = await exec('gcloud', ['--version'], { captureOutput: true, allowFail: true });
-  if (r.code) fail('gcloud CLI が見つかりません。https://cloud.google.com/sdk/docs/install から導入してください。');
+  await ensureInstalled('gcloud', 'https://cloud.google.com/sdk/docs/install');
 }
 
 async function ensureLoggedIn() {

@@ -6,10 +6,11 @@
 //   npm run logs -- --severity=ERROR
 
 import 'dotenv/config';
-import { spawn } from 'node:child_process';
 import { config as dotenvConfig } from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { execCommand } from './_lib.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,7 +37,7 @@ const since = args.since || '10m';
 const severity = args.severity || 'DEFAULT';
 
 const filter = `resource.type=cloud_run_revision AND resource.labels.service_name=${service} AND severity>=${severity}`;
-const cmd = [
+const cmdArgs = [
   'logging', 'read',
   filter,
   `--project=${projectId}`,
@@ -45,6 +46,11 @@ const cmd = [
   '--order=asc',
   '--limit=200',
 ];
-console.log(`▶ gcloud ${cmd.join(' ')}`);
-const child = spawn('gcloud', cmd, { stdio: 'inherit' });
-child.on('close', (code) => process.exit(code));
+console.log(`▶ gcloud ${cmdArgs.join(' ')}`);
+try {
+  const r = await execCommand('gcloud', cmdArgs, { cwd: PROJECT_ROOT });
+  process.exit(r.code ?? 0);
+} catch (err) {
+  console.error('❌', err.message || err);
+  process.exit(1);
+}
