@@ -43,6 +43,10 @@
 | 8 | DNS 設定 | 表示された CNAME / A レコードを DNS に登録 |
 | 9 | 証明書発行待ち | 5〜60 分（自動） |
 | 10 | アクセス確認 | `https://kasan.example.jp` |
+| 11 | （任意）reCAPTCHA キー発行 | [Admin Console](https://www.google.com/recaptcha/admin) で v3 を発行 → `.env` に設定 → `npm run deploy:cloudrun -- --skip-build` |
+
+> ℹ **公開サイトとして運用する場合は §8（不正利用対策）** を必ず確認してください。
+> レート制限はデフォルトでオン、reCAPTCHA は `.env` にキーを設定するだけで有効化されます。
 
 ---
 
@@ -350,7 +354,105 @@ gcloud projects add-iam-policy-binding $GCP_PROJECT_ID \
 
 ---
 
-## 8. Secret Manager 連携（opt-in）
+## 8. 不正利用対策（レート制限 + reCAPTCHA）
+
+ログイン無しの公開サイトでも、**IP 単位のレート制限**と **Google reCAPTCHA v3** で
+連打 / Bot アクセスから守れます。本リポジトリには両方の仕組みが組み込まれており、
+`.env` の値で動的にオン / オフ・閾値を切り替えられます。
+
+### 8-1. レート制限
+
+`.env` 設定:
+
+```ini
+RATE_LIMIT_ENABLED=true            # オン/オフ
+RATE_LIMIT_GENERAL_MAX=60          # 一般 API（/api/health, /api/services 等）の窓内上限
+RATE_LIMIT_GENERAL_WINDOW_MS=600000  # 10 分窓（ミリ秒）
+RATE_LIMIT_HEAVY_MAX=10            # 高コスト API（/api/analyze, /api/judge, /api/import-receipt）
+RATE_LIMIT_HEAVY_WINDOW_MS=600000  # 10 分窓
+TRUST_PROXY=1                      # Cloud Run 直は 1、外部 LB 経由なら 2
+```
+
+仕様:
+
+- IP ごとに独立してカウント（X-Forwarded-For を `trust proxy` で読む）
+- 上限を超えると `429 Too Many Requests` を返却。レスポンス JSON に `retry_after_seconds` を含める
+- `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` ヘッダ（draft-7）を全レスポンスに付与
+- フロントは 429 を受け取ると「アクセス回数の上限に達しました」と人間向けに表示
+
+設定を変更したいときは `.env` を編集して `npm run deploy:cloudrun -- --skip-build` で即時反映。
+
+### 8-2. reCAPTCHA v3
+
+[Google reCAPTCHA Admin Console](https://www.google.com/recaptcha/admin) で **v3** 用キーを発行（`reCAPTCHA v3` を選択）し、ドメインに `kasan.example.jp` を登録。
+
+`.env` 設定:
+
+```ini
+RECAPTCHA_ENABLED=true             # 任意（site_key/secret 両方が空なら自動的に false）
+RECAPTCHA_SITE_KEY=6LcXXXXXXXXXXXXXXXXXXXXXXX    # 公開鍵
+RECAPTCHA_SECRET_KEY=6LcXXXXXXXXXXXXXXXXXXXXXXX  # 秘密鍵
+RECAPTCHA_MIN_SCORE=0.5            # 0.0〜1.0、これ未満は bot とみなして 403
+```
+
+仕様:
+
+- フロントは `/api/health` から `site_key` を受け取り、`grecaptcha.execute(siteKey, { action })` でトークンを取得
+- バックエンドは `/api/analyze` `/api/judge` `/api/import-receipt` で
+  `recaptcha_token` フィールド（または `X-Recaptcha-Token` ヘッダ）を検証
+- Google の siteverify に `secret` + `token` + `remoteip` を渡し、`success: true` && `score >= MIN_SCORE` && `action` 一致を確認
+- 失敗時は `403 recaptcha_*` 系のエラーを返却
+- フッターに reCAPTCHA バッジと利用規約リンクを自動表示（Google の利用規約で必須）
+
+#### 閾値の目安
+
+| `MIN_SCORE` | 用途 |
+|---|---|
+| `0.3` | 緩め（誤検知少なめ・bot は通る可能性あり） |
+| `0.5`（デフォルト） | 標準 |
+| `0.7` | 厳しめ（一般ユーザーも稀にブロックされる） |
+
+最初は `0.3` で運用開始 → Cloud Logging で `recaptcha_low_score` を観察 → 徐々に絞ることを推奨します。
+
+#### reCAPTCHA をオフにする
+
+`.env` の `RECAPTCHA_SITE_KEY` と `RECAPTCHA_SECRET_KEY` を空にして再デプロイすれば即座に無効化されます（フロントは `/api/health` の `recaptcha.enabled=false` を見て、トークン取得をスキップします）。
+
+### 8-3. Cloud Run 側で確認
+
+`/api/health` のレスポンスで現在の設定が確認できます:
+
+```bash
+curl -s https://kasan.example.jp/api/health | jq '{ rate_limit, recaptcha }'
+# {
+#   "rate_limit": { "enabled": true, "general_max": 60, ... },
+#   "recaptcha":  { "enabled": true, "site_key": "6Lc...", "min_score": 0.5 }
+# }
+```
+
+### 8-4. ログ監視
+
+```bash
+# レート制限がよく発動している IP を抽出
+gcloud logging read 'resource.type=cloud_run_revision AND
+  resource.labels.service_name=kasan-manager AND
+  jsonPayload.error="rate_limit_exceeded"' \
+  --format='value(httpRequest.remoteIp)' --limit=200 | sort | uniq -c | sort -rn
+
+# reCAPTCHA 低スコアで弾かれたリクエスト
+gcloud logging read 'resource.type=cloud_run_revision AND
+  resource.labels.service_name=kasan-manager AND
+  jsonPayload.error="recaptcha_low_score"' --limit=50
+```
+
+### 8-5. これでも守りきれないとき
+
+- Cloud Armor でグローバル WAF（IP/国/UA で deny ルール）を追加
+- IAP（Identity-Aware Proxy）で社内 Google アカウント限定に切り替え（[§6-1](#6-1-アクセス制御) 参照）
+
+---
+
+## 9. Secret Manager 連携（opt-in）
 
 `.env` 経由ではなく Secret Manager で API キーを管理したい場合は、以下の手順で切り替えられます。
 
@@ -380,7 +482,7 @@ gcloud run services update kasan-manager \
 
 ---
 
-## 9. トラブルシュート
+## 10. トラブルシュート
 
 ### Q. デプロイ時に `Permission denied`
 
@@ -437,7 +539,7 @@ gcloud run services update kasan-manager --region=asia-northeast1 --min-instance
 
 ---
 
-## 10. 削除（クリーンアップ）
+## 11. 削除（クリーンアップ）
 
 ```bash
 gcloud run services delete kasan-manager --region=asia-northeast1

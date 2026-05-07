@@ -523,6 +523,17 @@ main {
   font-size: 14px;
 }
 
+/* reCAPTCHA v3 バッジを右下に固定（標準位置）。
+   モバイル等で UI と被るとき用に上方向にオフセット。 */
+.grecaptcha-badge {
+  bottom: 80px !important;
+}
+
+#recaptcha-notice a {
+  color: #b8d3ff;
+  text-decoration: underline;
+}
+
 .spinner {
   display: inline-block;
   width: 22px;

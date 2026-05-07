@@ -117,6 +117,9 @@ kasan-manager/
 │   │   └── app.js             # フォーム送信・結果レンダリング
 │   ├── src/
 │   │   ├── server.js          # Express エントリ
+│   │   ├── middleware/
+│   │   │   ├── rate-limit.js  # IP 単位のレート制限（一般 / 高コスト の 2 段）
+│   │   │   └── recaptcha.js   # Google reCAPTCHA v3 検証
 │   │   └── services/
 │   │       ├── analyzer.js
 │   │       ├── dsl.js
@@ -296,7 +299,7 @@ kasan-manager/
 
 ### 4-1. `GET /api/health`
 
-ヘルスチェック。
+ヘルスチェック。フロントエンドはこのレスポンスを見て reCAPTCHA / レート制限の挙動を切り替えます。
 
 **Response (200):**
 ```json
@@ -305,7 +308,19 @@ kasan-manager/
   "gemini_configured": true,
   "model": "gemini-2.5-flash",
   "node_env": "production",
-  "timestamp": "2026-05-07T10:30:45.123Z"
+  "timestamp": "2026-05-07T10:30:45.123Z",
+  "rate_limit": {
+    "enabled": true,
+    "general_max": 60,
+    "general_window_ms": 600000,
+    "heavy_max": 10,
+    "heavy_window_ms": 600000
+  },
+  "recaptcha": {
+    "enabled": true,
+    "site_key": "6LcXXXXXXXXXXXXXXXX",
+    "min_score": 0.5
+  }
 }
 ```
 
@@ -335,7 +350,7 @@ kasan-manager/
 
 ### 4-3. `POST /api/judge`
 
-決定的判定エンジンのみを実行（Gemini 不要・高速）。
+決定的判定エンジンのみを実行（Gemini 不要・高速）。レート制限・reCAPTCHA の対象。
 
 **Request:** `multipart/form-data`
 
@@ -347,6 +362,7 @@ kasan-manager/
 | `tenant_status_json` | file | | 事業所ステータス JSON |
 | `staff_json` | file | | 職員集計 JSON |
 | `user_summary_json` | file | | 利用者集計 JSON |
+| `recaptcha_token` | string | reCAPTCHA 有効時 | `grecaptcha.execute(siteKey, { action: 'judge' })` で取得したトークン（または `X-Recaptcha-Token` ヘッダで送信） |
 
 **Response (200):**
 ```json
@@ -425,7 +441,32 @@ kasan-manager/
 }
 ```
 
-### 4-5. `POST /api/import-receipt`
+### 4-5. エラーレスポンス（共通）
+
+レート制限 / reCAPTCHA / バリデーション失敗時のステータスコードと JSON 形式:
+
+| HTTP | `error` コード | 説明 |
+|---|---|---|
+| `400` | `recaptcha_missing` | `recaptcha_token` が送信されていない（reCAPTCHA 有効時のみ） |
+| `403` | `recaptcha_failed` | siteverify が `success: false` |
+| `403` | `recaptcha_action_mismatch` | トークンの `action` が想定と異なる |
+| `403` | `recaptcha_low_score` | スコアが `RECAPTCHA_MIN_SCORE` 未満 |
+| `413` | （error 文字列） | アップロード ファイル サイズ超過 |
+| `429` | `rate_limit_exceeded` | レート上限超過。`retry_after_seconds` を含む |
+| `503` | `recaptcha_unavailable` | siteverify への接続失敗 |
+
+**例: 429 レスポンス**
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "AI 分析レート制限: アクセスが集中しています。しばらく時間をおいてから再度お試しください。",
+  "retry_after_seconds": 60
+}
+```
+
+レスポンスヘッダには `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` （RFC draft-7）が常に付与されます。
+
+### 4-6. `POST /api/import-receipt`
 
 レセプト PDF → evidence JSON 変換のみ。
 

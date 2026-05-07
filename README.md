@@ -43,7 +43,10 @@ npm run setup:domain -- --domain=kasan.example.jp
 
 > ℹ **`GEMINI_API_KEY` は `.env` で一元管理**。Cloud Run へのデプロイ時に
 > `gcloud run deploy --set-env-vars=GEMINI_API_KEY=...` で渡されます。Secret Manager は不要です
-> （高セキュリティ要件の場合は opt-in 可能。[DEPLOYMENT.md](./docs/DEPLOYMENT.md#8-secret-manager-連携opt-in) 参照）。
+> （高セキュリティ要件の場合は opt-in 可能。[DEPLOYMENT.md](./docs/DEPLOYMENT.md#9-secret-manager-連携opt-in) 参照）。
+
+> 🛡 **公開サイト運用時の保護**: IP 単位のレート制限はデフォルトで有効。Google reCAPTCHA v3 は
+> `.env` にキーを設定するだけで有効化されます。[DEPLOYMENT.md §8](./docs/DEPLOYMENT.md#8-不正利用対策レート制限--recaptcha) を参照。
 
 詳細は [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) を参照。
 

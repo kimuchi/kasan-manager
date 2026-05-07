@@ -25,12 +25,23 @@ const DOMAIN_LABEL = {
   disability: '障害福祉',
 };
 
+// /api/health で取得した設定を保持（reCAPTCHA / レート制限）
+const appConfig = {
+  recaptcha_enabled: false,
+  recaptcha_site_key: null,
+  recaptcha_loaded: false,
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-  initStatusPill();
+  initApp();
+});
+
+async function initApp() {
+  await initStatusPill();
   initServices();
   initFileInputs();
   initAnalyzeButtons();
-});
+}
 
 async function initStatusPill() {
   const pill = $('#status-pill');
@@ -45,10 +56,47 @@ async function initStatusPill() {
       pill.classList.add('error');
       text.textContent = 'Gemini API キー未設定（判定エンジンのみ利用可）';
     }
+    // reCAPTCHA 設定を保存し、必要ならスクリプトをロード
+    if (json.recaptcha?.enabled && json.recaptcha?.site_key) {
+      appConfig.recaptcha_enabled = true;
+      appConfig.recaptcha_site_key = json.recaptcha.site_key;
+      $('#recaptcha-notice').classList.remove('hidden');
+      loadRecaptchaScript(json.recaptcha.site_key);
+    }
   } catch (err) {
     pill.classList.add('error');
     text.textContent = '接続エラー';
   }
+}
+
+function loadRecaptchaScript(siteKey) {
+  if (appConfig.recaptcha_loaded) return;
+  appConfig.recaptcha_loaded = true;
+  const s = document.createElement('script');
+  s.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`;
+  s.async = true;
+  s.defer = true;
+  document.head.appendChild(s);
+}
+
+async function getRecaptchaToken(action) {
+  if (!appConfig.recaptcha_enabled) return null;
+  // grecaptcha が読み込まれるまで最大 10 秒待つ
+  for (let i = 0; i < 50; i += 1) {
+    if (window.grecaptcha && window.grecaptcha.execute) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  if (!window.grecaptcha || !window.grecaptcha.execute) {
+    throw new Error('reCAPTCHA を読み込めませんでした。ページを再読込してから再度お試しください。');
+  }
+  return new Promise((resolve, reject) => {
+    window.grecaptcha.ready(() => {
+      window.grecaptcha
+        .execute(appConfig.recaptcha_site_key, { action })
+        .then(resolve)
+        .catch((err) => reject(err instanceof Error ? err : new Error(String(err))));
+    });
+  });
 }
 
 async function initServices() {
@@ -162,14 +210,33 @@ async function runAnalyze({ includeGemini }) {
   btn.disabled = true;
   $('#analyze-btn').disabled = true;
   $('#judge-btn').disabled = true;
-  btn.innerHTML = `<span class="spinner"></span><span>${includeGemini ? '判定 + AI 分析中…' : '判定中…'}</span>`;
+  btn.innerHTML = `<span class="spinner"></span><span>${
+    appConfig.recaptcha_enabled ? '安全確認中…' : (includeGemini ? '判定 + AI 分析中…' : '判定中…')
+  }</span>`;
 
+  const action = includeGemini ? 'analyze' : 'judge';
+  const endpoint = includeGemini ? '/api/analyze' : '/api/judge';
   try {
+    let recaptchaToken = null;
+    if (appConfig.recaptcha_enabled) {
+      try {
+        recaptchaToken = await getRecaptchaToken(action);
+      } catch (err) {
+        throw new Error(`reCAPTCHA トークンの取得に失敗しました: ${err.message}`);
+      }
+    }
+    btn.innerHTML = `<span class="spinner"></span><span>${includeGemini ? '判定 + AI 分析中…' : '判定中…'}</span>`;
+
+    const formData = buildFormData(includeGemini);
+    if (recaptchaToken) formData.append('recaptcha_token', recaptchaToken);
+
+    const res = await fetch(endpoint, { method: 'POST', body: formData });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(formatApiError(res.status, json));
+    }
+
     if (includeGemini) {
-      const formData = buildFormData(true);
-      const res = await fetch('/api/analyze', { method: 'POST', body: formData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       renderJudge(json.judge, json.markdown, json.service);
       if (json.gemini && json.gemini.analysis) {
         renderGeminiResult(json.gemini, json.service);
@@ -180,10 +247,6 @@ async function runAnalyze({ includeGemini }) {
         show('#result-section');
       }
     } else {
-      const formData = buildFormData(false);
-      const res = await fetch('/api/judge', { method: 'POST', body: formData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       renderJudge(json.judge, json.markdown, json.judge.service_def);
     }
   } catch (err) {
@@ -200,6 +263,28 @@ function showError(msg) {
   $('#error-text').textContent = msg;
   show('#error-section');
   $('#error-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function formatApiError(status, json) {
+  const code = json && json.error;
+  const message = json && json.message;
+  if (status === 429 && code === 'rate_limit_exceeded') {
+    const retry = json.retry_after_seconds ? `（約 ${json.retry_after_seconds} 秒後に再試行可能）` : '';
+    return `アクセス回数の上限に達しました。${retry} ${message || ''}`.trim();
+  }
+  if (status === 403 && code === 'recaptcha_low_score') {
+    return `自動アクセスの可能性が高いと判定されました（スコア: ${json.score?.toFixed(2) ?? '-'}）。少し時間をおいて再度お試しください。`;
+  }
+  if (status === 403 && code && code.startsWith('recaptcha_')) {
+    return `reCAPTCHA 検証に失敗しました（${code}）。ページを再読込してから再度お試しください。`;
+  }
+  if (status === 400 && code === 'recaptcha_missing') {
+    return 'reCAPTCHA トークンが送信できませんでした。ページを再読込してから再度お試しください。';
+  }
+  if (status === 503 && code === 'recaptcha_unavailable') {
+    return '人間判定サービスに接続できませんでした。しばらくしてから再度お試しください。';
+  }
+  return message || (json && json.error) || `HTTP ${status}`;
 }
 
 function renderJudge(judge, markdown, service) {
