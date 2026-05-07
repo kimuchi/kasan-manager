@@ -126,8 +126,8 @@
     "disability": {"display_name": "障害福祉", "payer_default": "disability_welfare"}
   },
   "statuses": {
-    "implemented": "実装済み・本番判定可",
-    "draft": "スケルトンあり・要件は source_required=true で未確定",
-    "planned": "登録のみ・マスタ未着手"
+    "implemented": "本番判定対応",
+    "draft": "AI 補完分析のみ対応（要件マスタ整備中）",
+    "planned": "準備中"
   }
 }

@@ -129,12 +129,23 @@ async function initServices() {
       for (const s of group.items) {
         const opt = document.createElement('option');
         opt.value = s.service_key;
-        opt.textContent = `${s.display_name}（${s.status_label || s.status}）`;
+        // status はアイコン化して短く（実装済み = 何もつけない、それ以外は控えめに注釈）
+        const badge =
+          s.status === 'implemented' ? '' :
+          s.status === 'draft' ? '（β）' :
+          s.status === 'planned' ? '（準備中）' : '';
+        opt.textContent = `${s.display_name}${badge}`;
+        opt.title = s.status_label || s.status; // hover で詳細
         og.appendChild(opt);
       }
       select.appendChild(og);
     }
-    hint.textContent = `${services.length}サービスを読み込みました。介護保険・障害福祉どちらにも対応しています。`;
+    const implementedCount = services.filter((s) => s.status === 'implemented').length;
+    const draftCount = services.filter((s) => s.status === 'draft').length;
+    hint.textContent =
+      `全 ${services.length} サービス対応 ` +
+      `（本番判定 ${implementedCount} 種・AI 補完のみ ${draftCount} 種）。` +
+      `「（β）」が付くサービスは要件マスタ整備中で、AI による制度知識ベースの提案が中心になります。`;
   } catch (err) {
     hint.textContent = `サービスの取得に失敗しました: ${err.message}`;
   }
