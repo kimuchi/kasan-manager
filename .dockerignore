@@ -1,0 +1,35 @@
+# Node
+**/node_modules/
+**/npm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+**/uploads/
+**/tmp/
+
+# Git / VCS
+.git
+.gitignore
+.github
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# 大きめのリリース・出力物（コンテナには不要）
+out/
+releases/
+docs/
+tenant_data/
+scripts/
+__pycache__
+*.pyc
+*.pyo
+
+# Markdown / 設計書（コンテナでは不要、必要なら個別に COPY）
+DESIGN_PHILOSOPHY.md
+README*.md
+STATUS.md

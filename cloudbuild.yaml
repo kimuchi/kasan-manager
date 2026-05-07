@@ -1,0 +1,65 @@
+# =====================================================
+# Cloud Build → Artifact Registry → Cloud Run へデプロイするパイプライン
+# 必要な変数:
+#   _REGION              リージョン（例: asia-northeast1）
+#   _REPO                Artifact Registry リポジトリ名
+#   _SERVICE             Cloud Run サービス名
+#   _GEMINI_SECRET_NAME  Secret Manager に登録した Gemini API キーの名前（例: gemini-api-key）
+#
+# 例:
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_REGION=asia-northeast1,_REPO=kasan-manager,_SERVICE=kasan-manager,_GEMINI_SECRET_NAME=gemini-api-key
+# =====================================================
+substitutions:
+  _REGION: asia-northeast1
+  _REPO: kasan-manager
+  _SERVICE: kasan-manager
+  _GEMINI_SECRET_NAME: gemini-api-key
+  _MEMORY: 1Gi
+  _CPU: '1'
+  _MIN_INSTANCES: '0'
+  _MAX_INSTANCES: '3'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=$_MEMORY
+      - --cpu=$_CPU
+      - --min-instances=$_MIN_INSTANCES
+      - --max-instances=$_MAX_INSTANCES
+      - --port=8080
+      - --set-env-vars=NODE_ENV=production,GEMINI_MODEL=gemini-2.5-flash
+      - --update-secrets=GEMINI_API_KEY=$_GEMINI_SECRET_NAME:latest
+
+images:
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$SHORT_SHA
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:latest

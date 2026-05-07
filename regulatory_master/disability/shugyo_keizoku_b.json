@@ -5,13 +5,155 @@
     "domain": "disability",
     "payer": "disability_welfare",
     "service_code_prefix": null,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "effective_from": "2024-04-01",
-    "updated": "2026-05-06",
+    "updated": "2026-05-07",
     "revision_tag": "R6_shogai_2024_04",
     "source": "障害者総合支援法 / 指定障害福祉サービス基準 / 障害福祉サービス等報酬告示 / R6改定",
-    "source_status": "source_required",
-    "_note": "未実装。基本報酬は平均工賃月額に応じた段階方式（R6改定で平均工賃区分が見直し）。目標工賃達成指導員配置加算・施設外就労加算・福祉専門職員配置等加算・就労移行支援体制加算・ピアサポート実施加算・処遇改善加算等を要調査。HOPE運営事業所と連動。"
+    "source_status": "draft",
+    "_note": "代表的な加算のみ。R6改定で平均工賃月額の区分が見直し。基本報酬は別途。"
   },
-  "kasans": {}
+  "kasans": {
+    "fukushi_senmonshoku_haichi_1": {
+      "name": "福祉専門職員配置等加算(I)",
+      "short_name": "福祉専門職I",
+      "unit_per_day": 15,
+      "unit_type": "単位/日",
+      "category": "配置加算",
+      "requirements": {
+        "qualification_ratio": "常勤の職業指導員・生活支援員のうち、社会福祉士・介護福祉士・精神保健福祉士・公認心理師の合計が35%以上"
+      },
+      "documents_required": [
+        "職員資格証コピー",
+        "常勤職員名簿",
+        "加算届出書"
+      ],
+      "tips": [
+        "(II)25%以上、(III)勤続3年以上25%以上の代替ルートあり"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "mokuhyo_kouchin_tasshei_shidoin": {
+      "name": "目標工賃達成指導員配置加算",
+      "short_name": "目標工賃指導員",
+      "unit_per_day": 89,
+      "unit_type": "単位/日",
+      "category": "配置加算",
+      "requirements": {
+        "staff": "目標工賃達成指導員を常勤換算で1名以上配置",
+        "plan": "工賃向上計画の策定と都道府県への提出",
+        "outcome": "前年度の平均工賃月額が地域の最低賃金日額以上"
+      },
+      "documents_required": [
+        "工賃向上計画書",
+        "指導員の雇用契約書",
+        "前年度工賃実績"
+      ],
+      "tips": [
+        "目標工賃指導員は職業指導員・生活支援員と兼務不可",
+        "未達でも計画提出があれば算定可"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shisetsugai_shurou": {
+      "name": "施設外就労加算",
+      "short_name": "施設外就労",
+      "unit_per_day": 0,
+      "unit_type": "単位/日",
+      "category": "活動加算",
+      "requirements": {
+        "minimum_users": "1ユニットあたり利用者3人以上",
+        "contract": "請負契約等の書面",
+        "supervision": "職員による指導・支援体制"
+      },
+      "documents_required": [
+        "施設外就労実施計画",
+        "請負契約書",
+        "活動記録"
+      ],
+      "tips": [
+        "R6改定で要件緩和の動きあり"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "peer_support": {
+      "name": "ピアサポート実施加算",
+      "short_name": "ピアサポート",
+      "unit_per_day": 100,
+      "unit_type": "単位/日",
+      "category": "活動加算",
+      "requirements": {
+        "staff": "障害福祉サービスを利用していた経験のある者を配置",
+        "training": "ピアサポート研修の修了",
+        "support_plan": "個別支援計画にピア支援を位置づけ"
+      },
+      "documents_required": [
+        "研修修了証",
+        "ピアサポーター雇用契約書",
+        "個別支援計画"
+      ],
+      "tips": [
+        "R6改定で新設・拡充された加算"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shokuba_teichaku_shien": {
+      "name": "就労移行支援体制加算",
+      "short_name": "就労移行体制",
+      "unit_per_day": 0,
+      "unit_type": "単位/日（区分により変動）",
+      "category": "成果加算",
+      "requirements": {
+        "outcome": "前年度に就労継続6か月以上を達成した利用者がいる"
+      },
+      "documents_required": [
+        "就労継続実績報告",
+        "雇用契約書（移行先）の写し"
+      ],
+      "tips": [
+        "B型から一般就労への移行実績が対象"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shogui_kaizen_1": {
+      "name": "福祉・介護職員等処遇改善加算(I)",
+      "short_name": "処遇改善I",
+      "unit_per_day": 0,
+      "unit_type": "%/総報酬",
+      "category": "処遇改善",
+      "requirements": {
+        "kyaria_path": "キャリアパス要件I・II・IIIすべて満たす",
+        "shokuba_kankyo": "職場環境等要件",
+        "report": "処遇改善計画書・実績報告書の提出"
+      },
+      "documents_required": [
+        "処遇改善計画書",
+        "就業規則・賃金規程",
+        "研修計画"
+      ],
+      "tips": [
+        "R6.6改定で統合方向"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shokugyo_shidoin_kahai": {
+      "name": "職業指導員等加配加算",
+      "short_name": "職業指導員加配",
+      "unit_per_day": 0,
+      "unit_type": "単位/日（区分により変動）",
+      "category": "配置加算",
+      "requirements": {
+        "staff": "職業指導員・生活支援員を基準より加配（区分により異なる）"
+      },
+      "documents_required": [
+        "勤務形態一覧表",
+        "雇用契約書"
+      ],
+      "tips": [
+        "区分I〜IVで加配人数が異なる",
+        "常勤換算での計算"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    }
+  }
 }

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="加算マネージャー — 介護保険・障害福祉の加算取得を AI が支援" />
+    <title>加算マネージャー｜CareLinker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark">加算</span>
+        <div class="brand-text">
+          <h1>加算マネージャー</h1>
+          <p>介護保険 / 障害福祉 の「取り漏れ」を AI が見つけて、取り方を提案します</p>
+        </div>
+      </div>
+      <div class="status-pill" id="status-pill">
+        <span class="dot"></span>
+        <span id="status-text">接続確認中…</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>1. 分析するサービスを選ぶ</h2>
+        <p class="lead">介護保険の通所介護・訪問介護のほか、障害福祉の就労継続支援などにも対応しています。</p>
+        <div class="field">
+          <label for="service">対象サービス</label>
+          <select id="service" required>
+            <option value="">— 読み込み中 —</option>
+          </select>
+          <p class="hint" id="service-hint">サービスを選ぶと、対応する加算マスタを参照して分析します。</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. 事業所の情報を入力する</h2>
+        <p class="lead">分かる範囲で OK です。空欄でも分析できますが、入力するほど精度が上がります。</p>
+        <div class="grid">
+          <div class="field">
+            <label for="office_name">事業所名（任意）</label>
+            <input type="text" id="office_name" placeholder="例: デイサービスほっと" />
+          </div>
+          <div class="field">
+            <label for="office_code">事業所コード（任意）</label>
+            <input type="text" id="office_code" placeholder="例: 1370012345" />
+          </div>
+          <div class="field">
+            <label for="region">所在地・地域単価区分（任意）</label>
+            <input type="text" id="region" placeholder="例: 東京都荒川区（6級地）" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="staff_summary">職員構成（任意）</label>
+          <textarea id="staff_summary" rows="4" placeholder="例: 常勤介護福祉士4名、看護師1名、管理栄養士は外部連携、機能訓練指導員は柔整師1名"></textarea>
+        </div>
+        <div class="field">
+          <label for="user_summary">利用者構成（任意）</label>
+          <textarea id="user_summary" rows="3" placeholder="例: 利用者40名、要介護3以上67%、認知症自立度Ⅱ以上が35%、医療的ケア5名"></textarea>
+        </div>
+        <div class="field">
+          <label for="current_kasans">現在算定中の加算（任意）</label>
+          <textarea id="current_kasans" rows="3" placeholder="例: サービス提供体制強化加算Ⅱ、入浴介助加算Ⅰ、処遇改善加算Ⅰ"></textarea>
+        </div>
+        <div class="field">
+          <label for="concerns">気になっていること・確認したい加算（任意）</label>
+          <textarea id="concerns" rows="3" placeholder="例: 口腔機能向上加算が取れるか / 福祉専門職員配置等加算は何級まで取れるか"></textarea>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. ファイルをアップロード（任意）</h2>
+        <p class="lead">介護給付費明細書PDF・職員一覧CSV・利用者集計などを添付すると、より具体的な提案が出ます。</p>
+        <div class="field">
+          <label for="attachments" class="upload-area">
+            <span class="upload-icon">⬆</span>
+            <span class="upload-main">クリックしてファイルを選択（最大5件）</span>
+            <span class="upload-sub">PDF / CSV / TXT / JSON など。1ファイル最大20MB</span>
+            <input type="file" id="attachments" multiple accept=".pdf,.csv,.tsv,.txt,.json,.md" />
+          </label>
+          <ul id="file-list" class="file-list"></ul>
+        </div>
+        <p class="hint">⚠️ 個人情報（被保険者番号・氏名・住所）はアップロード前にマスキングしてください。本ツールはその場で分析のみを行い、ファイルは保存しません。</p>
+      </section>
+
+      <section class="card cta-card">
+        <h2>4. AI で分析する</h2>
+        <button id="analyze-btn" class="primary-btn">
+          <span class="btn-icon">▶</span>
+          <span>分析を実行する</span>
+        </button>
+        <p class="hint" id="analyze-hint">Gemini で 10〜30 秒程度の分析を行います。お待ちください。</p>
+      </section>
+
+      <section id="result-section" class="card result-card hidden">
+        <h2>分析結果</h2>
+        <div id="result-meta" class="result-meta"></div>
+        <div id="result-summary" class="result-summary"></div>
+        <div id="result-revenue" class="result-revenue"></div>
+
+        <h3 class="result-h3">🎯 すぐ着手すべきアクション</h3>
+        <div id="result-actions" class="action-list"></div>
+
+        <h3 class="result-h3">📊 取得候補の加算</h3>
+        <div id="result-candidates" class="candidate-list"></div>
+
+        <h3 class="result-h3">⚠️ 注意事項</h3>
+        <ul id="result-cautions" class="cautions"></ul>
+
+        <h3 class="result-h3">🧭 前提条件・assumptions</h3>
+        <ul id="result-assumptions" class="assumptions"></ul>
+
+        <details class="raw-toggle">
+          <summary>生レスポンスを表示</summary>
+          <pre id="result-raw"></pre>
+        </details>
+      </section>
+
+      <section id="error-section" class="card error-card hidden">
+        <h2>エラー</h2>
+        <p id="error-text"></p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© CareLinker / ケア・プランニング株式会社（東京都荒川区）</p>
+      <p class="disclaimer">
+        本ツールは加算算定可否を法的に保証するものではありません。最終確認は各自治体・社労士等にお願いします。
+      </p>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
