@@ -1,36 +1,51 @@
 // CPOS HTTP クライアント
 //
-// 指示書 §5.2 の要件を満たす。
-//   - CPOS_BASE_URL と Bearer token を扱う
-//   - タイムアウト設定
-//   - 401/403/404/5xx をわかりやすい例外に変換
-//   - schemaVersion を確認
-//   - ログに個人情報を出さない
-//
-// CPOS が未稼働でも開発できるよう、live API への疎通は遅延（lazy）で行う。
+// 指示書 §0 で「PAT は加算マネージャ DB / ファイル / ログ / env に永続保存しない」が方針。
+// よって CposClient は **per-request トークン**を受け取って動く。env (.env) からの token 注入は
+// 開発時の utility だけにし、本番リクエストではブラウザから sealed cookie で復号した PAT を使う。
 
 import { CposApiError, CposNotConfiguredError, CPOS_HTTP_HINTS } from './errors.js';
 
 const DEFAULT_TIMEOUT_MS = 30 * 1000;
+const DEFAULT_BASE_URL_ENV = 'KASAN_DEFAULT_CPOS_BASE_URL';
 
-export function isConfigured() {
-  return Boolean(process.env.CPOS_BASE_URL);
+// CPOS が公開している base URL（フロントが選択肢として表示するときの推奨値）
+export function defaultBaseUrl() {
+  return (process.env[DEFAULT_BASE_URL_ENV] || process.env.CPOS_BASE_URL || '').replace(/\/+$/, '') || null;
 }
 
-export function readClientConfig({ overrides = {} } = {}) {
-  const base = (overrides.baseUrl || process.env.CPOS_BASE_URL || '').replace(/\/+$/, '');
-  if (!base) throw new CposNotConfiguredError();
-  return {
-    baseUrl: base,
-    accessToken: overrides.accessToken || process.env.CPOS_API_TOKEN || null,
-    timeoutMs: Number(overrides.timeoutMs ?? process.env.CPOS_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
-    appId: overrides.appId || process.env.CPOS_APP_ID || 'kasan-manager',
-  };
+export function isAllowedBaseUrl(url) {
+  // 本番セキュリティ: https のみ。許可リストを設けたい場合は KASAN_CPOS_ALLOWLIST=host1,host2 を参照
+  if (!url || typeof url !== 'string') return false;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:') return false;
+  const allow = (process.env.KASAN_CPOS_ALLOWLIST || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (allow.length && !allow.includes(parsed.host)) return false;
+  return true;
+}
+
+export function normalizeBaseUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  return url.replace(/\/+$/, '');
 }
 
 export class CposClient {
-  constructor(config = readClientConfig()) {
-    this.config = config;
+  /**
+   * @param {object} opts
+   * @param {string} opts.baseUrl  CPOS のベース URL（末尾 / なし）
+   * @param {string} opts.token    Bearer に使う PAT
+   * @param {number} [opts.timeoutMs]
+   */
+  constructor({ baseUrl, token, timeoutMs }) {
+    if (!baseUrl) throw new CposNotConfiguredError();
+    this.baseUrl = normalizeBaseUrl(baseUrl);
+    this.token = token || null;
+    this.timeoutMs = timeoutMs || Number(process.env.CPOS_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
   }
 
   _headers(extra = {}) {
@@ -39,14 +54,12 @@ export class CposClient {
       'X-Client': `kasan-manager/${process.env.npm_package_version || '0.x'}`,
       ...extra,
     };
-    if (this.config.accessToken) {
-      headers.Authorization = `Bearer ${this.config.accessToken}`;
-    }
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
     return headers;
   }
 
   async _fetch(path, { method = 'GET', params = null, body = null, timeoutMs = null } = {}) {
-    const url = new URL(this.config.baseUrl + path);
+    const url = new URL(this.baseUrl + path);
     if (params) {
       for (const [k, v] of Object.entries(params)) {
         if (v == null) continue;
@@ -54,7 +67,7 @@ export class CposClient {
       }
     }
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs ?? this.config.timeoutMs);
+    const t = setTimeout(() => ctrl.abort(), timeoutMs ?? this.timeoutMs);
     let res;
     try {
       res = await fetch(url, {
@@ -76,9 +89,7 @@ export class CposClient {
       let payload = null;
       try {
         payload = await res.json();
-      } catch {
-        // JSON でない（HTML エラーページ等）は無視
-      }
+      } catch {}
       const apiMsg = payload?.message || payload?.error;
       const fallback = CPOS_HTTP_HINTS[res.status] || `CPOS API エラー (HTTP ${res.status})`;
       throw new CposApiError(res.status, apiMsg || fallback, {
@@ -87,69 +98,50 @@ export class CposClient {
         hint: CPOS_HTTP_HINTS[res.status],
       });
     }
-
     if (res.status === 204) return null;
     const ct = res.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
-      throw new CposApiError(res.status, `想定外のレスポンス content-type=${ct}`, {
-        requestPath: path,
-      });
+      throw new CposApiError(res.status, `想定外のレスポンス content-type=${ct}`, { requestPath: path });
     }
     return res.json();
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // 個別 API ラッパー（指示書 §4.3）
-  // ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // 個別 API
+  // ─────────────────────────────────────────
 
+  // 指示書 §4.1 の PAT 検証で叩く
+  async getMe() {
+    return this._fetch('/api/platform/me');
+  }
+
+  async getPlatformFacilities() {
+    return this._fetch('/api/platform/facilities');
+  }
+
+  // 加算分析向けの集約 API（指示書 §4.6）
+  async getKasanExport({ facilityId, serviceMonth, serviceKey }) {
+    return this._fetch('/api/platform/kasan/export', {
+      params: {
+        facilityId,
+        serviceMonth,
+        serviceKey: serviceKey || undefined,
+      },
+    });
+  }
+
+  // 旧 kasan v1 ルート（CPOS 側が提供している場合）
   async getBootstrap() {
     return this._fetch('/api/kasan/v1/bootstrap');
   }
 
-  async getAnalysisSource({
-    facilityId,
-    serviceMonth,
-    includePii = false,
-    includeRecordsSummary = true,
-    includeBilling = true,
-    includeProvision = true,
-    includeStaffing = true,
-    includeRawLines = false,
-  }) {
-    if (!facilityId) throw new Error('facilityId は必須です');
-    if (!serviceMonth) throw new Error('serviceMonth は必須です（YYYY-MM）');
+  async getAnalysisSource({ facilityId, serviceMonth, includePii = false }) {
     return this._fetch('/api/kasan/v1/analysis-source', {
       params: {
         facilityId,
         serviceMonth,
         includePii: includePii ? 'true' : 'false',
-        includeRecordsSummary: includeRecordsSummary ? 'true' : 'false',
-        includeBilling: includeBilling ? 'true' : 'false',
-        includeProvision: includeProvision ? 'true' : 'false',
-        includeStaffing: includeStaffing ? 'true' : 'false',
-        includeRawLines: includeRawLines ? 'true' : 'false',
       },
     });
-  }
-
-  async getMonthlyStatus({ facilityId, serviceMonth }) {
-    return this._fetch(`/api/kasan/v1/facilities/${encodeURIComponent(facilityId)}/monthly-status`, {
-      params: { serviceMonth },
-    });
-  }
-
-  async ping() {
-    // CPOS 側が /api/health を持っていればそれ、無ければ bootstrap で代用
-    try {
-      const r = await this._fetch('/api/health');
-      return { ok: true, payload: r };
-    } catch (err) {
-      if (err.statusCode === 404) {
-        // /api/health が無いのは想定内。bootstrap が叩ければ OK
-        await this.getBootstrap();
-        return { ok: true, payload: null };
-      }
-      throw err;
-    }
   }
 }

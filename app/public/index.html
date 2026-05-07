@@ -16,39 +16,96 @@
           <p>介護保険 / 障害福祉 の「取り漏れ」を AI が見つけて、取り方を提案します</p>
         </div>
       </div>
-      <div class="status-pill" id="status-pill">
-        <span class="dot"></span>
-        <span id="status-text">接続確認中…</span>
+      <div class="header-right">
+        <nav class="docs-nav">
+          <a href="/docs/USER_GUIDE.md">使い方</a>
+          <a href="/docs/CPOS_TOKEN.md">CPOS連携</a>
+          <a href="/docs/json/">JSON形式</a>
+          <a href="/docs/DATA_SAFETY.md">データ取扱方針</a>
+        </nav>
+        <div class="status-pill" id="status-pill">
+          <span class="dot"></span>
+          <span id="status-text">接続確認中…</span>
+        </div>
       </div>
     </header>
 
     <main>
       <section id="cpos-section" class="card cpos-card hidden">
-        <h2>🔗 CPOS データで分析する</h2>
-        <p class="lead">
-          CPOS（介護記録・請求基盤）に接続済みです。事業所と対象月を選ぶと、利用者・職員・請求の集計を取得して、加算分析にそのまま使えます。
-          <strong>個人情報はサーバ間でのみやりとりされ、ブラウザには送られません。</strong>
-        </p>
-        <div class="grid">
-          <div class="field">
-            <label for="cpos_facility">事業所（CPOS から取得）</label>
-            <select id="cpos_facility">
-              <option value="">— 読み込み中 —</option>
-            </select>
+        <h2>🔐 CPOS と連携して分析する（任意）</h2>
+
+        <!-- 未接続パネル: PAT 入力 -->
+        <div id="cpos-disconnected-panel">
+          <p class="lead">
+            あなた個人の <strong>CPOS API トークン</strong>（cpos_pat_...）を入力すると、
+            あなたの権限内の事業所データを CPOS から取得して分析できます。
+          </p>
+          <ul class="cpos-policy-list">
+            <li>🔒 トークンはこのアプリの DB に保存されません</li>
+            <li>🔒 暗号化された <strong>HTTP-only Cookie</strong> としてあなたのブラウザにのみ保存されます</li>
+            <li>🔒 ブラウザの localStorage / sessionStorage は使いません</li>
+            <li>🔒 CPOS へのアクセスはサーバ間でのみ実施。ブラウザから直接 CPOS を叩きません</li>
+            <li>👉 詳しくは <a href="/docs/CPOS_TOKEN.md" target="_blank">CPOS PAT 接続ガイド</a> /
+              <a href="/docs/DATA_SAFETY.md" target="_blank">データ取扱方針</a></li>
+          </ul>
+          <div class="grid">
+            <div class="field">
+              <label for="cpos_base_url">CPOS URL</label>
+              <input type="text" id="cpos_base_url" placeholder="例: https://cpos.example.jp" />
+            </div>
+            <div class="field cpos-pat-field">
+              <label for="cpos_pat">CPOS API トークン（cpos_pat_...）</label>
+              <div class="cpos-pat-row">
+                <input type="password" id="cpos_pat" placeholder="cpos_pat_..." autocomplete="off" />
+                <button type="button" id="cpos_pat_toggle" class="ghost-btn" title="表示／非表示の切り替え">表示</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button id="cpos-connect-btn" class="primary-btn cpos-btn">
+                <span class="btn-icon">🔌</span>
+                <span>保存して接続確認</span>
+              </button>
+            </div>
           </div>
-          <div class="field">
-            <label for="cpos_month">対象月（YYYY-MM）</label>
-            <input type="month" id="cpos_month" />
-          </div>
-          <div class="field">
-            <label>&nbsp;</label>
-            <button id="cpos-analyze-btn" class="primary-btn cpos-btn">
-              <span class="btn-icon">▶</span>
-              <span>CPOS データで判定する</span>
-            </button>
-          </div>
+          <p class="hint" id="cpos-connect-hint"></p>
         </div>
-        <p class="hint" id="cpos-status-hint">CPOS 接続: 未確認</p>
+
+        <!-- 接続済みパネル -->
+        <div id="cpos-connected-panel" class="hidden">
+          <div class="cpos-connected-meta">
+            <p class="lead" id="cpos-connected-summary"></p>
+            <ul class="cpos-token-info">
+              <li>トークン: <code id="cpos-token-preview"></code></li>
+              <li>権限: <span id="cpos-token-scopes">-</span></li>
+              <li>事業所範囲: <span id="cpos-token-facilities">-</span></li>
+              <li>有効期限: <span id="cpos-token-expires">-</span></li>
+            </ul>
+          </div>
+          <div class="grid">
+            <div class="field">
+              <label for="cpos_facility">事業所</label>
+              <select id="cpos_facility">
+                <option value="">— 事業所を選択 —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cpos_month">対象月（YYYY-MM）</label>
+              <input type="month" id="cpos_month" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button id="cpos-analyze-btn" class="primary-btn cpos-btn">
+                <span class="btn-icon">▶</span>
+                <span>CPOS データで判定する</span>
+              </button>
+            </div>
+          </div>
+          <p class="hint">
+            <button type="button" id="cpos-disconnect-btn" class="ghost-btn">接続解除（cookie 削除）</button>
+            <button type="button" id="cpos-test-btn" class="ghost-btn">接続テスト</button>
+          </p>
+        </div>
       </section>
 
       <section class="card">

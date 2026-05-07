@@ -1,20 +1,18 @@
 #!/usr/bin/env node
-// CPOS 接続確認 CLI（指示書 §13.2）
-//
-// .env の CPOS_BASE_URL / CPOS_API_TOKEN を使って /api/kasan/v1/bootstrap を叩き、
-// 接続状態・ユーザ・権限・アクセス可能事業所を一覧表示する。
+// CPOS 接続確認 CLI
 //
 // 使い方:
-//   npm run cpos:bootstrap
-//   npm run cpos:bootstrap -- --base-url=https://cpos.example.jp --token=$CPOS_API_TOKEN
+//   npm run cpos:bootstrap -- --base-url=https://cpos.example.jp --token=$CPOS_PAT
+//
+// 注意: PAT はサーバの .env では管理しません（個人ごとに渡す方式）。
+// よってこの CLI は引数または環境変数 CPOS_PAT で都度指定してください。
 
 import 'dotenv/config';
 import { config as dotenvConfig } from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CposClient, readClientConfig } from '../src/services/cpos/client.js';
-import { validateBootstrap } from '../src/services/cpos/schemas.js';
+import { CposClient, defaultBaseUrl, isAllowedBaseUrl } from '../src/services/cpos/client.js';
 import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,48 +31,64 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  let config;
-  try {
-    config = readClientConfig({
-      overrides: {
-        baseUrl: typeof args['base-url'] === 'string' ? args['base-url'] : undefined,
-        accessToken: typeof args.token === 'string' ? args.token : undefined,
-      },
-    });
-  } catch (err) {
-    if (err instanceof CposNotConfiguredError) {
-      console.error(`❌ ${err.message}`);
-      console.error('   .env.example を参考に CPOS_BASE_URL を設定してください。');
-      process.exit(2);
-    }
-    throw err;
+  const baseUrl =
+    typeof args['base-url'] === 'string' ? args['base-url'] : defaultBaseUrl();
+  const token =
+    typeof args.token === 'string'
+      ? args.token
+      : process.env.CPOS_PAT || process.env.CPOS_API_TOKEN || null;
+
+  if (!baseUrl) {
+    console.error('❌ CPOS URL が指定されていません');
+    console.error('   --base-url=https://cpos.example.jp または KASAN_DEFAULT_CPOS_BASE_URL を指定してください');
+    process.exit(2);
+  }
+  if (!token) {
+    console.error('❌ CPOS PAT が指定されていません');
+    console.error('   --token=cpos_pat_... または環境変数 CPOS_PAT を指定してください');
+    process.exit(2);
+  }
+  if (!isAllowedBaseUrl(baseUrl)) {
+    console.error(`❌ 指定された CPOS URL は許可されていません: ${baseUrl}`);
+    process.exit(2);
   }
 
-  console.log(`▶ CPOS: ${config.baseUrl}`);
-  console.log(`▶ Token: ${config.accessToken ? '設定あり (Bearer)' : '未設定（Cookie/Session 想定）'}`);
+  console.log(`▶ CPOS: ${baseUrl}`);
+  console.log(`▶ Token: ${token.slice(0, 14)}...REDACTED`);
 
-  const client = new CposClient(config);
+  const client = new CposClient({ baseUrl, token });
   try {
-    const payload = validateBootstrap(await client.getBootstrap());
+    const me = await client.getMe();
     console.log('');
-    console.log(`✅ 接続: ${payload.connected ? 'OK' : 'NG'}`);
-    if (payload.cpos) console.log(`   CPOS apiVersion: ${payload.cpos.apiVersion} / serverTime: ${payload.cpos.serverTime}`);
-    if (payload.user) console.log(`   ユーザ: ${payload.user.email || payload.user.name || payload.user.userId}（role=${payload.user.role || '-'}）`);
-    if (payload.organization) console.log(`   組織: ${payload.organization.name || payload.organization.organizationId}`);
-    const facilities = payload.facilities || [];
-    console.log(`   アクセス可能事業所: ${facilities.length} 件`);
-    for (const f of facilities) {
-      console.log(`     - ${f.id}: ${f.name || ''}（serviceTypeCodes=${(f.serviceTypeCodes || []).join(',') || '-'}）`);
+    console.log(`✅ /api/platform/me OK`);
+    const user = me?.user || me;
+    console.log(`   ユーザ: ${user?.email || user?.name || user?.id || '-'}（role=${user?.role || '-'}）`);
+    if (me?.token) {
+      console.log(`   authMethod: ${me.token.authMethod || '-'}`);
+      console.log(`   scopes: ${(me.token.scopes || []).join(', ') || '-'}`);
+      console.log(`   allowedFacilityIds: ${(me.token.allowedFacilityIds || []).join(', ') || '（全事業所）'}`);
+      console.log(`   expiresAt: ${me.token.expiresAt || '（指定なし）'}`);
     }
-    if (payload.features) {
-      const enabled = Object.entries(payload.features).filter(([, v]) => v).map(([k]) => k);
-      if (enabled.length) console.log(`   有効機能: ${enabled.join(', ')}`);
+    try {
+      const r = await client.getPlatformFacilities();
+      const list = Array.isArray(r?.facilities) ? r.facilities : Array.isArray(r) ? r : [];
+      console.log('');
+      console.log(`▶ /api/platform/facilities: ${list.length} 件`);
+      for (const f of list) {
+        console.log(`     - ${f.id}: ${f.name || ''}（serviceTypeCodes=${(f.serviceTypeCodes || []).join(',') || '-'}）`);
+      }
+    } catch (err) {
+      console.log(`   /api/platform/facilities は取得できませんでした: ${err.message}`);
     }
   } catch (err) {
     if (err instanceof CposApiError) {
       console.error(`❌ ${err.message} (HTTP ${err.statusCode})`);
       if (err.hint) console.error(`   ヒント: ${err.hint}`);
       process.exit(1);
+    }
+    if (err instanceof CposNotConfiguredError) {
+      console.error(`❌ ${err.message}`);
+      process.exit(2);
     }
     throw err;
   }

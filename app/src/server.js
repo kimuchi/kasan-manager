@@ -25,10 +25,30 @@ import { renderMarkdown } from './services/markdown-report.js';
 import { runExtraction } from './services/receipt-pdf.js';
 import { generalLimiter, heavyLimiter, rateLimitConfig } from './middleware/rate-limit.js';
 import { recaptchaMiddleware, recaptchaConfig } from './middleware/recaptcha.js';
-import { CposClient, readClientConfig, isConfigured as isCposConfigured } from './services/cpos/client.js';
-import { validateAnalysisSource, validateBootstrap } from './services/cpos/schemas.js';
+import {
+  csrfIssueMiddleware,
+  csrfVerifyMiddleware,
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+} from './middleware/csrf.js';
+import {
+  CposClient,
+  defaultBaseUrl,
+  isAllowedBaseUrl,
+  normalizeBaseUrl,
+} from './services/cpos/client.js';
+import { validateAnalysisSource } from './services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from './services/cpos/errors.js';
 import { toEngineInputs as toCposEngineInputs } from './services/cpos/transform.js';
+import {
+  readCposSession,
+  buildSessionPayload,
+  setCposSessionCookie,
+  clearCposSessionCookie,
+  toPublicSessionView,
+} from './services/cpos/auth.js';
+import { isSessionSecretConfigured, redactSecret } from './utils/cookie-seal.js';
+import { docsRouter, isDocsAvailable } from './routes/docs.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,19 +66,31 @@ const upload = multer({
 const app = express();
 app.disable('x-powered-by');
 
-// Cloud Run / LB の前段プロキシで X-Forwarded-For を信頼（rate-limit が req.ip を正しく取れるように）
+// Cloud Run / LB の前段プロキシで X-Forwarded-For を信頼
 app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
 
 app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// 静的ファイルはレート制限の対象外
+// 静的ファイル（CSS/JS/画像）
 app.use(express.static(path.join(APP_ROOT, 'public'), { maxAge: '5m' }));
+
+// /docs/* で Markdown ドキュメントを HTML 配信
+app.use('/docs', docsRouter);
+
+// CSRF: GET 時に kasan_csrf cookie を発行（HTML / JSON 共通でセット）
+app.use(csrfIssueMiddleware);
 
 // /api/* に一般レート制限を適用
 app.use('/api', generalLimiter);
 
-app.get('/api/health', (_req, res) => {
+// /api/* の変更系には CSRF 検証を適用
+app.use('/api', csrfVerifyMiddleware);
+
+// ============================================================
+// ヘルス・ステータス
+// ============================================================
+app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     gemini_configured: isConfigured(),
@@ -78,38 +110,27 @@ app.get('/api/health', (_req, res) => {
       min_score: recaptchaConfig.min_score,
     },
     cpos: {
-      configured: isCposConfigured(),
-      base_url: isCposConfigured() ? process.env.CPOS_BASE_URL : null,
+      enabled: isSessionSecretConfigured(),
+      default_base_url: defaultBaseUrl(),
+      session_secret_configured: isSessionSecretConfigured(),
     },
+    csrf: {
+      cookie_name: CSRF_COOKIE_NAME,
+      header_name: CSRF_HEADER_NAME,
+      token: req.csrfToken, // フロントが localStorage 不使用で読める。SameSite で守られる
+    },
+    docs: { available: isDocsAvailable() },
   });
 });
 
 // ============================================================
-// CPOS 連携エンドポイント（指示書 §5.5）
-// CPOS API への中継。CPOS トークンはサーバの .env で管理し、ブラウザに渡さない。
+// CPOS PAT セッション管理（指示書 §4.1〜4.4）
 // ============================================================
-function cposClientOrError(res) {
-  if (!isCposConfigured()) {
-    res.status(503).json({
-      error: 'cpos_not_configured',
-      message: 'サーバ側で CPOS 接続が設定されていません。.env の CPOS_BASE_URL / CPOS_API_TOKEN を確認してください。',
-    });
-    return null;
-  }
-  try {
-    return new CposClient(readClientConfig());
-  } catch (err) {
-    if (err instanceof CposNotConfiguredError) {
-      res.status(503).json({ error: 'cpos_not_configured', message: err.message });
-      return null;
-    }
-    throw err;
-  }
-}
 
 function handleCposError(err, res) {
   if (err instanceof CposApiError) {
     return res.status(err.statusCode || 500).json({
+      ok: false,
       error: 'cpos_api_error',
       status_code: err.statusCode,
       message: err.message,
@@ -117,105 +138,222 @@ function handleCposError(err, res) {
     });
   }
   if (err instanceof CposNotConfiguredError) {
-    return res.status(503).json({ error: 'cpos_not_configured', message: err.message });
+    return res.status(503).json({ ok: false, error: 'cpos_not_configured', message: err.message });
   }
-  console.error('[cpos] unexpected:', err);
-  return res.status(500).json({ error: 'cpos_unexpected_error', message: err?.message || String(err) });
+  console.error('[cpos] unexpected:', err?.message || err);
+  return res.status(500).json({ ok: false, error: 'cpos_unexpected_error', message: err?.message || String(err) });
 }
 
-app.get('/api/cpos/status', (_req, res) => {
-  res.json({
-    configured: isCposConfigured(),
-    base_url: isCposConfigured() ? process.env.CPOS_BASE_URL : null,
-    has_token: Boolean(process.env.CPOS_API_TOKEN),
-  });
+function logRedacted(prefix, info) {
+  const safe = { ...info };
+  if (safe.token) safe.token = redactSecret(safe.token);
+  if (safe.cookie) safe.cookie = '[redacted]';
+  console.log(`[cpos] ${prefix}`, safe);
+}
+
+// PAT を受け取って検証 → sealed cookie を発行
+app.post('/api/cpos-token', async (req, res) => {
+  if (!isSessionSecretConfigured()) {
+    return res.status(503).json({
+      ok: false,
+      error: 'session_not_configured',
+      message: 'KASAN_SESSION_SECRET が未設定です。サーバ管理者に連絡してください。',
+    });
+  }
+  const cposBaseUrl = normalizeBaseUrl(req.body?.cposBaseUrl || defaultBaseUrl());
+  const token = (req.body?.token || '').toString().trim();
+  if (!cposBaseUrl) {
+    return res.status(400).json({ ok: false, error: 'bad_request', message: 'CPOS URL が指定されていません' });
+  }
+  if (!isAllowedBaseUrl(cposBaseUrl)) {
+    return res.status(400).json({
+      ok: false,
+      error: 'invalid_base_url',
+      message: 'CPOS URL が許可されていません（本番では https のみ）。',
+    });
+  }
+  if (!token) {
+    return res.status(400).json({ ok: false, error: 'bad_request', message: 'CPOS PAT が指定されていません' });
+  }
+  if (!/^cpos_pat_/.test(token) || token.length < 20) {
+    return res.status(400).json({
+      ok: false,
+      error: 'bad_token_format',
+      message: 'CPOS PAT の形式が不正です（cpos_pat_ で始まる必要があります）。',
+    });
+  }
+
+  try {
+    const client = new CposClient({ baseUrl: cposBaseUrl, token });
+    const me = await client.getMe();
+    const authMethod = me?.token?.authMethod || me?.authMethod;
+    const allowAppToken = process.env.KASAN_ALLOW_APP_TOKEN === 'true';
+    if (!allowAppToken && authMethod !== 'personal_access_token') {
+      return res.status(400).json({
+        ok: false,
+        error: 'not_pat',
+        message: `このトークンは PAT ではありません（authMethod=${authMethod}）。CPOS で発行した cpos_pat_ を使ってください。`,
+      });
+    }
+    const expiresAt = me?.token?.expiresAt || me?.expiresAt || null;
+    const payload = buildSessionPayload({
+      cposBaseUrl,
+      token,
+      me,
+      expiresAtFromCpos: expiresAt,
+    });
+    setCposSessionCookie(res, payload);
+    logRedacted('token verified', {
+      cposBaseUrl,
+      subject: payload.subjectUserEmail,
+      tokenPreview: payload.tokenPreview,
+    });
+    res.json({ ok: true, ...toPublicSessionView(payload) });
+  } catch (err) {
+    logRedacted('token verify failed', { cposBaseUrl, token, message: err?.message });
+    handleCposError(err, res);
+  }
 });
 
-app.get('/api/cpos/bootstrap', async (_req, res) => {
-  const client = cposClientOrError(res);
-  if (!client) return;
+app.get('/api/cpos-token/status', (req, res) => {
+  const session = readCposSession(req);
+  if (!session) {
+    return res.json({ connected: false });
+  }
+  res.json(toPublicSessionView(session));
+});
+
+app.delete('/api/cpos-token', (_req, res) => {
+  clearCposSessionCookie(res);
+  res.json({ ok: true, connected: false });
+});
+
+app.post('/api/cpos-token/test', async (req, res) => {
+  const session = readCposSession(req);
+  if (!session) return res.status(401).json({ ok: false, error: 'not_connected' });
   try {
-    const payload = validateBootstrap(await client.getBootstrap());
-    res.json(payload);
+    const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
+    const me = await client.getMe();
+    let facilityCount = 0;
+    try {
+      const facilities = await client.getPlatformFacilities();
+      facilityCount = Array.isArray(facilities?.facilities)
+        ? facilities.facilities.length
+        : Array.isArray(facilities)
+        ? facilities.length
+        : 0;
+    } catch (err) {
+      // facilities が取れないだけでは fail しない
+      logRedacted('facilities probe failed', { cposBaseUrl: session.cposBaseUrl, message: err?.message });
+    }
+    res.json({
+      ok: true,
+      me: { id: me?.user?.id || me?.id, email: me?.user?.email || me?.email },
+      facilityCount,
+    });
   } catch (err) {
     handleCposError(err, res);
   }
 });
 
-app.get('/api/cpos/facilities', async (_req, res) => {
-  const client = cposClientOrError(res);
-  if (!client) return;
+// ============================================================
+// CPOS データ proxy（cookie PAT 利用・自分の権限範囲内）
+// ============================================================
+function requireCposSession(req, res) {
+  const session = readCposSession(req);
+  if (!session) {
+    res.status(401).json({ ok: false, error: 'not_connected', message: 'CPOS に接続してください（PAT を入力）' });
+    return null;
+  }
+  return session;
+}
+
+function checkFacilityAllowed(session, facilityId) {
+  if (!facilityId) return true;
+  const allow = session.allowedFacilityIds;
+  if (!allow || !Array.isArray(allow) || allow.length === 0) return true; // 制限なし
+  return allow.includes(facilityId);
+}
+
+app.get('/api/cpos/facilities', async (req, res) => {
+  const session = requireCposSession(req, res);
+  if (!session) return;
   try {
-    const payload = validateBootstrap(await client.getBootstrap());
-    res.json({ facilities: payload.facilities || [] });
+    const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
+    let facilities = [];
+    try {
+      const r = await client.getPlatformFacilities();
+      facilities = Array.isArray(r?.facilities) ? r.facilities : Array.isArray(r) ? r : [];
+    } catch (err) {
+      // /api/platform/facilities が無ければ /api/kasan/v1/bootstrap で代替
+      const b = await client.getBootstrap();
+      facilities = b?.facilities || [];
+    }
+    res.json({ facilities });
   } catch (err) {
     handleCposError(err, res);
   }
 });
 
-app.get('/api/cpos/monthly-status', async (req, res) => {
-  const client = cposClientOrError(res);
-  if (!client) return;
-  const facilityId = String(req.query.facilityId || '').trim();
-  const serviceMonth = String(req.query.serviceMonth || '').trim();
+// 加算分析: CPOS から bundle を取り、既存判定エンジンで判定 → Markdown を返す（指示書 §4.6 / §4.7）
+app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analyze'), async (req, res) => {
+  const session = requireCposSession(req, res);
+  if (!session) return;
+  const facilityId = String(req.body?.facilityId || '').trim();
+  const serviceMonth = String(req.body?.serviceMonth || '').trim();
+  const serviceKey = req.body?.serviceKey ? String(req.body.serviceKey) : null;
   if (!facilityId || !serviceMonth) {
-    return res.status(400).json({ error: 'bad_request', message: 'facilityId と serviceMonth は必須です' });
+    return res.status(400).json({ ok: false, error: 'bad_request', message: 'facilityId と serviceMonth は必須です' });
+  }
+  if (!checkFacilityAllowed(session, facilityId)) {
+    return res.status(403).json({ ok: false, error: 'forbidden_facility', message: 'この事業所への権限がありません' });
   }
   try {
-    const payload = await client.getMonthlyStatus({ facilityId, serviceMonth });
-    res.json(payload);
-  } catch (err) {
-    handleCposError(err, res);
-  }
-});
-
-// CPOS 由来の判定（Gemini なし）。/api/judge と同じレスポンス形を返すが、入力は CPOS から取る。
-app.post('/api/cpos/analyze', heavyLimiter, recaptchaMiddleware('cpos_analyze'), async (req, res) => {
-  const client = cposClientOrError(res);
-  if (!client) return;
-  const facilityId = String(req.body.facilityId || '').trim();
-  const serviceMonth = String(req.body.serviceMonth || '').trim();
-  if (!facilityId || !serviceMonth) {
-    return res.status(400).json({ error: 'bad_request', message: 'facilityId と serviceMonth は必須です' });
-  }
-  try {
-    const source = validateAnalysisSource(
-      await client.getAnalysisSource({
-        facilityId,
-        serviceMonth,
-        includePii: false,
-      }),
-    );
-    const inputs = await toCposEngineInputs(source);
+    const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
+    // CPOS が新エンドポイント /api/platform/kasan/export を持つ場合は優先、無ければ /api/kasan/v1/analysis-source
+    let source;
+    try {
+      source = await client.getKasanExport({ facilityId, serviceMonth, serviceKey });
+    } catch (err) {
+      if (err?.statusCode === 404) {
+        source = await client.getAnalysisSource({ facilityId, serviceMonth, includePii: false });
+      } else {
+        throw err;
+      }
+    }
+    const validated = source.schemaVersion ? validateAnalysisSource(source) : source;
+    const inputs = await toCposEngineInputs(validated);
     const judgeResult = await runJudge({
-      service: inputs.service_key,
-      office: inputs.facility?.id || null,
+      service: serviceKey || inputs.service_key,
+      office: inputs.facility?.id || facilityId,
       applyEvidence: true,
       inlineEvidence: inputs.claim_evidence,
     });
-    // tenant_status / staff / user の inline 適用（runJudge は path のみ受けるので applyInlineFiles 経由）
     const inlineFiles = {
       tenant_status_json: [{ buffer: Buffer.from(JSON.stringify(inputs.tenant_status), 'utf-8') }],
       staff_json: [{ buffer: Buffer.from(JSON.stringify(inputs.staff_data), 'utf-8') }],
       user_summary_json: [{ buffer: Buffer.from(JSON.stringify(inputs.user_summary), 'utf-8') }],
     };
-    const enriched = await applyInlineFiles(judgeResult, inputs.service_key, inlineFiles);
-    enriched.cpos_metadata = inputs.metadata;
-    enriched.cpos_metadata.serviceMonth = source.serviceMonth;
+    const enriched = await applyInlineFiles(judgeResult, serviceKey || inputs.service_key, inlineFiles);
+    enriched.cpos_metadata = {
+      ...inputs.metadata,
+      serviceMonth,
+      subjectUserEmail: session.subjectUserEmail,
+    };
     res.json({
-      judge: enriched,
-      markdown: renderMarkdown(enriched),
-      cpos: {
-        facilityId,
-        serviceMonth,
-        schemaVersion: source.schemaVersion,
-      },
+      ok: true,
+      reportMarkdown: renderMarkdown(enriched),
+      resultJson: enriched,
+      cpos: { facilityId, serviceMonth, schemaVersion: validated.schemaVersion || null },
     });
   } catch (err) {
     handleCposError(err, res);
   }
 });
 
+// ============================================================
+// 既存（手動入力 / PDF）— 互換維持
+// ============================================================
 app.get('/api/services', async (_req, res) => {
   try {
     const services = await listServices();
@@ -240,7 +378,6 @@ const JUDGE_FIELDS = [
   { name: 'user_summary_json', maxCount: 1 },
 ];
 
-// 高コスト API には heavy リミット + reCAPTCHA を追加
 app.post(
   '/api/analyze',
   heavyLimiter,
@@ -324,7 +461,6 @@ async function applyInlineFiles(judgeResult, service, files) {
   return judgeResult;
 }
 
-// 決定的判定（Gemini 不要だが、判定エンジンも CPU・メモリを使うため heavy リミットを共有）
 app.post(
   '/api/judge',
   heavyLimiter,
@@ -365,7 +501,6 @@ app.post(
   },
 );
 
-// レセプトPDF -> evidence JSON（保存はしない、結果を返すだけ）
 app.post(
   '/api/import-receipt',
   heavyLimiter,
@@ -403,8 +538,13 @@ app.use((err, _req, res, _next) => {
 
 function parseOfficeInfo(body) {
   const FIELDS = [
-    'office_name', 'office_code', 'region',
-    'staff_summary', 'user_summary', 'current_kasans', 'concerns',
+    'office_name',
+    'office_code',
+    'region',
+    'staff_summary',
+    'user_summary',
+    'current_kasans',
+    'concerns',
   ];
   const out = {};
   for (const k of FIELDS) {
@@ -417,7 +557,12 @@ function parseOfficeInfo(body) {
 app.listen(PORT, HOST, () => {
   console.log(`[kasan-manager] listening on ${HOST}:${PORT} (env=${process.env.NODE_ENV || 'development'})`);
   console.log(`[kasan-manager] gemini_configured=${isConfigured()} model=${isConfigured() ? getModelName() : '-'}`);
-  console.log(`[kasan-manager] rate_limit_enabled=${rateLimitConfig.enabled} (general=${rateLimitConfig.general.max}/${rateLimitConfig.general.window_ms}ms, heavy=${rateLimitConfig.heavy.max}/${rateLimitConfig.heavy.window_ms}ms)`);
+  console.log(
+    `[kasan-manager] rate_limit_enabled=${rateLimitConfig.enabled} (general=${rateLimitConfig.general.max}/${rateLimitConfig.general.window_ms}ms, heavy=${rateLimitConfig.heavy.max}/${rateLimitConfig.heavy.window_ms}ms)`,
+  );
   console.log(`[kasan-manager] recaptcha_enabled=${recaptchaConfig.enabled} (min_score=${recaptchaConfig.min_score})`);
-  console.log(`[kasan-manager] cpos_configured=${isCposConfigured()} (base_url=${isCposConfigured() ? process.env.CPOS_BASE_URL : '-'})`);
+  console.log(
+    `[kasan-manager] cpos_session_secret_configured=${isSessionSecretConfigured()} default_cpos_url=${defaultBaseUrl() || '-'}`,
+  );
+  console.log(`[kasan-manager] docs_available=${isDocsAvailable()}`);
 });

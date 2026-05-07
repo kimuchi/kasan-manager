@@ -25,13 +25,38 @@ const DOMAIN_LABEL = {
   disability: '障害福祉',
 };
 
-// /api/health で取得した設定を保持（reCAPTCHA / レート制限 / CPOS）
+// /api/health で取得した設定を保持（reCAPTCHA / レート制限 / CPOS / CSRF）
 const appConfig = {
   recaptcha_enabled: false,
   recaptcha_site_key: null,
   recaptcha_loaded: false,
-  cpos_configured: false,
+  cpos_enabled: false,
+  cpos_default_url: null,
+  csrf_header_name: 'x-csrf-token',
+  csrf_token: null,
 };
+
+// CSRF トークン付きで JSON を送る fetch ラッパー
+async function jsonFetch(url, { method = 'GET', body = null, headers = {} } = {}) {
+  const opts = {
+    method,
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json', ...headers },
+  };
+  if (body != null) {
+    opts.headers['content-type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  if (method !== 'GET' && appConfig.csrf_token) {
+    opts.headers[appConfig.csrf_header_name] = appConfig.csrf_token;
+  }
+  const res = await fetch(url, opts);
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {}
+  return { res, payload };
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -42,7 +67,7 @@ async function initApp() {
   initServices();
   initFileInputs();
   initAnalyzeButtons();
-  if (appConfig.cpos_configured) {
+  if (appConfig.cpos_enabled) {
     await initCposPanel();
   }
 }
@@ -67,8 +92,15 @@ async function initStatusPill() {
       $('#recaptcha-notice').classList.remove('hidden');
       loadRecaptchaScript(json.recaptcha.site_key);
     }
-    if (json.cpos?.configured) {
-      appConfig.cpos_configured = true;
+    // CSRF トークン保持
+    if (json.csrf?.token) {
+      appConfig.csrf_token = json.csrf.token;
+      appConfig.csrf_header_name = json.csrf.header_name || 'x-csrf-token';
+    }
+    // CPOS は KASAN_SESSION_SECRET が設定されていれば有効化
+    if (json.cpos?.enabled) {
+      appConfig.cpos_enabled = true;
+      appConfig.cpos_default_url = json.cpos.default_base_url || null;
       show('#cpos-section');
     }
   } catch (err) {
@@ -249,7 +281,9 @@ async function runAnalyze({ includeGemini }) {
     const formData = buildFormData(includeGemini);
     if (recaptchaToken) formData.append('recaptcha_token', recaptchaToken);
 
-    const res = await fetch(endpoint, { method: 'POST', body: formData });
+    const headers = {};
+    if (appConfig.csrf_token) headers[appConfig.csrf_header_name] = appConfig.csrf_token;
+    const res = await fetch(endpoint, { method: 'POST', body: formData, headers, credentials: 'same-origin' });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(formatApiError(res.status, json));
@@ -517,26 +551,138 @@ function show(sel) { $(sel).classList.remove('hidden'); }
 function hide(sel) { $(sel).classList.add('hidden'); }
 
 // ─────────────────────────────────────────────────────────
-// CPOS 連携パネル
+// CPOS PAT 連携パネル
 // ─────────────────────────────────────────────────────────
 async function initCposPanel() {
-  const hint = $('#cpos-status-hint');
-  const select = $('#cpos_facility');
-  const monthInput = $('#cpos_month');
-
+  // PAT デフォルト URL の充填
+  if (appConfig.cpos_default_url) {
+    $('#cpos_base_url').value = appConfig.cpos_default_url;
+  }
   // 当月を初期値に
   const now = new Date();
-  monthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  $('#cpos_month').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+  // PAT 表示/非表示トグル
+  $('#cpos_pat_toggle').addEventListener('click', () => {
+    const inp = $('#cpos_pat');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    $('#cpos_pat_toggle').textContent = inp.type === 'password' ? '表示' : '隠す';
+  });
+
+  // 各種ボタン
+  $('#cpos-connect-btn').addEventListener('click', () => connectCpos());
+  $('#cpos-disconnect-btn').addEventListener('click', () => disconnectCpos());
+  $('#cpos-test-btn').addEventListener('click', () => testCposConnection());
+  $('#cpos-analyze-btn').addEventListener('click', () => runCposAnalyze());
+
+  // 接続状態の取得
+  await refreshCposStatus();
+}
+
+async function refreshCposStatus() {
+  const { res, payload } = await jsonFetch('/api/cpos-token/status');
+  if (!res.ok || !payload?.connected) {
+    showCposDisconnected();
+    return;
+  }
+  showCposConnected(payload);
+  await loadCposFacilities();
+}
+
+function showCposDisconnected(message = '') {
+  $('#cpos-disconnected-panel').classList.remove('hidden');
+  $('#cpos-connected-panel').classList.add('hidden');
+  const hint = $('#cpos-connect-hint');
+  if (message) {
+    hint.textContent = message;
+    hint.style.color = '#b3261e';
+  } else {
+    hint.textContent = '';
+  }
+}
+
+function showCposConnected(view) {
+  $('#cpos-disconnected-panel').classList.add('hidden');
+  $('#cpos-connected-panel').classList.remove('hidden');
+  $('#cpos-connected-summary').textContent =
+    `接続中: ${view.user?.name || '-'} / ${view.user?.email || '-'} （${view.cposBaseUrl}）`;
+  $('#cpos-token-preview').textContent = view.token?.tokenPreview || '-';
+  $('#cpos-token-scopes').textContent = (view.token?.scopes || []).join(', ') || '（指定なし）';
+  $('#cpos-token-facilities').textContent =
+    Array.isArray(view.token?.allowedFacilityIds)
+      ? view.token.allowedFacilityIds.length
+        ? view.token.allowedFacilityIds.join(', ')
+        : '（全事業所）'
+      : '（全事業所）';
+  $('#cpos-token-expires').textContent = view.token?.expiresAt || '（期限なし）';
+}
+
+async function connectCpos() {
+  const baseUrl = $('#cpos_base_url').value.trim();
+  const token = $('#cpos_pat').value.trim();
+  const hint = $('#cpos-connect-hint');
+  hint.textContent = '';
+  if (!baseUrl) {
+    hint.textContent = 'CPOS URL を入力してください';
+    hint.style.color = '#b3261e';
+    return;
+  }
+  if (!token) {
+    hint.textContent = 'CPOS API トークンを入力してください';
+    hint.style.color = '#b3261e';
+    return;
+  }
+  const btn = $('#cpos-connect-btn');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span><span>CPOS で検証中…</span>';
   try {
-    const res = await fetch('/api/cpos/facilities');
-    const json = await res.json();
+    const { res, payload } = await jsonFetch('/api/cpos-token', {
+      method: 'POST',
+      body: { cposBaseUrl: baseUrl, token },
+    });
+    if (!res.ok || !payload?.ok) {
+      throw new Error(payload?.message || payload?.error || `HTTP ${res.status}`);
+    }
+    // 入力欄をクリア（PAT を画面に残さない）
+    $('#cpos_pat').value = '';
+    $('#cpos_pat').type = 'password';
+    $('#cpos_pat_toggle').textContent = '表示';
+    showCposConnected(payload);
+    await loadCposFacilities();
+  } catch (err) {
+    hint.textContent = `CPOS 接続失敗: ${err.message}`;
+    hint.style.color = '#b3261e';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
+async function disconnectCpos() {
+  const { res } = await jsonFetch('/api/cpos-token', { method: 'DELETE' });
+  if (res.ok) showCposDisconnected('接続を解除しました');
+}
+
+async function testCposConnection() {
+  const { res, payload } = await jsonFetch('/api/cpos-token/test', { method: 'POST' });
+  if (res.ok && payload?.ok) {
+    alert(`CPOS 接続 OK: ${payload.me?.email || '-'} / 事業所 ${payload.facilityCount} 件`);
+  } else {
+    alert(`CPOS 接続テスト失敗: ${payload?.message || res.status}`);
+    if (res.status === 401) showCposDisconnected('セッションが切れました。再接続してください。');
+  }
+}
+
+async function loadCposFacilities() {
+  const select = $('#cpos_facility');
+  try {
+    const { res, payload } = await jsonFetch('/api/cpos/facilities');
     if (!res.ok) {
-      hint.textContent = `CPOS 接続エラー: ${json.message || json.error}`;
-      hint.style.color = '#b3261e';
+      select.innerHTML = `<option value="">— 取得失敗: ${(payload && payload.message) || res.status} —</option>`;
       return;
     }
-    const facilities = json.facilities || [];
+    const facilities = payload?.facilities || [];
     select.innerHTML = '<option value="">— 事業所を選択 —</option>';
     for (const f of facilities) {
       const opt = document.createElement('option');
@@ -544,34 +690,26 @@ async function initCposPanel() {
       opt.textContent = `${f.name || f.id}（${(f.serviceTypeCodes || []).join(',') || '-'}）`;
       select.appendChild(opt);
     }
-    hint.textContent = `CPOS 接続: OK（${facilities.length} 事業所アクセス可能）`;
-    hint.style.color = 'var(--ok)';
+    if (!facilities.length) {
+      select.innerHTML = '<option value="">— アクセス可能な事業所がありません —</option>';
+    }
   } catch (err) {
-    hint.textContent = `CPOS 接続失敗: ${err.message}`;
-    hint.style.color = '#b3261e';
+    select.innerHTML = `<option value="">— 取得失敗: ${err.message} —</option>`;
   }
-
-  $('#cpos-analyze-btn').addEventListener('click', () => runCposAnalyze());
 }
 
 async function runCposAnalyze() {
   const facilityId = $('#cpos_facility').value;
   const serviceMonth = $('#cpos_month').value;
-  if (!facilityId) {
-    alert('CPOS の事業所を選択してください。');
-    return;
-  }
-  if (!serviceMonth) {
-    alert('対象月（YYYY-MM）を入力してください。');
-    return;
-  }
+  if (!facilityId) { alert('CPOS の事業所を選択してください。'); return; }
+  if (!serviceMonth) { alert('対象月（YYYY-MM）を入力してください。'); return; }
 
   hide('#error-section');
   hide('#result-section');
   hide('#judge-section');
 
   const btn = $('#cpos-analyze-btn');
-  const originalLabel = btn.innerHTML;
+  const original = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span><span>${appConfig.recaptcha_enabled ? '安全確認中…' : 'CPOS から取得中…'}</span>`;
 
@@ -589,20 +727,20 @@ async function runCposAnalyze() {
     const body = { facilityId, serviceMonth };
     if (recaptchaToken) body.recaptcha_token = recaptchaToken;
 
-    const res = await fetch('/api/cpos/analyze', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(formatApiError(res.status, json));
-
-    renderJudge(json.judge, json.markdown, json.judge.service_def);
-    // CPOS 由来は Gemini 補完を呼ばないので、結果セクションは判定のみ
+    const { res, payload } = await jsonFetch('/api/analyze/from-cpos', { method: 'POST', body });
+    if (!res.ok || !payload?.ok) {
+      if (res.status === 401) {
+        showCposDisconnected('CPOS セッションが切れました。再接続してください。');
+        return;
+      }
+      throw new Error(formatApiError(res.status, payload || {}));
+    }
+    const judge = payload.resultJson;
+    renderJudge(judge, payload.reportMarkdown, judge?.service_def);
   } catch (err) {
     showError(err.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = originalLabel;
+    btn.innerHTML = original;
   }
 }

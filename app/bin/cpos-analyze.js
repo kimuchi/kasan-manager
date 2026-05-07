@@ -24,7 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 
-import { CposClient, readClientConfig, isConfigured as isCposConfigured } from '../src/services/cpos/client.js';
+import { CposClient, defaultBaseUrl, isAllowedBaseUrl } from '../src/services/cpos/client.js';
 import { validateAnalysisSource } from '../src/services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
 import { toEngineInputs } from '../src/services/cpos/transform.js';
@@ -55,15 +55,29 @@ async function fetchAnalysisSource(args) {
   if (!args.facility || !args.month) {
     throw new Error('--facility と --month は必須です（または --source でフィクスチャを指定）');
   }
-  if (!isCposConfigured()) {
-    throw new CposNotConfiguredError();
+  const baseUrl = typeof args['base-url'] === 'string' ? args['base-url'] : defaultBaseUrl();
+  const token = typeof args.token === 'string' ? args.token : process.env.CPOS_PAT || null;
+  if (!baseUrl) throw new Error('--base-url または KASAN_DEFAULT_CPOS_BASE_URL が必要です');
+  if (!token) throw new Error('--token または環境変数 CPOS_PAT が必要です');
+  if (!isAllowedBaseUrl(baseUrl)) throw new Error(`許可されない CPOS URL: ${baseUrl}`);
+  const client = new CposClient({ baseUrl, token });
+  let payload;
+  try {
+    payload = await client.getKasanExport({
+      facilityId: String(args.facility),
+      serviceMonth: String(args.month),
+    });
+  } catch (err) {
+    if (err?.statusCode === 404) {
+      payload = await client.getAnalysisSource({
+        facilityId: String(args.facility),
+        serviceMonth: String(args.month),
+        includePii: Boolean(args['include-pii']),
+      });
+    } else {
+      throw err;
+    }
   }
-  const client = new CposClient(readClientConfig());
-  const payload = await client.getAnalysisSource({
-    facilityId: String(args.facility),
-    serviceMonth: String(args.month),
-    includePii: Boolean(args['include-pii']),
-  });
   return { payload, origin: 'live', sourcePath: null };
 }
 

@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cpos_export_bundle",
+  "description": "CPOS の /api/platform/kasan/export が返す統合 bundle 形式。加算マネージャは これを既存判定エンジンの入力に変換する。",
+  "type": "object",
+  "required": ["formatVersion", "facility", "serviceMonth"],
+  "properties": {
+    "formatVersion": { "type": "string", "const": "1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "organizationId": { "type": "string" },
+    "facility": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "businessNumber": { "type": "string" },
+        "serviceTypeCodes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "serviceMonth": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+    "serviceKey": { "type": "string" },
+    "source": {
+      "type": "object",
+      "properties": {
+        "system": { "type": "string", "const": "CPOS" },
+        "authMethod": {
+          "type": "string",
+          "enum": ["personal_access_token", "app_token", "session"]
+        },
+        "subjectUserId": { "type": "string" },
+        "tokenPreview": { "type": "string" }
+      }
+    },
+    "staffSummary": { "type": "object" },
+    "userSummary": { "type": "object" },
+    "fteSummary": { "type": "object" },
+    "claimSummary": { "type": "object" },
+    "benefitManagementSummary": { "type": "object" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  }
+}

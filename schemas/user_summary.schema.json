@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "user_summary",
+  "description": "利用者個別情報ではなく、加算判定に必要な集計値（PII 非含有）。CPOS の analysis-source の userSummary もこれに準拠する。",
+  "type": "object",
+  "required": ["_meta", "summary"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["schema", "office_code", "tenant_id"],
+      "properties": {
+        "schema": { "const": "user_summary" },
+        "schema_version": { "type": "string" },
+        "office_code": { "type": "string" },
+        "tenant_id": { "type": "string" },
+        "updated": { "type": "string", "format": "date-time" },
+        "anonymization_status": {
+          "type": "string",
+          "enum": ["aggregated"],
+          "description": "集計済みであること（個人特定不能）を明示"
+        },
+        "data_source_type": {
+          "type": "string",
+          "enum": ["manual", "cpos_aggregate", "demo_aggregate"]
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_users"],
+      "properties": {
+        "total_users": { "type": "integer", "minimum": 0 },
+        "care_level_distribution": {
+          "type": "object",
+          "description": "要介護度別の人数（キーは youshien_1, youkaigo_1〜5 など）",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "yokaigo_3plus_ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "ninchi_jiritsudo_distribution": { "type": "object" },
+        "severe_user_count": { "type": "integer", "minimum": 0 },
+        "severe_user_ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

@@ -90,9 +90,31 @@ npm run cpos:bootstrap                                                          
 npm run cpos:analyze -- --facility=facility-a --month=2026-04 --report-md=out.md    # CPOS から取得して分析
 ```
 
-### 5. CPOS 連携（任意）
+### 5. CPOS 連携（任意・ユーザ別 PAT 方式）
 
-`.env` に `CPOS_BASE_URL` と `CPOS_API_TOKEN` を設定すると、Web UI の冒頭に「🔗 CPOS データで分析する」パネルが自動表示されます。CPOS の事業所・利用者・職員・請求の集計データを直接判定エンジンに投入できます。詳細は [docs/CPOS_INTEGRATION.md](./docs/CPOS_INTEGRATION.md)。
+`.env` に `KASAN_SESSION_SECRET` を設定すると、Web UI に「🔐 CPOS と連携して分析する」パネルが表示されます。
+**各ユーザがブラウザから自分の CPOS PAT（Personal Access Token）を入力**して接続します。
+
+| | 内容 |
+|---|---|
+| PAT の保存先 | サーバの DB / ファイル / 環境変数には保存しない |
+| 唯一の保存場所 | 暗号化済み HTTP-only Cookie（AES-256-GCM） |
+| ブラウザ JS | localStorage / sessionStorage は使わない（cookie が HttpOnly のため JS から読めない） |
+| CPOS への通信 | サーバ間でのみ実施（ブラウザは CPOS を直接叩かない） |
+
+詳細は [docs/CPOS_TOKEN.md](./docs/CPOS_TOKEN.md) と [docs/DATA_SAFETY.md](./docs/DATA_SAFETY.md) を参照。
+
+### 6. Web ドキュメント
+
+アプリ内で `/docs/*` にアクセスすると、リポジトリ `docs/` 配下の Markdown が HTML レンダリングされて閲覧できます。
+
+- `/docs/USER_GUIDE.md` — UI 全体の使い方
+- `/docs/CPOS_TOKEN.md` — CPOS PAT 接続手順
+- `/docs/DATA_SAFETY.md` — データ取扱方針
+- `/docs/json/` — JSON 入力形式リファレンス
+- `/docs/CLI.md` — CLI コマンド一覧
+- `/docs/DEPLOYMENT.md` — デプロイ手順
+- `/docs/TECHNICAL.md` — 内部アーキテクチャ
 
 ---
 

@@ -34,7 +34,7 @@ import {
 } from '../src/services/cpos/transform.js';
 import { validateAnalysisSource, validateBootstrap } from '../src/services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
-import { isConfigured as isCposConfigured } from '../src/services/cpos/client.js';
+import { defaultBaseUrl } from '../src/services/cpos/client.js';
 import { readFile } from 'node:fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -314,13 +314,15 @@ const FIXTURE_PATH = path.join(__dirname, '..', 'tests', 'fixtures', 'cpos_analy
 await test('CPOS: errors / config types を読み込める', () => {
   assert.ok(CposApiError);
   assert.ok(CposNotConfiguredError);
-  // CPOS_BASE_URL 未設定なら isConfigured は false
-  const original = process.env.CPOS_BASE_URL;
+  // 全環境変数が空なら defaultBaseUrl は null
+  const orig = { def: process.env.KASAN_DEFAULT_CPOS_BASE_URL, cpos: process.env.CPOS_BASE_URL };
+  delete process.env.KASAN_DEFAULT_CPOS_BASE_URL;
   delete process.env.CPOS_BASE_URL;
   try {
-    assert.equal(isCposConfigured(), false);
+    assert.equal(defaultBaseUrl(), null);
   } finally {
-    if (original) process.env.CPOS_BASE_URL = original;
+    if (orig.def) process.env.KASAN_DEFAULT_CPOS_BASE_URL = orig.def;
+    if (orig.cpos) process.env.CPOS_BASE_URL = orig.cpos;
   }
 });
 
@@ -423,6 +425,85 @@ await test('CPOS: Markdown レポートに「CPOS データ整備状況」セク
   assert.ok(md.includes('🔗 CPOS データ整備状況'), 'CPOS セクション欠落');
   assert.ok(md.includes('給付管理'), '給付管理項目欠落');
   assert.ok(md.includes('外部 PT/OT/ST'), '外部 PT/OT/ST 注記欠落');
+});
+
+// =====================================================================
+// PAT 関連: Cookie 暗号化・CSRF・PAT セッション
+// =====================================================================
+process.env.KASAN_SESSION_SECRET = process.env.KASAN_SESSION_SECRET || 'a'.repeat(48);
+
+await test('Cookie seal: 暗号化 → 復号 で payload が戻る', async () => {
+  const { sealCookie, unsealCookie, isSessionSecretConfigured, tokenPreview, redactSecret } = await import(
+    '../src/utils/cookie-seal.js'
+  );
+  assert.equal(isSessionSecretConfigured(), true);
+  const sealed = sealCookie({ token: 'cpos_pat_abcdefghijklmnop', exp: Date.now() + 60_000 });
+  const decoded = unsealCookie(sealed);
+  assert.ok(decoded);
+  assert.equal(decoded.token, 'cpos_pat_abcdefghijklmnop');
+  // tokenPreview / redactSecret も
+  assert.match(tokenPreview('cpos_pat_abcdefghij1234567890'), /^cpos_pat_.+\.\.\..+$/);
+  assert.equal(redactSecret('cpos_pat_xxx_secret_long_value'), 'cpos_pat_xxx_s...REDACTED');
+});
+
+await test('Cookie seal: 改ざんされた値は復号失敗で null', async () => {
+  const { sealCookie, unsealCookie } = await import('../src/utils/cookie-seal.js');
+  const sealed = sealCookie({ token: 'cpos_pat_test', exp: Date.now() + 60_000 });
+  const tampered = `A${sealed.slice(1)}`;
+  const r = unsealCookie(tampered);
+  assert.equal(r, null);
+});
+
+await test('Cookie seal: exp 切れの payload は null を返す', async () => {
+  const { sealCookie, unsealCookie } = await import('../src/utils/cookie-seal.js');
+  const sealed = sealCookie({ token: 'cpos_pat_test', exp: Date.now() - 1_000 });
+  const r = unsealCookie(sealed);
+  assert.equal(r, null);
+});
+
+await test('CPOS auth: buildSessionPayload と toPublicSessionView が PAT 平文を返さない', async () => {
+  const { buildSessionPayload, toPublicSessionView } = await import('../src/services/cpos/auth.js');
+  const payload = buildSessionPayload({
+    cposBaseUrl: 'https://cpos.example.jp',
+    token: 'cpos_pat_secretvalue1234567890',
+    me: {
+      user: { id: 'u1', email: 'a@b', name: 'A B' },
+      token: { authMethod: 'personal_access_token', scopes: ['x'], allowedFacilityIds: ['f1'] },
+    },
+  });
+  // payload には平文 token が含まれる（cookie 暗号化前なので）
+  assert.equal(payload.token, 'cpos_pat_secretvalue1234567890');
+  // public view には含まれない
+  const view = toPublicSessionView(payload);
+  assert.equal(view.token.tokenPreview, 'cpos_pat_secre...7890');
+  assert.equal(JSON.stringify(view).includes('cpos_pat_secretvalue1234567890'), false);
+});
+
+await test('CPOS client: isAllowedBaseUrl が production で http を拒否', async () => {
+  const { isAllowedBaseUrl } = await import('../src/services/cpos/client.js');
+  // dev 環境（既定）
+  assert.equal(isAllowedBaseUrl('https://cpos.example.jp'), true);
+  assert.equal(isAllowedBaseUrl('http://localhost:8080'), true); // dev では OK
+  // production 切替
+  const original = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    assert.equal(isAllowedBaseUrl('http://example.jp'), false);
+    assert.equal(isAllowedBaseUrl('https://example.jp'), true);
+  } finally {
+    process.env.NODE_ENV = original || 'development';
+  }
+});
+
+await test('CPOS client: allowlist 外を拒否', async () => {
+  const { isAllowedBaseUrl } = await import('../src/services/cpos/client.js');
+  process.env.KASAN_CPOS_ALLOWLIST = 'cpos.example.jp,trusted.example.jp';
+  try {
+    assert.equal(isAllowedBaseUrl('https://cpos.example.jp'), true);
+    assert.equal(isAllowedBaseUrl('https://other.example.jp'), false);
+  } finally {
+    delete process.env.KASAN_CPOS_ALLOWLIST;
+  }
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
