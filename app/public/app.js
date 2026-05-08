@@ -69,13 +69,27 @@ async function initApp() {
   initServices();
   initFileInputs();
   initAnalyzeButtons();
-  // CPOS パネルは ready のときだけ表示。未設定なら main 末尾の控えめな notice を出す。
+  // CPOS 折りたたみパネルは閉じた状態で表示（ready のときのみ）。
+  // 未設定なら main 末尾に控えめな notice。
   if (appConfig.cpos_panel_visible && appConfig.cpos_ready) {
     show('#cpos-section');
     await initCposPanel();
+    initCposNavLink();
   } else if (appConfig.cpos_panel_visible && !appConfig.cpos_ready) {
     show('#cpos-not-ready-notice');
   }
+}
+
+function initCposNavLink() {
+  const link = $('#cpos-nav-link');
+  if (!link) return;
+  link.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const sec = $('#cpos-section');
+    if (!sec) return;
+    sec.open = true;
+    sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 async function initStatusPill() {

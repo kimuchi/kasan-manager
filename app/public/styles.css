@@ -553,6 +553,57 @@ main {
   border: 1.5px solid #6a3fbf;
 }
 
+/* 折りたたみ可能な CPOS 連携パネル（地味バージョン） */
+.cpos-collapsible {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0;
+  margin-bottom: 12px;
+  box-shadow: none;
+}
+
+.cpos-collapsible[open] {
+  background: linear-gradient(180deg, #fafbfe, #fff);
+  border-color: var(--border-strong);
+}
+
+.cpos-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 18px;
+  font-size: 15px;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
+}
+
+.cpos-summary::-webkit-details-marker { display: none; }
+.cpos-summary::before {
+  content: '▶';
+  font-size: 11px;
+  color: var(--ink-mute);
+  transition: transform 0.15s ease;
+  margin-right: 4px;
+}
+
+.cpos-collapsible[open] .cpos-summary::before {
+  transform: rotate(90deg);
+}
+
+.cpos-summary-icon { font-size: 16px; }
+.cpos-summary-text { flex: 1; }
+.cpos-summary-aux { font-size: 13px; color: var(--ink-mute); }
+.cpos-summary-aux a { color: var(--accent); text-decoration: none; }
+.cpos-summary-aux a:hover { text-decoration: underline; }
+
+.cpos-collapsible[open] > div {
+  padding: 18px 22px 22px;
+  border-top: 1px solid var(--border);
+}
+
 .muted-notice {
   margin: 24px 0 0;
   padding: 8px 12px;

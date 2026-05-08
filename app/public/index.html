@@ -19,7 +19,7 @@
       <div class="header-right">
         <nav class="docs-nav">
           <a href="/docs/USER_GUIDE.md">使い方</a>
-          <a href="/docs/CPOS_TOKEN.md">CPOS連携</a>
+          <a href="#cpos-section" id="cpos-nav-link">CPOS連携</a>
           <a href="/docs/json/">JSON形式</a>
           <a href="/docs/DATA_SAFETY.md">データ取扱方針</a>
         </nav>
@@ -31,8 +31,12 @@
     </header>
 
     <main>
-      <section id="cpos-section" class="card cpos-card hidden">
-        <h2>🔐 CPOS と連携して分析する（任意）</h2>
+      <details id="cpos-section" class="cpos-collapsible hidden">
+        <summary class="cpos-summary">
+          <span class="cpos-summary-icon">🔐</span>
+          <span class="cpos-summary-text">CPOS と連携して分析する（任意・クリックで開く）</span>
+          <span class="cpos-summary-aux"><a href="/docs/CPOS_TOKEN.md">手順</a></span>
+        </summary>
 
         <!-- 未接続パネル: PAT 入力 -->
         <div id="cpos-disconnected-panel" class="hidden">
@@ -106,7 +110,7 @@
             <button type="button" id="cpos-test-btn" class="ghost-btn">接続テスト</button>
           </p>
         </div>
-      </section>
+      </details>
 
       <section class="card">
         <h2>1. 分析するサービスを選ぶ</h2>
