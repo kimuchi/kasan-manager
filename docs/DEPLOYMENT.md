@@ -131,10 +131,11 @@ gcloud projects get-iam-policy $GCP_PROJECT_ID --format=json | jq '.bindings[]|s
 実行内容:
 
 1. `cloudbuild.yaml` で Docker イメージをビルド & Artifact Registry へ push（タグ = タイムスタンプ）
-2. `gcloud run deploy` でローカルから直接デプロイし、`.env` の値を `--set-env-vars` で渡す
-   - `NODE_ENV=production`
-   - `GEMINI_MODEL=gemini-2.5-flash`
-   - `GEMINI_API_KEY=<.env の値>`
+2. `gcloud run deploy` でローカルから直接デプロイし、`.env` の値を `--env-vars-file` で一時 YAML 経由で渡す
+   - `NODE_ENV=production`（固定）
+   - `GEMINI_*` / `KASAN_*` / `CPOS_*` / `RECAPTCHA_*` / `RATE_LIMIT_*` / `TRUST_PROXY` / `MAX_UPLOAD_BYTES` / `HOST` を全て自動転送
+   - GCP デプロイ専用の値（`GCP_PROJECT_ID` / `CLOUD_RUN_*` 等）と `your-...` のような placeholder 値は除外
+   - 一時 YAML ファイルはデプロイ完了直後に削除（機密漏えい防止）
 3. デプロイ後の URL（`https://kasan-manager-xxxxx-an.a.run.app`）を表示
 
 ```bash
@@ -256,7 +257,20 @@ npm run deploy:cloudrun
 npm run deploy:cloudrun -- --skip-build
 ```
 
-`--skip-build` を付けると、Artifact Registry にある最新イメージをそのまま再デプロイし、`.env` の最新値を `--set-env-vars` で適用します。
+`--skip-build` を付けると、Artifact Registry にある最新イメージをそのまま再デプロイし、`.env` の最新値を `--env-vars-file` 経由で全て適用します。
+
+例えば CPOS 連携を有効化したい場合:
+
+```bash
+# .env に追加
+echo "KASAN_SESSION_SECRET=$(openssl rand -hex 32)" >> .env
+echo "KASAN_DEFAULT_CPOS_BASE_URL=https://cpos.example.jp" >> .env
+
+# 反映（30 秒）
+npm run deploy:cloudrun -- --skip-build
+```
+
+デプロイログに「`Cloud Run に転送する環境変数（機密値はマスク）`」のリストが出るので、意図した値が転送されたか確認できます。
 
 ### 5-3. ロールバック
 
@@ -514,7 +528,16 @@ gcloud run services describe kasan-manager --region=asia-northeast1 \
 
 ### Q. `.env` を直したのに反映されない
 
-`npm run deploy:cloudrun -- --skip-build` を実行してください。Cloud Run は `--set-env-vars` を受けたタイミングで新しいリビジョンが起動します。
+`npm run deploy:cloudrun -- --skip-build` を実行してください。実行ログに「Cloud Run に転送する環境変数」一覧が出るので、目的の値が含まれているか確認できます。
+
+それでも反映されない場合は、Cloud Run 側の現在値を直接確認してください:
+
+```bash
+gcloud run services describe kasan-manager --region=asia-northeast1 \
+  --format='value(spec.template.spec.containers[0].env)'
+```
+
+`KASAN_SESSION_SECRET` などが見えなければ転送されていません。
 
 ### Q. 証明書がいつまでも `PROVISIONING`
 

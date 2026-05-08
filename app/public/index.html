@@ -34,17 +34,6 @@
       <section id="cpos-section" class="card cpos-card hidden">
         <h2>🔐 CPOS と連携して分析する（任意）</h2>
 
-        <!-- サーバ側で連携が無効になっている場合の案内 -->
-        <div id="cpos-not-ready-panel" class="hidden">
-          <p class="lead">
-            CPOS 連携は管理者により未設定です。サーバ側で <code>KASAN_SESSION_SECRET</code> を設定するとこのパネルから PAT 入力が可能になります。
-          </p>
-          <p class="hint" id="cpos-not-ready-message"></p>
-          <p class="hint">
-            手順は <a href="/docs/CPOS_TOKEN.md" target="_blank">CPOS PAT 接続ガイド</a> を参照してください。
-          </p>
-        </div>
-
         <!-- 未接続パネル: PAT 入力 -->
         <div id="cpos-disconnected-panel" class="hidden">
           <p class="lead">
@@ -281,6 +270,12 @@
         <h2>エラー</h2>
         <p id="error-text"></p>
       </section>
+
+      <!-- CPOS 連携が未設定な環境向けの控えめな案内（main の末尾に小さく） -->
+      <p id="cpos-not-ready-notice" class="muted-notice hidden">
+        ℹ️ CPOS 連携を有効にするには、サーバ管理者が <code>KASAN_SESSION_SECRET</code> を設定する必要があります。
+        詳細は <a href="/docs/CPOS_TOKEN.md">CPOS PAT 接続ガイド</a> を参照してください。
+      </p>
     </main>
 
     <footer class="site-footer">

@@ -553,6 +553,27 @@ main {
   border: 1.5px solid #6a3fbf;
 }
 
+.muted-notice {
+  margin: 24px 0 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink-mute);
+  background: transparent;
+  border-top: 1px dashed var(--border);
+  text-align: center;
+}
+
+.muted-notice a {
+  color: var(--accent);
+}
+
+.muted-notice code {
+  font-size: 12px;
+  background: #eef2fa;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 .cpos-policy-list {
   background: #fff;
   border: 1px solid var(--border);

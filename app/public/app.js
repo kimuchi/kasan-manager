@@ -69,21 +69,12 @@ async function initApp() {
   initServices();
   initFileInputs();
   initAnalyzeButtons();
-  if (appConfig.cpos_panel_visible) {
-    if (appConfig.cpos_ready) {
-      await initCposPanel();
-    } else {
-      showCposNotReady();
-    }
-  }
-}
-
-function showCposNotReady() {
-  $('#cpos-not-ready-panel').classList.remove('hidden');
-  $('#cpos-disconnected-panel').classList.add('hidden');
-  $('#cpos-connected-panel').classList.add('hidden');
-  if (appConfig.cpos_not_ready_message) {
-    $('#cpos-not-ready-message').textContent = appConfig.cpos_not_ready_message;
+  // CPOS パネルは ready のときだけ表示。未設定なら main 末尾の控えめな notice を出す。
+  if (appConfig.cpos_panel_visible && appConfig.cpos_ready) {
+    show('#cpos-section');
+    await initCposPanel();
+  } else if (appConfig.cpos_panel_visible && !appConfig.cpos_ready) {
+    show('#cpos-not-ready-notice');
   }
 }
 
@@ -112,13 +103,12 @@ async function initStatusPill() {
       appConfig.csrf_token = json.csrf.token;
       appConfig.csrf_header_name = json.csrf.header_name || 'x-csrf-token';
     }
-    // CPOS パネルは常に表示（機能の存在を知らせる）。実際に PAT 入力できるかは ready で判断
+    // CPOS の表示判断は initApp に任せる（panel_visible+ready でパネル、未設定なら控えめ notice）
     if (json.cpos?.panel_visible) {
       appConfig.cpos_panel_visible = true;
       appConfig.cpos_ready = Boolean(json.cpos.ready);
       appConfig.cpos_default_url = json.cpos.default_base_url || null;
       appConfig.cpos_not_ready_message = json.cpos.not_ready_message || null;
-      show('#cpos-section');
     }
   } catch (err) {
     pill.classList.add('error');
@@ -571,7 +561,6 @@ function hide(sel) { $(sel).classList.add('hidden'); }
 // CPOS PAT 連携パネル
 // ─────────────────────────────────────────────────────────
 async function initCposPanel() {
-  $('#cpos-not-ready-panel').classList.add('hidden');
   $('#cpos-disconnected-panel').classList.remove('hidden');
   // PAT デフォルト URL の充填
   if (appConfig.cpos_default_url) {
