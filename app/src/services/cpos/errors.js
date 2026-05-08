@@ -2,12 +2,26 @@
 // 指示書 §15.1 のメッセージに合わせて、ユーザに見せやすい日本語メッセージを保持する。
 
 export class CposApiError extends Error {
-  constructor(statusCode, message, { responseJson = null, requestPath = null, hint = null } = {}) {
+  constructor(
+    statusCode,
+    message,
+    {
+      responseJson = null,
+      responseBodyText = null,
+      responseHeaders = null,
+      requestPath = null,
+      requestUrl = null,
+      hint = null,
+    } = {},
+  ) {
     super(message);
     this.name = 'CposApiError';
     this.statusCode = statusCode;
     this.responseJson = responseJson;
+    this.responseBodyText = responseBodyText;
+    this.responseHeaders = responseHeaders;
     this.requestPath = requestPath;
+    this.requestUrl = requestUrl;
     this.hint = hint;
   }
 
@@ -18,6 +32,9 @@ export class CposApiError extends Error {
       message: this.message,
       hint: this.hint,
       request_path: this.requestPath,
+      request_url: this.requestUrl,
+      response_body: this.responseJson || this.responseBodyText || null,
+      response_headers: this.responseHeaders,
     };
   }
 }

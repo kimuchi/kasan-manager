@@ -44,6 +44,18 @@
             あなた個人の <strong>CPOS API トークン</strong>（cpos_pat_...）を入力すると、
             あなたの権限内の事業所データを CPOS から取得して分析できます。
           </p>
+
+          <ol class="cpos-steps">
+            <li>
+              <strong>CPOS にログイン</strong>（Google アカウント）して
+              <a id="cpos-issue-link" href="#" target="_blank" rel="noopener">PAT 発行ページ</a>
+              を開く
+              <span class="cpos-steps-hint">※ CPOS URL を下に入力するとリンクが自動で有効になります</span>
+            </li>
+            <li>「個人 API トークン (PAT) を発行」して、表示された <code>cpos_pat_...</code> をコピー</li>
+            <li>下の「CPOS API トークン」欄に貼り付けて「保存して接続確認」を押す</li>
+          </ol>
+
           <ul class="cpos-policy-list">
             <li>🔒 トークンはこのアプリの DB に保存されません</li>
             <li>🔒 暗号化された <strong>HTTP-only Cookie</strong> としてあなたのブラウザにのみ保存されます</li>

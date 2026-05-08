@@ -86,15 +86,35 @@ export class CposClient {
     }
 
     if (!res.ok) {
+      // 詳細なデバッグ情報を捕捉する。
+      // CPOS が JSON を返さない場合（HTML エラーページ等）も生のテキストとして残す。
+      const ct = res.headers.get('content-type') || '';
       let payload = null;
-      try {
-        payload = await res.json();
-      } catch {}
-      const apiMsg = payload?.message || payload?.error;
+      let bodyText = null;
+      if (ct.includes('application/json')) {
+        try {
+          payload = await res.json();
+        } catch {}
+      } else {
+        try {
+          bodyText = await res.text();
+          if (bodyText && bodyText.length > 4000) bodyText = `${bodyText.slice(0, 4000)}…(切り捨て)`;
+        } catch {}
+      }
+      // 関連性が高いヘッダのみピックアップ（漏えいリスクを減らすため、全件は出さない）
+      const interestingHeaders = {};
+      for (const k of ['www-authenticate', 'x-request-id', 'content-type', 'x-cpos-version']) {
+        const v = res.headers.get(k);
+        if (v) interestingHeaders[k] = v;
+      }
+      const apiMsg = payload?.message || payload?.error || bodyText;
       const fallback = CPOS_HTTP_HINTS[res.status] || `CPOS API エラー (HTTP ${res.status})`;
       throw new CposApiError(res.status, apiMsg || fallback, {
         responseJson: payload,
+        responseBodyText: bodyText,
+        responseHeaders: Object.keys(interestingHeaders).length ? interestingHeaders : null,
         requestPath: path,
+        requestUrl: url.toString(),
         hint: CPOS_HTTP_HINTS[res.status],
       });
     }

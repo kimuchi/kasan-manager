@@ -151,6 +151,14 @@ function handleCposError(err, res) {
       status_code: err.statusCode,
       message: err.message,
       hint: err.hint,
+      // 診断情報: ユーザに「CPOS が何を返したか」を見せて切り分けを助ける
+      // 機微情報（リクエストヘッダの Authorization 等）は含めない
+      diagnostics: {
+        request_url: err.requestUrl,
+        request_path: err.requestPath,
+        response_body: err.responseJson || err.responseBodyText || null,
+        response_headers: err.responseHeaders || null,
+      },
     });
   }
   if (err instanceof CposNotConfiguredError) {

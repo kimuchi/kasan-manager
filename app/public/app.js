@@ -580,6 +580,8 @@ async function initCposPanel() {
   if (appConfig.cpos_default_url) {
     $('#cpos_base_url').value = appConfig.cpos_default_url;
   }
+  updateCposIssueLink();
+  $('#cpos_base_url').addEventListener('input', updateCposIssueLink);
   // 当月を初期値に
   const now = new Date();
   $('#cpos_month').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -623,6 +625,53 @@ function showCposDisconnected(message = '') {
   }
 }
 
+// CPOS URL から PAT 発行ページの URL を組み立てて、ステップ 1 のリンクを動的に有効化
+function updateCposIssueLink() {
+  const link = $('#cpos-issue-link');
+  if (!link) return;
+  const raw = $('#cpos_base_url').value.trim();
+  if (!raw || !/^https?:\/\//.test(raw)) {
+    link.href = '#';
+    link.classList.add('disabled');
+    link.title = 'まず CPOS URL を入力してください';
+    return;
+  }
+  const base = raw.replace(/\/+$/, '');
+  // CPOS の PAT 発行ページの一般的なパス。実際のパスは CPOS 側仕様に依存するため、
+  // 候補を順番に試したいが UI 上は 1 つに固める。一般的な「設定 → API トークン」を想定。
+  link.href = `${base}/settings/api-tokens`;
+  link.classList.remove('disabled');
+  link.title = `${link.href} を新しいタブで開く`;
+}
+
+// エラー時にユーザに見せる詳細情報を組み立てる
+function renderCposErrorHint(payload) {
+  const status = payload?.status_code;
+  const code = payload?.error;
+  if (status === 401) {
+    return [
+      '🔐 CPOS が PAT を受け付けませんでした。考えられる原因:',
+      '  ・PAT がまだ発行されていない／期限切れ／取り消し済み',
+      '  ・ステップ 1 のリンクから CPOS にログインして PAT を発行してください',
+      '  ・CPOS の「設定 → API トークン」画面でアクティブな PAT があるか確認してください',
+      '  ・CPOS 側で `/api/platform/me` の Bearer 認証実装が完了しているか管理者に確認してください',
+    ].join('\n');
+  }
+  if (status === 403) {
+    return '🚫 PAT は有効ですが、scope または事業所アクセス権が不足しています。CPOS 管理者に scope 追加を依頼してください。';
+  }
+  if (status === 404 || status === 0) {
+    return '🌐 CPOS への接続自体ができませんでした。CPOS URL（https の有無含む）が正しいか確認してください。';
+  }
+  if (code === 'invalid_base_url') {
+    return '⚠️ CPOS URL が許可されていません（本番では https のみ／allowlist 対象外）。';
+  }
+  if (code === 'bad_token_format') {
+    return '⚠️ PAT は cpos_pat_ で始まる文字列です。コピー漏れ・空白混入がないか確認してください。';
+  }
+  return null;
+}
+
 function showCposConnected(view) {
   $('#cpos-disconnected-panel').classList.add('hidden');
   $('#cpos-connected-panel').classList.remove('hidden');
@@ -664,7 +713,9 @@ async function connectCpos() {
       body: { cposBaseUrl: baseUrl, token },
     });
     if (!res.ok || !payload?.ok) {
-      throw new Error(payload?.message || payload?.error || `HTTP ${res.status}`);
+      const e = new Error(payload?.message || payload?.error || `HTTP ${res.status}`);
+      e._cposPayload = { status: res.status, ...payload };
+      throw e;
     }
     // 入力欄をクリア（PAT を画面に残さない）
     $('#cpos_pat').value = '';
@@ -673,11 +724,66 @@ async function connectCpos() {
     showCposConnected(payload);
     await loadCposFacilities();
   } catch (err) {
-    hint.textContent = `CPOS 接続失敗: ${err.message}`;
-    hint.style.color = '#b3261e';
+    renderCposConnectError(err);
   } finally {
     btn.disabled = false;
     btn.innerHTML = original;
+  }
+}
+
+function renderCposConnectError(err) {
+  const hint = $('#cpos-connect-hint');
+  const detail = err._cposPayload || null;
+  const guidance = detail ? renderCposErrorHint(detail) : null;
+  hint.style.color = '#b3261e';
+  hint.innerHTML = '';
+
+  const summary = document.createElement('div');
+  summary.textContent = `CPOS 接続失敗: ${err.message}`;
+  hint.appendChild(summary);
+
+  if (guidance) {
+    const det = document.createElement('details');
+    det.className = 'cpos-error-detail';
+    det.open = true;
+    const sm = document.createElement('summary');
+    sm.textContent = '対処方法（クリックで開く）';
+    det.appendChild(sm);
+    const pre = document.createElement('pre');
+    pre.textContent = guidance;
+    det.appendChild(pre);
+    hint.appendChild(det);
+  }
+
+  // 診断セクション: CPOS の URL・応答・ヘッダ
+  const diag = detail?.diagnostics;
+  if (diag) {
+    const raw = document.createElement('details');
+    raw.className = 'cpos-error-detail';
+    const sm = document.createElement('summary');
+    sm.textContent = 'CPOS の応答（管理者へ伝える診断情報）';
+    raw.appendChild(sm);
+    const lines = [];
+    if (diag.request_url) lines.push(`リクエスト先: ${diag.request_url}`);
+    if (detail.status_code != null) lines.push(`ステータス: HTTP ${detail.status_code}`);
+    if (diag.response_headers) {
+      lines.push('応答ヘッダ:');
+      for (const [k, v] of Object.entries(diag.response_headers)) {
+        lines.push(`  ${k}: ${v}`);
+      }
+    }
+    if (diag.response_body != null) {
+      lines.push('応答ボディ:');
+      const body =
+        typeof diag.response_body === 'string'
+          ? diag.response_body
+          : JSON.stringify(diag.response_body, null, 2);
+      lines.push(body);
+    }
+    const pre = document.createElement('pre');
+    pre.textContent = lines.join('\n');
+    raw.appendChild(pre);
+    hint.appendChild(raw);
   }
 }
 

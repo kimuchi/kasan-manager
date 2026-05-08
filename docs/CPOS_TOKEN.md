@@ -8,26 +8,49 @@
 
 ---
 
-## このページの概要
+## このページの概要（2 段階フロー）
 
-1. CPOS PAT を CPOS 管理者から受け取る
-2. 加算マネージャの「CPOS と連携して分析する」パネルにトークンを貼り付ける
-3. CPOS 側で検証 → 暗号化 Cookie として保存 → 接続済みになる
-4. 事業所と対象月を選んで「CPOS データで判定する」を押す
+> 💡 **大事な点**: PAT そのものに認証情報が入っているので、加算マネージャ側で Google ログインは不要です。ただし PAT を **発行** するためには CPOS 上で Google ログインが必要です。
 
-所要時間は 1 分です。
+```
+ステップ 1（CPOS で 1 回だけ）       ステップ 2（加算マネージャ）
+──────────────────                ──────────────────
+  CPOS にアクセス                    PAT 入力欄に貼り付け
+       ↓                                ↓
+  Google でログイン                  「保存して接続確認」
+       ↓                                ↓
+  「設定 → API トークン」            HTTP-only Cookie に保存
+       ↓                                ↓
+  PAT を発行 → cpos_pat_... をコピー  接続済み！分析可能
+```
+
+所要時間は合計 1〜2 分です。
 
 ---
 
-## 1. PAT を受け取る
+## 1. CPOS で PAT を発行する
 
-CPOS 管理者から以下の文字列が発行されます。
+### 1-1. CPOS にログイン
 
-- `cpos_pat_xxxxxxxxxxxxxxxxxxxxxxxx`（先頭が `cpos_pat_` で始まる）
+ブラウザで CPOS の URL（例: `https://cpos.care-planning.co.jp`）を開き、Google アカウントでログインしてください。
+
+### 1-2. PAT を発行
+
+ログイン後、**「設定 → API トークン」**（または同等の画面）から **「個人 API トークン (PAT) を発行」** を選びます。
+
+加算マネージャの UI 上に表示される「CPOS URL」を入力すると、画面のステップ 1 にある **「PAT 発行ページ」** リンクが有効化され、CPOS の発行画面（`<CPOS_URL>/settings/api-tokens`）が新しいタブで開きます。
+
+> CPOS 側で UI が異なる場合は、CPOS 管理者に「個人 API トークンの発行画面」を確認してください。
+
+発行されると、`cpos_pat_xxxxxxxxxxxxxxxxxxxxxxxx` という文字列が画面に **1 度だけ** 表示されます。**今すぐコピー** してください（一度ページを離れると CPOS は再表示しません）。
+
+PAT には以下の属性があります:
+
+- 先頭が `cpos_pat_` で始まる
 - 有効期限（例: 90 日）
 - 権限（scopes）と事業所範囲（allowedFacilityIds）
 
-これは**パスワードと同等の重要情報**です。共有しないでください。Slack やメールに添付しないでください。
+これは**パスワードと同等の重要情報**です。Slack・メール・チャットに貼らないでください。
 
 ---
 
@@ -119,10 +142,59 @@ CPOS との通信:
 | 「CPOS PAT の形式が不正です」 | `cpos_pat_` で始まらないトークンを貼り付けた | 正しい PAT を確認 |
 | 「invalid_base_url」 | http:// を本番で指定した | https:// で指定 |
 | 「not_pat」 | App Token など別種のトークンを貼った | CPOS で個人 PAT を発行 |
-| 「cpos_api_error (HTTP 401)」 | PAT が無効・失効・期限切れ | CPOS で再発行 |
+| 「認証が必要です」「Unauthorized」「HTTP 401」 | CPOS が PAT を受け付けていない（後述） | [§7-1](#7-1-cpos-が-pat-を受け付けない場合) を確認 |
 | 「cpos_api_error (HTTP 403)」 | 権限不足 / 事業所アクセス権なし | CPOS 管理者に scope と allowedFacilityIds を確認 |
 | 「セッションが切れました」 | Cookie の有効期限切れ | 再接続 |
 | 「forbidden_facility」 | 自分の権限外の事業所を選択 | 自分にアクセス権のある事業所を選ぶ |
+
+### 7-1. CPOS が PAT を受け付けない場合
+
+PAT を発行済みなのに「認証が必要です」が出る場合は、以下を順番に確認してください。
+
+#### A. PAT 自体の確認（ユーザ側）
+
+1. PAT を **コピー漏れ** していないか（先頭 `cpos_pat_` から末尾まで完全に貼られているか、空白・改行が入っていないか）
+2. PAT が **期限切れ** していないか（CPOS の「設定 → API トークン」で確認）
+3. PAT が **revoke（取り消し）** されていないか
+
+#### B. CPOS 側の実装確認（CPOS 管理者・開発者向け）
+
+加算マネージャは下記の HTTP 仕様を CPOS に期待しています。CPOS 側で未実装だとここで詰まります。
+
+| 項目 | 仕様 |
+|---|---|
+| エンドポイント | `GET <CPOS_BASE_URL>/api/platform/me` |
+| 認証 | `Authorization: Bearer <PAT>` ヘッダで判定する（Cookie session 任意） |
+| 成功時 | `200 OK` + `{ user: { id, email, name, role }, token: { authMethod, scopes, allowedFacilityIds, expiresAt } }` |
+| 失敗時 | `401 Unauthorized` を返す（401 でも JSON で `{ message }` を返してもらえると UI に伝わりやすい） |
+
+**よくある CPOS 側の落とし穴:**
+
+- `/api/platform/me` が **Cookie session のみ** をチェックしていて、`Authorization: Bearer ...` ヘッダを無視している
+  → CPOS の認証ミドルウェアで Bearer ヘッダの検証を追加してください
+- `Authorization` ヘッダがリバースプロキシ（Nginx 等）で剥がされている
+  → `proxy_set_header Authorization $http_authorization;` を追加
+- PAT のテーブルがあるが `authMethod === 'personal_access_token'` を返していない
+  → 加算マネージャは authMethod が `personal_access_token` であることを検証している
+- 期限管理が UTC/JST で食い違っていて即時失効
+
+#### C. UI から CPOS の応答を確認
+
+接続失敗時、UI には `「CPOS の応答（管理者へ伝える診断情報）」` という展開可能なボックスが表示されます。
+そこに以下が出ているはずです:
+
+- リクエスト先 URL
+- HTTP ステータス
+- 応答ヘッダ（`www-authenticate`, `content-type` 等）
+- 応答ボディ
+
+これを CPOS 管理者にそのまま渡すと、原因特定が速くなります。
+
+#### D. それでも解決しない場合
+
+1. `npm run cpos:bootstrap -- --base-url=<URL> --token=<PAT>` をローカルで実行
+2. 加算マネージャの Cloud Run ログ（`npm run logs`）で `[cpos] verify failure` を検索
+3. CPOS の `/api/platform/me` ログを確認
 
 ---
 
