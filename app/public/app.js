@@ -361,6 +361,45 @@ function formatApiError(status, json) {
   return message || (json && json.error) || `HTTP ${status}`;
 }
 
+// /api/analyze/from-cpos のエラー表示専用フォーマッタ。
+// not_connected (本アプリの cookie 切れ) と cpos_upstream_error (CPOS が返した 401/403 等) を区別する。
+function formatCposAnalyzeError(status, payload) {
+  const code = payload?.error;
+  if (status === 401 && code === 'not_connected') {
+    return 'CPOS 接続情報が見つかりません。PAT を再入力して接続してください。';
+  }
+  if (code === 'cpos_upstream_error') {
+    const upstream = payload.upstream_status_code;
+    const upstreamMsg = payload.message ? `CPOS応答: ${payload.message}` : '';
+    if (upstream === 401) {
+      return [
+        'CPOS が分析 API の PAT 認証を受け付けませんでした。',
+        '考えられる原因: PAT の期限切れ・失効、または CPOS 側の分析 API で Bearer 認証が通っていない可能性があります。',
+        upstreamMsg,
+      ].filter(Boolean).join('\n');
+    }
+    if (upstream === 403) {
+      return [
+        'CPOS PAT の権限が不足しているか、この事業所へのアクセスが許可されていません。',
+        'PAT に kasan:read / kasan-export:read / claims:read / benefits:read / service-actuals:read のいずれかが付与されているか確認してください。',
+        upstreamMsg,
+      ].filter(Boolean).join('\n');
+    }
+    if (upstream === 404) {
+      return [
+        'CPOS の分析エンドポイントが見つかりません（/api/kasan/v1/analysis-source も /api/platform/kasan/export も 404）。',
+        'CPOS 側の分析 API 実装状況を管理者に確認してください。',
+        upstreamMsg,
+      ].filter(Boolean).join('\n');
+    }
+    return `CPOS API エラー: ${payload.message || `upstream HTTP ${upstream}`}`;
+  }
+  if (status === 403 && code === 'forbidden_facility') {
+    return 'この事業所はあなたの PAT の allowedFacilityIds に含まれていません。CPOS で対象事業所を含めた PAT を再発行してください。';
+  }
+  return formatApiError(status, payload);
+}
+
 function renderJudge(judge, markdown, service) {
   show('#judge-section');
   const metaEl = $('#judge-meta');
@@ -857,18 +896,78 @@ async function runCposAnalyze() {
 
     const { res, payload } = await jsonFetch('/api/analyze/from-cpos', { method: 'POST', body });
     if (!res.ok || !payload?.ok) {
-      if (res.status === 401) {
-        showCposDisconnected('CPOS セッションが切れました。再接続してください。');
+      // 加算マネージャ自身のセッション切れ
+      if (res.status === 401 && payload?.error === 'not_connected') {
+        showCposDisconnected(formatCposAnalyzeError(res.status, payload));
         return;
       }
-      throw new Error(formatApiError(res.status, payload || {}));
+      const message = formatCposAnalyzeError(res.status, payload || {});
+      const e = new Error(message);
+      e._cposPayload = { status: res.status, ...(payload || {}) };
+      throw e;
     }
     const judge = payload.resultJson;
     renderJudge(judge, payload.reportMarkdown, judge?.service_def);
   } catch (err) {
-    showError(err.message);
+    if (err._cposPayload) {
+      // 接続パネルではなくエラーセクションに、診断詳細つきで表示
+      showCposAnalyzeError(err);
+    } else {
+      showError(err.message);
+    }
   } finally {
     btn.disabled = false;
     btn.innerHTML = original;
   }
+}
+
+// 分析ボタン押下時のエラー表示（診断詳細つき）
+function showCposAnalyzeError(err) {
+  const detail = err._cposPayload || {};
+  const errSec = $('#error-section');
+  const errText = $('#error-text');
+  errText.innerHTML = '';
+
+  // 主メッセージ
+  const main = document.createElement('div');
+  main.style.whiteSpace = 'pre-line';
+  main.textContent = err.message;
+  errText.appendChild(main);
+
+  // 診断詳細
+  const diag = detail.diagnostics;
+  if (diag) {
+    const det = document.createElement('details');
+    det.className = 'cpos-error-detail';
+    det.style.marginTop = '12px';
+    const sm = document.createElement('summary');
+    sm.textContent = 'CPOS の応答（管理者へ伝える診断情報）';
+    det.appendChild(sm);
+    const lines = [];
+    if (diag.request_url) lines.push(`リクエスト先: ${diag.request_url}`);
+    if (detail.upstream_status_code != null) {
+      lines.push(`CPOS ステータス: HTTP ${detail.upstream_status_code}（本アプリは ${detail.status} で応答）`);
+    } else if (detail.status != null) {
+      lines.push(`ステータス: HTTP ${detail.status}`);
+    }
+    if (diag.response_headers) {
+      lines.push('応答ヘッダ:');
+      for (const [k, v] of Object.entries(diag.response_headers)) {
+        lines.push(`  ${k}: ${v}`);
+      }
+    }
+    if (diag.response_body != null) {
+      lines.push('応答ボディ:');
+      lines.push(
+        typeof diag.response_body === 'string' ? diag.response_body : JSON.stringify(diag.response_body, null, 2),
+      );
+    }
+    const pre = document.createElement('pre');
+    pre.textContent = lines.join('\n');
+    det.appendChild(pre);
+    errText.appendChild(det);
+  }
+
+  errSec.classList.remove('hidden');
+  errSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }

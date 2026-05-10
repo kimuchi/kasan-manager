@@ -168,6 +168,68 @@ function handleCposError(err, res) {
   return res.status(500).json({ ok: false, error: 'cpos_unexpected_error', message: err?.message || String(err) });
 }
 
+// CPOS upstream のエラーを「加算マネージャ自身の認証エラー」と区別して返す。
+// upstream の 401/403 はクライアントから見ると本アプリのセッション切れに見えてしまうため
+// 502 (Bad Gateway) でラップし、`upstream_status_code` を別フィールドで保持する。
+function handleCposUpstreamError(err, res) {
+  if (err instanceof CposApiError) {
+    const upstreamStatus = err.statusCode || 500;
+    const wrappedStatus = upstreamStatus === 401 || upstreamStatus === 403 ? 502 : upstreamStatus;
+    return res.status(wrappedStatus).json({
+      ok: false,
+      error: 'cpos_upstream_error',
+      upstream_status_code: upstreamStatus,
+      message: err.message,
+      hint: err.hint,
+      diagnostics: {
+        request_url: err.requestUrl,
+        request_path: err.requestPath,
+        response_body: err.responseJson || err.responseBodyText || null,
+        response_headers: err.responseHeaders || null,
+      },
+    });
+  }
+  if (err instanceof CposNotConfiguredError) {
+    return res.status(503).json({ ok: false, error: 'cpos_not_configured', message: err.message });
+  }
+  console.error('[cpos] unexpected upstream:', err?.message || err);
+  return res
+    .status(500)
+    .json({ ok: false, error: 'cpos_unexpected_error', message: err?.message || String(err) });
+}
+
+// platform/kasan/export と analysis-source のスキーマ差異を吸収する正規化レイヤ。
+// /api/platform/kasan/export は formatVersion=1 + claimSummary.currentKasanCounts を返す
+// /api/kasan/v1/analysis-source は schemaVersion=1.0 + claimSummary.currentAddOnCounts を返す
+// toCposEngineInputs は後者の形を前提にしているため、前者をマッピングして揃える。
+function normalizeCposAnalysisPayload(payload) {
+  if (payload?.schemaVersion) return payload;
+  if (payload?.formatVersion) {
+    return {
+      schemaVersion: '1.0',
+      organizationId: payload.organizationId,
+      facility: payload.facility,
+      serviceMonth: payload.serviceMonth,
+      serviceKey: payload.serviceKey,
+      privacy: { includePii: false, userIdentifierType: 'anonymousUserKey' },
+      userSummary: payload.userSummary || {},
+      staffSummary: payload.staffSummary || {},
+      claimSummary: {
+        ...(payload.claimSummary || {}),
+        currentAddOnCounts:
+          payload.claimSummary?.currentAddOnCounts ||
+          payload.claimSummary?.currentKasanCounts ||
+          {},
+      },
+      provisionSummary: payload.provisionSummary || payload.benefitManagementSummary || {},
+      recordsSummary: payload.recordsSummary || {},
+      dataCompleteness: payload.dataCompleteness || {},
+      warnings: payload.warnings || [],
+    };
+  }
+  return payload;
+}
+
 function logRedacted(prefix, info) {
   const safe = { ...info };
   if (safe.token) safe.token = redactSecret(safe.token);
@@ -332,20 +394,40 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
   if (!checkFacilityAllowed(session, facilityId)) {
     return res.status(403).json({ ok: false, error: 'forbidden_facility', message: 'この事業所への権限がありません' });
   }
+
+  // 切り分け用ログ（PAT 平文は出さず tokenPreview のみ）
+  logRedacted('analyze from cpos start', {
+    cposBaseUrl: session.cposBaseUrl,
+    subjectUserEmail: session.subjectUserEmail,
+    tokenPreview: session.tokenPreview,
+    hasToken: Boolean(session.token),
+    facilityId,
+    serviceMonth,
+    serviceKey,
+  });
+
   try {
     const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
-    // CPOS が新エンドポイント /api/platform/kasan/export を持つ場合は優先、無ければ /api/kasan/v1/analysis-source
+    // 第一候補: /api/kasan/v1/analysis-source（schemaVersion=1.0、scope は kasan:read 系で広く通る）
+    // 第二候補: /api/platform/kasan/export（formatVersion=1、kasan-export:read 必須・PATの scope 構成によっては 401/403）
+    // 旧仕様への後方互換のため、analysis-source が 404 のときだけ kasan/export に fallback する。
     let source;
     try {
-      source = await client.getKasanExport({ facilityId, serviceMonth, serviceKey });
+      source = await client.getAnalysisSource({ facilityId, serviceMonth, includePii: false });
     } catch (err) {
       if (err?.statusCode === 404) {
-        source = await client.getAnalysisSource({ facilityId, serviceMonth, includePii: false });
+        console.warn('[cpos] analysis-source not found; fallback to platform/kasan/export', {
+          facilityId,
+          serviceMonth,
+          tokenPreview: session.tokenPreview,
+        });
+        source = await client.getKasanExport({ facilityId, serviceMonth, serviceKey });
       } else {
         throw err;
       }
     }
-    const validated = source.schemaVersion ? validateAnalysisSource(source) : source;
+    const normalized = normalizeCposAnalysisPayload(source);
+    const validated = normalized.schemaVersion ? validateAnalysisSource(normalized) : normalized;
     const inputs = await toCposEngineInputs(validated);
     const judgeResult = await runJudge({
       service: serviceKey || inputs.service_key,
@@ -371,7 +453,17 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
       cpos: { facilityId, serviceMonth, schemaVersion: validated.schemaVersion || null },
     });
   } catch (err) {
-    handleCposError(err, res);
+    if (err instanceof CposApiError) {
+      console.warn('[cpos] analyze upstream failed', {
+        endpoint: err.requestPath,
+        upstreamStatus: err.statusCode,
+        facilityId,
+        serviceMonth,
+        tokenPreview: session.tokenPreview,
+        message: err.message,
+      });
+    }
+    handleCposUpstreamError(err, res);
   }
 });
 
