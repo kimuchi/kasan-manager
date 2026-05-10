@@ -49,16 +49,23 @@ export function sealCookie(payload) {
   return buf.toString('base64url');
 }
 
-export function unsealCookie(value) {
-  if (!value || typeof value !== 'string') return null;
+// 失敗理由を返す詳細版。診断ログに使う。
+// reason: 'missing_cookie' | 'bad_base64url' | 'too_short' |
+//         'decrypt_or_auth_tag_failed' | 'bad_json' | 'expired'
+export function unsealCookieDetailed(value) {
+  if (!value || typeof value !== 'string') {
+    return { ok: false, reason: 'missing_cookie' };
+  }
   const key = getKey();
   let buf;
   try {
     buf = Buffer.from(value, 'base64url');
   } catch {
-    return null;
+    return { ok: false, reason: 'bad_base64url' };
   }
-  if (buf.length < IV_LEN + TAG_LEN + 1) return null;
+  if (buf.length < IV_LEN + TAG_LEN + 1) {
+    return { ok: false, reason: 'too_short' };
+  }
   const iv = buf.subarray(0, IV_LEN);
   const tag = buf.subarray(buf.length - TAG_LEN);
   const enc = buf.subarray(IV_LEN, buf.length - TAG_LEN);
@@ -68,18 +75,27 @@ export function unsealCookie(value) {
     decipher.setAuthTag(tag);
     dec = Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
   } catch {
-    return null; // tag mismatch / 改ざんなど
+    // tag mismatch（改ざん／鍵違い／リビジョン間で KASAN_SESSION_SECRET 不一致など）
+    return { ok: false, reason: 'decrypt_or_auth_tag_failed' };
   }
   let payload;
   try {
     payload = JSON.parse(dec);
   } catch {
-    return null;
+    return { ok: false, reason: 'bad_json' };
   }
   if (payload && typeof payload === 'object' && typeof payload.exp === 'number') {
-    if (payload.exp < Date.now()) return null;
+    if (payload.exp < Date.now()) {
+      return { ok: false, reason: 'expired', expiredAt: new Date(payload.exp).toISOString() };
+    }
   }
-  return payload;
+  return { ok: true, payload };
+}
+
+// 後方互換用の薄いラッパ
+export function unsealCookie(value) {
+  const r = unsealCookieDetailed(value);
+  return r.ok ? r.payload : null;
 }
 
 // PAT などの「プレビュー」を作る（先頭 14 文字 + ...REDACTED）

@@ -27,7 +27,7 @@ import os from 'node:os';
 import { CposClient, defaultBaseUrl, isAllowedBaseUrl } from '../src/services/cpos/client.js';
 import { validateAnalysisSource } from '../src/services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
-import { toEngineInputs } from '../src/services/cpos/transform.js';
+import { toEngineInputs, normalizeCposAnalysisPayload } from '../src/services/cpos/transform.js';
 import { run as runJudge } from '../src/services/judge.js';
 import { renderMarkdown } from '../src/services/markdown-report.js';
 
@@ -61,18 +61,19 @@ async function fetchAnalysisSource(args) {
   if (!token) throw new Error('--token または環境変数 CPOS_PAT が必要です');
   if (!isAllowedBaseUrl(baseUrl)) throw new Error(`許可されない CPOS URL: ${baseUrl}`);
   const client = new CposClient({ baseUrl, token });
+  // サーバの /api/analyze/from-cpos と挙動を揃える: analysis-source 第一候補、404 のみ kasan/export に fallback
   let payload;
   try {
-    payload = await client.getKasanExport({
+    payload = await client.getAnalysisSource({
       facilityId: String(args.facility),
       serviceMonth: String(args.month),
+      includePii: Boolean(args['include-pii']),
     });
   } catch (err) {
     if (err?.statusCode === 404) {
-      payload = await client.getAnalysisSource({
+      payload = await client.getKasanExport({
         facilityId: String(args.facility),
         serviceMonth: String(args.month),
-        includePii: Boolean(args['include-pii']),
       });
     } else {
       throw err;
@@ -93,7 +94,8 @@ async function main() {
   const dryRun = Boolean(args['dry-run']);
 
   const { payload: rawSource, origin, sourcePath } = await fetchAnalysisSource(args);
-  const source = validateAnalysisSource(rawSource);
+  const normalized = normalizeCposAnalysisPayload(rawSource);
+  const source = validateAnalysisSource(normalized);
   console.log(`▶ analysis-source 取得: origin=${origin}${sourcePath ? ` (${sourcePath})` : ''}`);
   console.log(`▶ facility=${source.facility?.id} / serviceMonth=${source.serviceMonth} / schemaVersion=${source.schemaVersion}`);
 

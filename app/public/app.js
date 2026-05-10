@@ -676,9 +676,8 @@ function updateCposIssueLink() {
     return;
   }
   const base = raw.replace(/\/+$/, '');
-  // CPOS の PAT 発行ページの一般的なパス。実際のパスは CPOS 側仕様に依存するため、
-  // 候補を順番に試したいが UI 上は 1 つに固める。一般的な「設定 → API トークン」を想定。
-  link.href = `${base}/settings/api-tokens`;
+  // CPOS 最新の PAT 管理画面（docs/PERSONAL_ACCESS_TOKEN.md 仕様）。
+  link.href = `${base}/personal-access-tokens`;
   link.classList.remove('disabled');
   link.title = `${link.href} を新しいタブで開く`;
 }

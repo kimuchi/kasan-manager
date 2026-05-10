@@ -86,20 +86,21 @@ export class CposClient {
     }
 
     if (!res.ok) {
-      // 詳細なデバッグ情報を捕捉する。
-      // CPOS が JSON を返さない場合（HTML エラーページ等）も生のテキストとして残す。
-      const ct = res.headers.get('content-type') || '';
+      // まず生テキストを取り、JSON parse を試みる。失敗時は text を残す。
+      // この順にすることで content-type が嘘でも壊れた JSON でも診断情報が残る。
+      const rawText = await res.text().catch(() => '');
       let payload = null;
-      let bodyText = null;
-      if (ct.includes('application/json')) {
+      let bodyText = rawText || null;
+      if (rawText) {
         try {
-          payload = await res.json();
-        } catch {}
-      } else {
-        try {
-          bodyText = await res.text();
-          if (bodyText && bodyText.length > 4000) bodyText = `${bodyText.slice(0, 4000)}…(切り捨て)`;
-        } catch {}
+          payload = JSON.parse(rawText);
+          bodyText = null;
+        } catch {
+          // JSON でない（HTML や text/plain）はそのまま bodyText に残す
+          if (bodyText && bodyText.length > 4000) {
+            bodyText = `${bodyText.slice(0, 4000)}…(切り捨て)`;
+          }
+        }
       }
       // 関連性が高いヘッダのみピックアップ（漏えいリスクを減らすため、全件は出さない）
       const interestingHeaders = {};

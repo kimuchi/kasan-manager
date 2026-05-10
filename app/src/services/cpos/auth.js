@@ -6,7 +6,11 @@
 //   - setCposSessionCookie(res, value, maxAgeSec)
 //   - clearCposSessionCookie(res)
 
-import { sealCookie, unsealCookie, tokenPreview as makeTokenPreview } from '../../utils/cookie-seal.js';
+import {
+  sealCookie,
+  unsealCookieDetailed,
+  tokenPreview as makeTokenPreview,
+} from '../../utils/cookie-seal.js';
 
 export const COOKIE_NAME = 'kasan_cpos_session';
 const DEFAULT_MAX_AGE_SEC = 90 * 24 * 60 * 60; // 90 日（指示書推奨上限）
@@ -21,10 +25,18 @@ function readCookie(req, name) {
   return null;
 }
 
-export function readCposSession(req) {
+// 失敗理由付きで session を返す。サーバ側の診断ログ用。
+export function readCposSessionDetailed(req) {
   const value = readCookie(req, COOKIE_NAME);
-  if (!value) return null;
-  return unsealCookie(value);
+  if (!value) return { session: null, reason: 'missing_cookie' };
+  const r = unsealCookieDetailed(value);
+  if (!r.ok) return { session: null, reason: r.reason, detail: r };
+  return { session: r.payload, reason: null };
+}
+
+// 後方互換用の薄いラッパ
+export function readCposSession(req) {
+  return readCposSessionDetailed(req).session;
 }
 
 export function buildSessionPayload({ cposBaseUrl, token, me, expiresAtFromCpos = null }) {

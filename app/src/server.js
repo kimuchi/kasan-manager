@@ -39,9 +39,13 @@ import {
 } from './services/cpos/client.js';
 import { validateAnalysisSource } from './services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from './services/cpos/errors.js';
-import { toEngineInputs as toCposEngineInputs } from './services/cpos/transform.js';
+import {
+  toEngineInputs as toCposEngineInputs,
+  normalizeCposAnalysisPayload,
+} from './services/cpos/transform.js';
 import {
   readCposSession,
+  readCposSessionDetailed,
   buildSessionPayload,
   setCposSessionCookie,
   clearCposSessionCookie,
@@ -198,37 +202,7 @@ function handleCposUpstreamError(err, res) {
     .json({ ok: false, error: 'cpos_unexpected_error', message: err?.message || String(err) });
 }
 
-// platform/kasan/export と analysis-source のスキーマ差異を吸収する正規化レイヤ。
-// /api/platform/kasan/export は formatVersion=1 + claimSummary.currentKasanCounts を返す
-// /api/kasan/v1/analysis-source は schemaVersion=1.0 + claimSummary.currentAddOnCounts を返す
-// toCposEngineInputs は後者の形を前提にしているため、前者をマッピングして揃える。
-function normalizeCposAnalysisPayload(payload) {
-  if (payload?.schemaVersion) return payload;
-  if (payload?.formatVersion) {
-    return {
-      schemaVersion: '1.0',
-      organizationId: payload.organizationId,
-      facility: payload.facility,
-      serviceMonth: payload.serviceMonth,
-      serviceKey: payload.serviceKey,
-      privacy: { includePii: false, userIdentifierType: 'anonymousUserKey' },
-      userSummary: payload.userSummary || {},
-      staffSummary: payload.staffSummary || {},
-      claimSummary: {
-        ...(payload.claimSummary || {}),
-        currentAddOnCounts:
-          payload.claimSummary?.currentAddOnCounts ||
-          payload.claimSummary?.currentKasanCounts ||
-          {},
-      },
-      provisionSummary: payload.provisionSummary || payload.benefitManagementSummary || {},
-      recordsSummary: payload.recordsSummary || {},
-      dataCompleteness: payload.dataCompleteness || {},
-      warnings: payload.warnings || [],
-    };
-  }
-  return payload;
-}
+// normalizeCposAnalysisPayload は services/cpos/transform.js から import 済み
 
 function logRedacted(prefix, info) {
   const safe = { ...info };
@@ -346,9 +320,25 @@ app.post('/api/cpos-token/test', async (req, res) => {
 // CPOS データ proxy（cookie PAT 利用・自分の権限範囲内）
 // ============================================================
 function requireCposSession(req, res) {
-  const session = readCposSession(req);
+  const { session, reason, detail } = readCposSessionDetailed(req);
   if (!session) {
-    res.status(401).json({ ok: false, error: 'not_connected', message: 'CPOS に接続してください（PAT を入力）' });
+    console.warn('[cpos] local sealed cookie not available', {
+      reason,
+      hasCookieHeader: Boolean(req.headers.cookie),
+      cookieHeaderLength: req.headers.cookie?.length ?? 0,
+      detail: detail ? { reason: detail.reason, expiredAt: detail.expiredAt } : null,
+    });
+    res.status(401).json({
+      ok: false,
+      error: 'not_connected',
+      reason,
+      message:
+        reason === 'expired'
+          ? 'CPOS 接続セッションの有効期限が切れました。PAT を再入力してください。'
+          : reason === 'decrypt_or_auth_tag_failed'
+          ? 'CPOS 接続情報を復号できませんでした。サーバ側の暗号鍵が変わった可能性があります。再接続してください。'
+          : 'CPOS 接続情報が見つかりません。PAT を再入力してください。',
+    });
     return null;
   }
   return session;
@@ -412,7 +402,9 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
     // 第二候補: /api/platform/kasan/export（formatVersion=1、kasan-export:read 必須・PATの scope 構成によっては 401/403）
     // 旧仕様への後方互換のため、analysis-source が 404 のときだけ kasan/export に fallback する。
     let source;
+    let sourceEndpoint = null;
     try {
+      sourceEndpoint = '/api/kasan/v1/analysis-source';
       source = await client.getAnalysisSource({ facilityId, serviceMonth, includePii: false });
     } catch (err) {
       if (err?.statusCode === 404) {
@@ -421,11 +413,20 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
           serviceMonth,
           tokenPreview: session.tokenPreview,
         });
+        sourceEndpoint = '/api/platform/kasan/export';
         source = await client.getKasanExport({ facilityId, serviceMonth, serviceKey });
       } else {
         throw err;
       }
     }
+    console.log('[cpos] analysis source loaded', {
+      sourceEndpoint,
+      facilityId,
+      serviceMonth,
+      tokenPreview: session.tokenPreview,
+      schemaVersion: source?.schemaVersion ?? null,
+      formatVersion: source?.formatVersion ?? null,
+    });
     const normalized = normalizeCposAnalysisPayload(source);
     const validated = normalized.schemaVersion ? validateAnalysisSource(normalized) : normalized;
     const inputs = await toCposEngineInputs(validated);

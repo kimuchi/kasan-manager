@@ -53,6 +53,39 @@ export function resolveKasanKey(mapping, { serviceKey, addOnKey, addOnName, serv
   return null;
 }
 
+// /api/platform/kasan/export と /api/kasan/v1/analysis-source のスキーマ差異を吸収する。
+// - analysis-source は schemaVersion=1.0、claimSummary.currentAddOnCounts
+// - platform/kasan/export は formatVersion=1、claimSummary.currentKasanCounts
+// toEngineInputs は前者を前提にしているため、export 形式が来たらこの関数で変換する。
+export function normalizeCposAnalysisPayload(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  if (payload.schemaVersion) return payload;
+  if (payload.formatVersion) {
+    return {
+      schemaVersion: '1.0',
+      organizationId: payload.organizationId,
+      facility: payload.facility,
+      serviceMonth: payload.serviceMonth,
+      serviceKey: payload.serviceKey,
+      privacy: { includePii: false, userIdentifierType: 'anonymousUserKey' },
+      userSummary: payload.userSummary || {},
+      staffSummary: payload.staffSummary || {},
+      claimSummary: {
+        ...(payload.claimSummary || {}),
+        currentAddOnCounts:
+          payload.claimSummary?.currentAddOnCounts ||
+          payload.claimSummary?.currentKasanCounts ||
+          {},
+      },
+      provisionSummary: payload.provisionSummary || payload.benefitManagementSummary || {},
+      recordsSummary: payload.recordsSummary || {},
+      dataCompleteness: payload.dataCompleteness || {},
+      warnings: payload.warnings || [],
+    };
+  }
+  return payload;
+}
+
 // CPOS service_type_code → 加算マネージャ service_key の推定（fallback）
 const SERVICE_TYPE_CODE_TO_KEY = {
   15: 'tsusho_kaigo',

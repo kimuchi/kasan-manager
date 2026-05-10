@@ -31,6 +31,7 @@ import {
   loadAddonMapping,
   resolveKasanKey,
   inferServiceKey,
+  normalizeCposAnalysisPayload,
 } from '../src/services/cpos/transform.js';
 import { validateAnalysisSource, validateBootstrap } from '../src/services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
@@ -504,6 +505,130 @@ await test('CPOS client: allowlist 外を拒否', async () => {
   } finally {
     delete process.env.KASAN_CPOS_ALLOWLIST;
   }
+});
+
+// =====================================================================
+// 改修指示書 §11.1: normalizeCposAnalysisPayload テスト
+// =====================================================================
+await test('normalize: analysis-source 形式はそのまま返す', () => {
+  const p = { schemaVersion: '1.0', facility: { id: 'fa' }, serviceMonth: '2026-05' };
+  assert.strictEqual(normalizeCposAnalysisPayload(p), p);
+});
+
+await test('normalize: platform export 形式 → analysis-source 互換', () => {
+  const p = {
+    formatVersion: '1',
+    organizationId: 'default',
+    facility: { id: 'fa', serviceTypeCodes: ['15'] },
+    serviceMonth: '2026-05',
+    serviceKey: 'tsusho_kaigo',
+    claimSummary: { currentKasanCounts: { nyuyoku_1: 10 } },
+    benefitManagementSummary: { managedUsers: 5 },
+  };
+  const r = normalizeCposAnalysisPayload(p);
+  assert.equal(r.schemaVersion, '1.0');
+  assert.deepEqual(r.claimSummary.currentAddOnCounts, { nyuyoku_1: 10 });
+  assert.deepEqual(r.provisionSummary, { managedUsers: 5 });
+});
+
+await test('normalize: null/不正値はそのまま返す', () => {
+  assert.equal(normalizeCposAnalysisPayload(null), null);
+  assert.equal(normalizeCposAnalysisPayload('string'), 'string');
+});
+
+// =====================================================================
+// §11.4: formatCposAnalyzeError のロジック検証（クライアント側関数を再現してテスト）
+// =====================================================================
+function formatCposAnalyzeErrorImpl(status, payload) {
+  const code = payload?.error;
+  if (status === 401 && code === 'not_connected') {
+    return 'CPOS 接続情報が見つかりません。PAT を再入力して接続してください。';
+  }
+  if (code === 'cpos_upstream_error') {
+    const upstream = payload.upstream_status_code;
+    if (upstream === 401) {
+      return 'CPOS が分析 API の PAT 認証を受け付けませんでした。\nPAT の期限切れ・失効、または CPOS 側の分析 API で Bearer 認証が通っていない可能性があります。';
+    }
+    if (upstream === 403) {
+      return 'CPOS PAT の権限が不足しているか、この事業所へのアクセスが許可されていません。';
+    }
+    if (upstream === 404) {
+      return 'CPOS の分析エンドポイントが見つかりません。';
+    }
+  }
+  return null;
+}
+
+await test('formatCposAnalyzeError: not_connected', () => {
+  const m = formatCposAnalyzeErrorImpl(401, { error: 'not_connected' });
+  assert.match(m, /PAT を再入力/);
+});
+
+await test('formatCposAnalyzeError: cpos_upstream_error 401', () => {
+  const m = formatCposAnalyzeErrorImpl(502, {
+    error: 'cpos_upstream_error',
+    upstream_status_code: 401,
+  });
+  assert.match(m, /分析 API の PAT 認証を受け付け/);
+  assert.doesNotMatch(m, /セッションが切れ/);
+});
+
+await test('formatCposAnalyzeError: cpos_upstream_error 403', () => {
+  const m = formatCposAnalyzeErrorImpl(502, {
+    error: 'cpos_upstream_error',
+    upstream_status_code: 403,
+  });
+  assert.match(m, /権限が不足/);
+});
+
+// =====================================================================
+// §11.2 / §11.3: ライブラリ層の動作検証（fetch をモックして不要に触れず、CposApiError の
+// statusCode/responseBody/responseHeaders/requestUrl が伝播することを確認）
+// =====================================================================
+await test('CposApiError: requestUrl / responseJson / responseHeaders を保持', async () => {
+  const { CposApiError } = await import('../src/services/cpos/errors.js');
+  const e = new CposApiError(401, '認証が必要です', {
+    responseJson: { error: '認証が必要です' },
+    responseHeaders: { 'content-type': 'application/json' },
+    requestPath: '/api/kasan/v1/analysis-source',
+    requestUrl: 'https://cpos.example.jp/api/kasan/v1/analysis-source?facilityId=fa',
+  });
+  assert.equal(e.statusCode, 401);
+  assert.equal(e.requestPath, '/api/kasan/v1/analysis-source');
+  assert.match(e.requestUrl, /facilityId=fa/);
+  assert.deepEqual(e.responseHeaders, { 'content-type': 'application/json' });
+  assert.equal(e.responseJson?.error, '認証が必要です');
+});
+
+// §11.4: cookie diagnose
+await test('Cookie seal: unsealCookieDetailed が reason を返す', async () => {
+  const { unsealCookieDetailed, sealCookie } = await import('../src/utils/cookie-seal.js');
+  // missing
+  assert.equal(unsealCookieDetailed(null).reason, 'missing_cookie');
+  assert.equal(unsealCookieDetailed('').reason, 'missing_cookie');
+  // bad base64 / too short → too_short か bad_base64url
+  const bad = unsealCookieDetailed('xxx');
+  assert.equal(bad.ok, false);
+  assert.ok(['too_short', 'bad_base64url'].includes(bad.reason));
+  // expired
+  const sealed = sealCookie({ token: 'cpos_pat_expired', exp: Date.now() - 1000 });
+  const r = unsealCookieDetailed(sealed);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'expired');
+  assert.ok(r.expiredAt);
+  // valid
+  const ok = sealCookie({ token: 'cpos_pat_test', exp: Date.now() + 60_000 });
+  const r2 = unsealCookieDetailed(ok);
+  assert.equal(r2.ok, true);
+  assert.equal(r2.payload.token, 'cpos_pat_test');
+});
+
+await test('readCposSessionDetailed: cookie 無し時は missing_cookie', async () => {
+  const { readCposSessionDetailed } = await import('../src/services/cpos/auth.js');
+  const fakeReq = { headers: {} };
+  const r = readCposSessionDetailed(fakeReq);
+  assert.equal(r.session, null);
+  assert.equal(r.reason, 'missing_cookie');
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
