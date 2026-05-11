@@ -25,6 +25,15 @@ const DOMAIN_LABEL = {
   disability: '障害福祉',
 };
 
+const LEARNING_TENDENCY_LABEL = {
+  consistently_approved: '通常承認',
+  consistently_returned: '通常差戻し',
+  usually_approved: '承認傾向',
+  usually_returned: '差戻し傾向',
+  mixed: '判断分かれる',
+  sample_too_small: '（履歴少）',
+};
+
 // /api/health で取得した設定を保持（reCAPTCHA / レート制限 / CPOS / CSRF / Auth）
 const appConfig = {
   recaptcha_enabled: false,
@@ -116,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initApp() {
   await initStatusPill();
   initServices();
+  initRegionalGrades();
   initFileInputs();
   initAnalyzeButtons();
   if (appConfig.firebase_enabled) {
@@ -261,6 +271,27 @@ async function initServices() {
   }
 }
 
+async function initRegionalGrades() {
+  const select = $('#region_grade');
+  if (!select) return;
+  try {
+    const res = await fetch('/api/regional-grades');
+    const { grades } = await res.json();
+    select.innerHTML = '';
+    for (const g of grades || []) {
+      const opt = document.createElement('option');
+      opt.value = g.grade;
+      const up = g.upper_rate != null ? `（上乗せ ${(g.upper_rate * 100).toFixed(0)}%）` : '';
+      const ex = g.example_regions ? ` — ${g.example_regions}` : '';
+      opt.textContent = `${g.label}${up}${ex}`;
+      if (g.grade === 'other') opt.selected = true;
+      select.appendChild(opt);
+    }
+  } catch (err) {
+    select.innerHTML = '<option value="other">その他</option>';
+  }
+}
+
 function initFileInputs() {
   const updates = [
     ['#pdf', '#pdf-name'],
@@ -304,6 +335,7 @@ function buildFormData(includeAttachments = true) {
   formData.append('office_name', $('#office_name').value);
   formData.append('office_code', $('#office_code').value);
   formData.append('region', $('#region').value);
+  formData.append('region_grade', $('#region_grade')?.value || '');
   formData.append('staff_summary', $('#staff_summary').value);
   formData.append('user_summary', $('#user_summary').value);
   formData.append('current_kasans', $('#current_kasans').value);
@@ -1261,6 +1293,12 @@ async function openAnalysisDetail(id) {
   detailState.result = payload.result;
   detailState.report = payload.report;
   detailState.decisions = payload.review_decisions || [];
+  // 自分の過去判断サマリ（学習ヒント用）。失敗しても本体は動かす
+  detailState.learning = null;
+  const lr = await jsonFetch('/api/me/review-learning').catch(() => ({ res: { ok: false } }));
+  if (lr.res?.ok && lr.payload?.ok) {
+    detailState.learning = lr.payload;
+  }
 
   renderDetailMeta();
   renderJudgementsList();
@@ -1309,16 +1347,22 @@ function renderJudgementsList() {
     return;
   }
   target.innerHTML = '';
+  const learningPerKasan = detailState.learning?.per_kasan || {};
   for (const [key, jud] of entries) {
     const card = document.createElement('div');
     card.className = 'kasan-card';
     const status = jud.algorithm_judgement || 'unknown';
     const algLabel = ALG_LABEL[status] || status;
     const decision = perKasanStatus[key] || null;
+    const lh = learningPerKasan[key];
+    const lhBadge = lh && lh.tendency && lh.tendency !== 'sample_too_small'
+      ? `<span class="learning-badge ${escapeHtml(lh.tendency)}" title="過去の自分の判断">💡 ${escapeHtml(LEARNING_TENDENCY_LABEL[lh.tendency] || lh.tendency)} (✅${lh.approved} / ↩${lh.returned})</span>`
+      : '';
     card.innerHTML = `
       <div class="kasan-card-head">
         <span class="kasan-card-name">${escapeHtml(jud.name || key)}</span>
         <span class="kasan-card-status">${algLabel}</span>
+        ${lhBadge}
         ${decision ? `<span class="kasan-card-decided">${escapeHtml(decision.decision)}${decision.reviewer_email ? ` by ${escapeHtml(decision.reviewer_email)}` : ''}</span>` : ''}
       </div>
       <div class="kasan-card-meta">
@@ -1431,12 +1475,23 @@ function renderPortfolio() {
   target.innerHTML = '';
   const head = document.createElement('div');
   head.className = 'portfolio-head';
+  const chainExtra = p.total_with_chain_yen_per_month && p.total_with_chain_yen_per_month !== p.total_potential_yen_per_month
+    ? ` / 処遇改善連動を含めると <strong>${p.total_with_chain_yen_per_month.toLocaleString('ja-JP')}</strong> 円/月`
+    : '';
   head.innerHTML = `
     <p><strong>${p.recommendation_count}</strong> 件の候補 /
-       見込み <strong>${(p.total_potential_yen_per_month || 0).toLocaleString('ja-JP')}</strong> 円/月</p>
-    <p class="hint">${escapeHtml(p.assumptions?.note || '')}</p>
+       見込み <strong>${(p.total_potential_yen_per_month || 0).toLocaleString('ja-JP')}</strong> 円/月${chainExtra}</p>
+    <p class="hint">
+      地域単価: ${p.region_grade_label}（${p.yen_per_unit} 円/単位） /
+      ${escapeHtml(p.assumptions?.note || '')}
+    </p>
+    <p class="hint">
+      <label for="portfolio-grade-select">級地を変えて再試算: </label>
+      <select id="portfolio-grade-select"></select>
+    </p>
   `;
   target.appendChild(head);
+  populatePortfolioGradeSelect(p.region_grade);
   if (!p.recommendations?.length) {
     const empty = document.createElement('p');
     empty.textContent = '（追加で取りに行ける加算はありません — 既に取れる加算は取れていそうです）';
@@ -1447,9 +1502,18 @@ function renderPortfolio() {
     const card = document.createElement('div');
     card.className = 'portfolio-card';
     const rev = rec.revenue_per_month_yen ? rec.revenue_per_month_yen.toLocaleString('ja-JP') : '-';
+    const ih = rec.interaction_hint;
+    const lh = rec.learning_hint;
+    const lhBadge = lh && lh.tendency && lh.tendency !== 'sample_too_small'
+      ? `<span class="learning-badge ${escapeHtml(lh.tendency)}">💡 ${escapeHtml(rec.learning_tendency_label || lh.tendency)} (✅${lh.approved} / ↩${lh.returned})</span>`
+      : '';
+    const ihLine = ih
+      ? `<div class="interaction-hint">🔗 ${escapeHtml(ih.label)}</div>`
+      : '';
     card.innerHTML = `
       <div class="portfolio-card-head">
         <span class="portfolio-card-name">${escapeHtml(rec.kasan_name)}</span>
+        ${lhBadge}
         <span class="portfolio-card-revenue">${rev} 円/月</span>
       </div>
       <div class="portfolio-card-meta">
@@ -1457,12 +1521,43 @@ function renderPortfolio() {
         ${rec.unit_per_day ? ` / ${rec.unit_per_day} 単位/日` : ''}
         ${rec.unit_type ? ` (${escapeHtml(rec.unit_type)})` : ''}
       </div>
+      ${ihLine}
       <ul class="portfolio-card-actions">
         ${(rec.action_items || []).map((a) => `<li>${escapeHtml(a)}</li>`).join('')}
       </ul>
     `;
     target.appendChild(card);
   }
+}
+
+async function populatePortfolioGradeSelect(currentGrade) {
+  const sel = $('#portfolio-grade-select');
+  if (!sel) return;
+  try {
+    const { res, payload } = await jsonFetch('/api/regional-grades');
+    if (!res.ok) return;
+    sel.innerHTML = '';
+    for (const g of payload.grades || []) {
+      const opt = document.createElement('option');
+      opt.value = g.grade;
+      const up = g.upper_rate != null ? `（${(g.upper_rate * 100).toFixed(0)}%）` : '';
+      opt.textContent = `${g.label}${up}`;
+      if (g.grade === currentGrade) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', async () => {
+      const grade = sel.value;
+      const id = detailState.analysisId;
+      if (!id) return;
+      const { res: r, payload: pl } = await jsonFetch(
+        `/api/analyses/${encodeURIComponent(id)}/portfolio?region_grade=${encodeURIComponent(grade)}`,
+      );
+      if (r.ok && pl?.ok) {
+        detailState.portfolio = pl.portfolio;
+        renderPortfolio();
+      }
+    });
+  } catch {}
 }
 
 // タブ切替・フィルタ・閉じるボタン

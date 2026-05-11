@@ -73,6 +73,11 @@ import {
   listReviewDecisions,
 } from './services/persistence.js';
 import { optimizePortfolio } from './services/portfolio.js';
+import { listGrades as listRegionalGrades, yenPerUnit as regionalYenPerUnit } from './services/regional-pricing.js';
+import {
+  summarizePastDecisionsForUser,
+  attachLearningHints,
+} from './services/review-learning.js';
 
 // 起動前に Secret Manager から hydrate（失敗しても env だけで動く）
 await hydrateSecretsFromManager().catch((err) => {
@@ -358,6 +363,7 @@ app.get('/api/analyses/:id/decisions', requirePaid, async (req, res) => {
 // ポートフォリオ最適化 PoC
 // ============================================================
 // 有料ユーザー専用: 保存済 analysis から「あと一歩で取れる加算」を ROI で並べる
+// 任意で ?region_grade=1..7|other を渡すと、その級地の単価で再計算する
 app.get('/api/analyses/:id/portfolio', requirePaid, async (req, res) => {
   try {
     const job = await getAnalysisJob({
@@ -373,7 +379,11 @@ app.get('/api/analyses/:id/portfolio', requirePaid, async (req, res) => {
     });
     if (!resultText) return res.status(404).json({ ok: false, error: 'result_not_persisted' });
     const result = JSON.parse(resultText);
-    const portfolio = optimizePortfolio({ judgeResult: result });
+    const regionGrade = req.query?.region_grade ? String(req.query.region_grade) : null;
+    let portfolio = optimizePortfolio({ judgeResult: result, regionGrade });
+    // 学習ヒント（自分の過去判断）を付与
+    const learning = await summarizePastDecisionsForUser(req.user.uid).catch(() => null);
+    if (learning) portfolio = attachLearningHints(portfolio, learning);
     res.json({ ok: true, portfolio });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -381,14 +391,36 @@ app.get('/api/analyses/:id/portfolio', requirePaid, async (req, res) => {
 });
 
 // 無料ユーザーでも分析の生 JSON を渡せば最適化候補を返す（保存はしない）
+// body.region_grade を渡せばその級地の単価で計算する
 app.post('/api/portfolio/optimize', heavyLimiter, async (req, res) => {
   try {
     const judgeResult = req.body?.judge || req.body?.result_json || req.body;
     if (!judgeResult || typeof judgeResult !== 'object' || !judgeResult.judgements) {
       return res.status(400).json({ ok: false, error: 'bad_request', message: 'judge 結果（judgements を含む JSON）が必要です' });
     }
-    const portfolio = optimizePortfolio({ judgeResult });
+    const regionGrade = req.body?.region_grade || judgeResult.region_grade || null;
+    let portfolio = optimizePortfolio({ judgeResult, regionGrade });
+    // ログイン済なら学習ヒントも付与
+    if (req.user?.uid) {
+      const learning = await summarizePastDecisionsForUser(req.user.uid).catch(() => null);
+      if (learning) portfolio = attachLearningHints(portfolio, learning);
+    }
     res.json({ ok: true, portfolio });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 地域単価表（公開）
+app.get('/api/regional-grades', (_req, res) => {
+  res.json({ ok: true, grades: listRegionalGrades() });
+});
+
+// 自分のレビュー履歴サマリ（学習ヒントの元データ）
+app.get('/api/me/review-learning', requireAuth, async (req, res) => {
+  try {
+    const summary = await summarizePastDecisionsForUser(req.user.uid);
+    res.json({ ok: true, ...summary });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
@@ -874,6 +906,7 @@ app.post(
       const service = (req.body.service || '').toString().trim();
       if (!service) return res.status(400).json({ error: 'service（サービスキー）は必須です。' });
       const office = (req.body.office_code || '').toString().trim() || null;
+      const regionGrade = (req.body.region_grade || '').toString().trim() || null;
 
       const files = req.files || {};
       let inlineEvidence = null;
@@ -901,6 +934,7 @@ app.post(
       judgeResult.source_type = envelope.source_type;
       judgeResult.review_status = envelope.review_status;
       judgeResult.mapping_warnings = envelope.mapping_warnings;
+      if (regionGrade) judgeResult.region_grade = regionGrade;
       const markdown = renderMarkdown(judgeResult);
       const persistInfo = await persistAnalysisIfPaid({
         req,
@@ -957,6 +991,7 @@ function parseOfficeInfo(body) {
     'office_name',
     'office_code',
     'region',
+    'region_grade',
     'staff_summary',
     'user_summary',
     'current_kasans',

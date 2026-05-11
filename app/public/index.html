@@ -293,7 +293,14 @@
           </div>
           <div class="field">
             <label for="region">所在地・地域単価区分（任意）</label>
-            <input type="text" id="region" placeholder="例: 東京都荒川区（6級地）" />
+            <input type="text" id="region" placeholder="例: 東京都荒川区" />
+          </div>
+          <div class="field">
+            <label for="region_grade">級地（地域単価）</label>
+            <select id="region_grade">
+              <option value="">— 読み込み中 —</option>
+            </select>
+            <p class="hint" id="region-grade-hint">介護報酬の地域区分。ポートフォリオ最適化の収益見積もりに使われます。</p>
           </div>
         </div>
         <div class="field">

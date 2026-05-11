@@ -1246,3 +1246,35 @@ main {
 }
 .portfolio-card-actions li { margin-bottom: 2px; }
 
+/* 連動加算ヒント・学習ヒント */
+.interaction-hint {
+  background: #f4f8ff;
+  border-left: 3px solid var(--accent);
+  padding: 4px 8px;
+  margin: 6px 0;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.learning-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef0f6;
+  color: var(--ink-mute);
+  white-space: nowrap;
+}
+.learning-badge.consistently_approved,
+.learning-badge.usually_approved {
+  background: #def5e0;
+  color: #1e6b2a;
+}
+.learning-badge.consistently_returned,
+.learning-badge.usually_returned {
+  background: #fee2e2;
+  color: #8a1818;
+}
+.learning-badge.mixed {
+  background: #fff4d6;
+  color: #6a4d00;
+}
+
