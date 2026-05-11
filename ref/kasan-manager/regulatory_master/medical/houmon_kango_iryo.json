@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "service_key": "houmon_kango_iryo",
+    "display_name": "訪問看護（医療保険）",
+    "domain": "medical",
+    "payer": "medical_hoken",
+    "service_code_prefix": null,
+    "version": "0.1.0",
+    "effective_from": "2024-06-01",
+    "updated": "2026-05-06",
+    "revision_tag": "R6_iryou_2024_06",
+    "source": "厚生労働大臣が定める基準（医療保険）/ 訪問看護療養費に係る指定訪問看護の費用の額の算定方法 / R6医療保険改定",
+    "source_status": "source_required",
+    "_note": "未実装。訪問看護基本療養費Ⅰ/Ⅱ/Ⅲ・管理療養費・24時間対応体制加算・特別管理加算・ターミナル加算・退院時共同指導加算等を要調査。介護保険版とは制度体系が異なる（指定区分・週3日制限・特別訪問看護指示書等）。"
+  },
+  "kasans": {}
+}

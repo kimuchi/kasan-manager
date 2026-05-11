@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "user",
+  "description": "事業所利用者データ（テナント固有・個人情報を含むため伏字化必須）。",
+  "type": "object",
+  "required": ["_meta", "users"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["schema", "office_code", "tenant_id"],
+      "properties": {
+        "schema": {"const": "user"},
+        "schema_version": {"type": "string"},
+        "office_code": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "tenant_id": {"type": "string"},
+        "updated": {"type": "string"},
+        "anonymization_status": {"type": "string", "enum": ["raw", "anonymized", "aggregated"]}
+      }
+    },
+    "users": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "care_level"],
+        "properties": {
+          "id": {"type": "string"},
+          "anonymized_id": {"type": "string"},
+          "care_level": {"type": "string"},
+          "ninchi_jiritsudo": {"type": "string"},
+          "service_history": {"type": "array"},
+          "from_houkatsu": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

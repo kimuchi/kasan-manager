@@ -1,0 +1,70 @@
+{
+  "office_code": "DEMO-0006",
+  "service_key": "kyotaku_shien",
+  "schema_version": "v2026.05.06-alpha.5.3",
+  "sample_policy": "public_demo_synthetic",
+  "policy_notes": [
+    "公開デモ用の架空サンプルです。実在の職員データではありません。",
+    "氏名・住所・電話番号・給与額・生年月日・個人特定可能な属性は含めません。"
+  ],
+  "staff": [
+    {
+      "staff_id": "DEMO-STAFF-001",
+      "display_label": "架空職員A",
+      "role": "shunin_cm",
+      "qualifications": ["主任介護支援専門員"],
+      "fte": 1.0,
+      "active": true,
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-002",
+      "display_label": "架空職員B",
+      "role": "shunin_cm",
+      "qualifications": ["主任介護支援専門員"],
+      "fte": 1.0,
+      "active": true,
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-003",
+      "display_label": "架空職員C",
+      "role": "cm",
+      "qualifications": ["介護支援専門員"],
+      "fte": 1.0,
+      "active": true,
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-004",
+      "display_label": "架空職員D",
+      "role": "cm",
+      "qualifications": ["介護支援専門員"],
+      "fte": 1.0,
+      "active": true,
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-005",
+      "display_label": "架空職員E",
+      "role": "cm",
+      "qualifications": ["介護支援専門員"],
+      "fte": 1.0,
+      "active": true,
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-006",
+      "display_label": "架空職員F",
+      "role": "cm",
+      "qualifications": ["介護支援専門員"],
+      "fte": 0.8,
+      "active": true,
+      "is_joukin": false
+    }
+  ],
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "比率や件数は架空値であり、実在の事業所のデータと一致するものではありません。"
+  ]
+}

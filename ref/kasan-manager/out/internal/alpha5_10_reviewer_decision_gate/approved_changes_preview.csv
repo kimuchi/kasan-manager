@@ -1,0 +1,8 @@
+﻿service,kasan_key,reviewer_decision,implementation_allowed,final_approved_by,reviewed_at,proposed_change_type,current_overall_mapping_status,proposed_next_status,official_service_code,receipt_detection_code,internal_legacy_code,required_evidence,implementation_risk,implementation_note
+
+# alpha.5.10 reviewer decision gate generated at 2026-05-10
+# base_commit: d0c911db9b28f561f0e40859a4c40e863982d7f6 (alpha.5.9)
+# input: out/internal/alpha5_9_master_review_packet/reviewer_decision_template.csv
+# 本ゲートは master JSON を改変しない。承認候補 (approved_changes_preview) はあくまで実装候補。
+# 実装は alpha.5.11+ で段階的 PR にて実施。一括反映禁止。
+# implementation_risk=high の行は PDF検出回帰テスト必須。

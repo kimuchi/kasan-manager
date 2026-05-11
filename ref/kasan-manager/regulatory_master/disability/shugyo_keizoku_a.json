@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "service_key": "shugyo_keizoku_a",
+    "display_name": "就労継続支援A型",
+    "domain": "disability",
+    "payer": "disability_welfare",
+    "service_code_prefix": null,
+    "version": "0.1.0",
+    "effective_from": "2024-04-01",
+    "updated": "2026-05-06",
+    "revision_tag": "R6_shogai_2024_04",
+    "source": "障害者総合支援法 / 指定障害福祉サービス基準 / 障害福祉サービス等報酬告示 / R6改定",
+    "source_status": "source_required",
+    "_note": "未実装。基本報酬は7段階のスコア方式（労働時間・生産活動・多様な働き方・支援力向上・地域連携・経営改善計画・利用者負担なし等）。賃金向上達成指導員配置加算・施設外就労加算・就労移行支援体制加算・処遇改善加算等を要調査。HOPE運営事業所と連動。"
+  },
+  "kasans": {}
+}

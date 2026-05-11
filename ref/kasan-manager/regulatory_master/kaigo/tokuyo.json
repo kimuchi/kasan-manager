@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "service_key": "tokuyo",
+    "display_name": "特別養護老人ホーム（介護老人福祉施設）",
+    "domain": "kaigo",
+    "payer": "kaigo_hoken",
+    "service_code_prefix": "51",
+    "version": "0.0.1",
+    "effective_from": null,
+    "updated": "2026-05-06",
+    "revision_tag": null,
+    "source": "指定介護老人福祉施設の人員、設備及び運営に関する基準 / 指定介護福祉施設サービスに要する費用の額の算定に関する基準 / 大臣基準告示 / R6改定",
+    "source_status": "source_required",
+    "_note": "将来拡張。本体型・地域密着型・ユニット型多床室・従来型多床室で基本報酬体系が大きく異なる。看護体制加算・夜勤職員配置加算・栄養マネジメント強化加算・口腔衛生管理加算・科学的介護推進体制加算・看取り介護加算・在宅復帰支援機能加算・処遇改善加算等を要調査。"
+  },
+  "kasans": {}
+}

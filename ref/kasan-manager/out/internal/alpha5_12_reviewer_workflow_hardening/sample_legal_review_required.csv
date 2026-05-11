@@ -1,0 +1,9 @@
+﻿service,kasan_key,legal_review_reason,legal_question,reference_needed,reviewer_decision,implementation_allowed,blocked_reason
+houmon_kango_kaigo,fukusu_mei_houmon_kango_kasan_I_under30,確定版で複数名訪問看護加算は基本サービスコード（13 1017〜等）に組み込まれた構造。独立コードではないため、社内マスタの kasan_key 単位での mapping_status は確定不可。alpha.4.5 で kasan-level 単位確認済。,加算「複数名訪問看護加算(Ⅰ)・30分未満」: 確定版サービスコード表では独立した加算行が見当たらず、基本サービスコードに付加される構造の可能性。 算定基準告示・大臣基準告示・解釈通知（老企第36号 等）でどのように扱われているか、 法令確認者の確認が必要です。,介護報酬告示（厚労告）/ 大臣基準告示 / 老企第36号「指定居宅サービスに要する費用の額の算定に関する基準」の解釈通知 / 最新の事務連絡（その2・その3 等）,escalate_legal_review,yes,needs_legal_review_kasan_pending_legal_clearance
+houmon_kango_kaigo,fukusu_mei_houmon_kango_kasan_I_over30,同上,加算「複数名訪問看護加算(Ⅰ)・30分以上」: 確定版サービスコード表では独立した加算行が見当たらず、基本サービスコードに付加される構造の可能性。 算定基準告示・大臣基準告示・解釈通知（老企第36号 等）でどのように扱われているか、 法令確認者の確認が必要です。,介護報酬告示（厚労告）/ 大臣基準告示 / 老企第36号「指定居宅サービスに要する費用の額の算定に関する基準」の解釈通知 / 最新の事務連絡（その2・その3 等）,mark_structural_mismatch,yes,needs_legal_review_kasan_pending_legal_clearance
+
+# alpha.5.10 reviewer decision gate generated at 2026-05-10
+# base_commit: d0c911db9b28f561f0e40859a4c40e863982d7f6 (alpha.5.9)
+# input: out/internal/alpha5_12_reviewer_workflow_hardening/sample_reviewed_decisions.csv
+# 本ゲートは master JSON を改変しない。承認候補 (approved_changes_preview) はあくまで実装候補。
+# 法令確認者が legal_question を解析し、関係告示・通知を参照して reviewer_decision を確定する。

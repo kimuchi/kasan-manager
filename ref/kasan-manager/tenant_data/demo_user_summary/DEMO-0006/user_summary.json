@@ -1,0 +1,53 @@
+{
+  "office_code": "DEMO-0006",
+  "service_key": "kyotaku_shien",
+  "schema_version": "v2026.05.06-alpha.5.4",
+  "sample_policy": "public_demo_synthetic",
+  "data_source_type": "demo_aggregate",
+  "source_status": "demo_aggregate_unverified",
+  "policy_notes": [
+    "公開デモ用の架空集計データです。",
+    "実利用者の氏名・被保険者番号・住所・電話番号・生年月日・家族情報・医療機関名・具体的病名は含まれません。",
+    "個別利用者個票ではなく、集計済みの値のみを記録しています。"
+  ],
+  "target_period": {
+    "start": "2026-04-01",
+    "end": "2026-04-30"
+  },
+  "users_total": 45,
+  "care_level_distribution": {
+    "youshien_1": 0,
+    "youshien_2": 0,
+    "youkaigo_1": 9,
+    "youkaigo_2": 11,
+    "youkaigo_3": 13,
+    "youkaigo_4": 8,
+    "youkaigo_5": 4
+  },
+  "care_level_3_or_higher_count": 25,
+  "care_level_3_or_higher_ratio": 0.556,
+  "care_level_4_or_higher_count": 12,
+  "care_level_4_or_higher_ratio": 0.267,
+  "severe_user_count": 10,
+  "severe_user_ratio": 0.222,
+  "dementia_care_level_distribution": {
+    "I": 6,
+    "IIa": 5,
+    "IIb": 6,
+    "IIIa": 5,
+    "IIIb": 4,
+    "IV": 2,
+    "M": 0
+  },
+  "dementia_related_count": 11,
+  "medical_dependency_count": 6,
+  "terminal_care_related_count": 1,
+  "discharge_support_related_count": 4,
+  "emergency_response_related_count": 3,
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "比率や件数は架空値であり、実在の事業所データと一致するものではありません。",
+    "退院退所連携対象4件・要介護3以上55%等を再現。",
+    "居宅介護支援(I)の40%要件は地域包括支援センター紹介除外が必要なため、本値で要件clearを保証しません（参考表示のみ）。"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "office_code": "DEMO-0005",
+  "service_key": "houmon_kaigo",
+  "status_version": "v2026.05.06-alpha.5.2",
+  "sample_policy": "public_demo_synthetic",
+  "facts": {
+    "tenant_status.saseki_qualifications.status": "clear",
+    "tenant_status.helper_qualifications.kaigo_fukushishi_ratio": 0.42,
+    "tenant_status.helper_qualifications.fukushishi_jitsumusha_kiso_ratio": 0.62,
+    "tenant_status.juudosha_ratio.value": 0.18,
+    "tenant_status.mitorikiki_jisseki_count.value": 1,
+    "tenant_status.shiji_houkoku_record.status": "clear",
+    "tenant_status.monthly_meeting_record.status": "missing",
+    "tenant_status.saseki_health_check.status": "clear",
+    "tenant_status.explanation_doc_emergency.status": "clear",
+    "tenant_status.saseki_uwanose_count.status": "missing"
+  },
+  "evidence_metadata": {
+    "tenant_status.helper_qualifications.kaigo_fukushishi_ratio": {
+      "evidence_label": "ヘルパー資格区分集計",
+      "last_checked_date": "2026-05-06"
+    },
+    "tenant_status.monthly_meeting_record.status": {
+      "evidence_label": "月次会議議事録",
+      "evidence_available": false,
+      "public_note": "DEMO設定: 議事録未整備の状態を再現"
+    },
+    "tenant_status.saseki_uwanose_count.status": {
+      "evidence_label": "サ責上乗せ配置勤務表",
+      "evidence_available": false
+    }
+  },
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "実事業所の届出状況・職員情報・利用者情報ではありません。",
+    "比率や件数は架空値であり、実在の事業所のデータと一致するものではありません。"
+  ]
+}

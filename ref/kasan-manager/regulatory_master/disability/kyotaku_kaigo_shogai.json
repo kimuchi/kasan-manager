@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "service_key": "kyotaku_kaigo_shogai",
+    "display_name": "居宅介護（障害福祉）",
+    "domain": "disability",
+    "payer": "disability_welfare",
+    "service_code_prefix": null,
+    "version": "0.1.0",
+    "effective_from": "2024-04-01",
+    "updated": "2026-05-06",
+    "revision_tag": "R6_shogai_2024_04",
+    "source": "障害者の日常生活及び社会生活を総合的に支援するための法律 / 指定障害福祉サービス等の事業の人員、設備及び運営に関する基準 / 障害福祉サービス等報酬告示 / R6改定",
+    "source_status": "source_required",
+    "_note": "未実装。身体介護・家事援助・通院等介助・通院等乗降介助の4区分。特定事業所加算・特別地域加算・初回加算・福祉専門職員配置等加算・喀痰吸引等支援体制加算・処遇改善加算等を要調査。"
+  },
+  "kasans": {}
+}

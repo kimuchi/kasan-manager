@@ -1,0 +1,127 @@
+{
+  "office_code": "DEMO-0005",
+  "service_key": "houmon_kaigo",
+  "schema_version": "v2026.05.06-alpha.5.3",
+  "sample_policy": "public_demo_synthetic",
+  "policy_notes": [
+    "公開デモ用の架空サンプルです。実在の職員データではありません。",
+    "氏名・住所・電話番号・給与額・生年月日・個人特定可能な属性は含めません。",
+    "display_label は架空ラベルです。実際の運用ではsalted_idやsubject_codeに置換します。"
+  ],
+  "staff": [
+    {
+      "staff_id": "DEMO-STAFF-001",
+      "display_label": "架空職員A",
+      "role": "saseki",
+      "qualifications": ["介護福祉士"],
+      "fukushi_jitsumusha_kiso": "介護福祉士",
+      "fte": 1.0,
+      "active": true,
+      "experience_years_band": "5y_plus",
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-002",
+      "display_label": "架空職員B",
+      "role": "saseki",
+      "qualifications": ["介護福祉士"],
+      "fukushi_jitsumusha_kiso": "介護福祉士",
+      "fte": 1.0,
+      "active": true,
+      "experience_years_band": "5y_plus",
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-003",
+      "display_label": "架空職員C",
+      "role": "saseki_uwanose",
+      "qualifications": ["介護福祉士"],
+      "fukushi_jitsumusha_kiso": "介護福祉士",
+      "fte": 1.0,
+      "active": true,
+      "experience_years_band": "3y_plus",
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-004",
+      "display_label": "架空職員D",
+      "role": "helper",
+      "qualifications": ["介護福祉士"],
+      "fukushi_jitsumusha_kiso": "介護福祉士",
+      "fte": 1.0,
+      "active": true,
+      "experience_years_band": "3y_plus",
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-005",
+      "display_label": "架空職員E",
+      "role": "helper",
+      "qualifications": ["介護福祉士"],
+      "fukushi_jitsumusha_kiso": "介護福祉士",
+      "fte": 1.0,
+      "active": true,
+      "experience_years_band": "3y_plus",
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-006",
+      "display_label": "架空職員F",
+      "role": "helper",
+      "qualifications": ["介護福祉士"],
+      "fukushi_jitsumusha_kiso": "介護福祉士",
+      "fte": 1.0,
+      "active": true,
+      "experience_years_band": "1y_plus",
+      "is_joukin": true
+    },
+    {
+      "staff_id": "DEMO-STAFF-007",
+      "display_label": "架空職員G",
+      "role": "helper",
+      "qualifications": ["実務者研修"],
+      "fukushi_jitsumusha_kiso": "実務者研修",
+      "fte": 0.6,
+      "active": true,
+      "experience_years_band": "1y_plus",
+      "is_joukin": false
+    },
+    {
+      "staff_id": "DEMO-STAFF-008",
+      "display_label": "架空職員H",
+      "role": "helper",
+      "qualifications": ["介護職員初任者研修"],
+      "fukushi_jitsumusha_kiso": "初任者研修",
+      "fte": 0.5,
+      "active": true,
+      "experience_years_band": "1y_under",
+      "is_joukin": false
+    },
+    {
+      "staff_id": "DEMO-STAFF-009",
+      "display_label": "架空職員I",
+      "role": "helper",
+      "qualifications": ["介護職員初任者研修"],
+      "fukushi_jitsumusha_kiso": "初任者研修",
+      "fte": 0.5,
+      "active": true,
+      "experience_years_band": "1y_plus",
+      "is_joukin": false
+    },
+    {
+      "staff_id": "DEMO-STAFF-010",
+      "display_label": "架空職員J",
+      "role": "helper",
+      "qualifications": [],
+      "fukushi_jitsumusha_kiso": null,
+      "fte": 0.4,
+      "active": true,
+      "experience_years_band": "1y_under",
+      "is_joukin": false
+    }
+  ],
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "比率や件数は架空値であり、実在の事業所のデータと一致するものではありません。"
+  ]
+}

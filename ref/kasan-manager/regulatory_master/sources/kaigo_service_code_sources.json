@@ -1,0 +1,227 @@
+{
+  "_meta": {
+    "registry_version": "alpha.5.8.1",
+    "created_at": "2026-05-09",
+    "updated_at": "2026-05-10",
+    "alpha_5_7_2_hotfix": {
+      "purpose": "effective period に基づき current_definitive を R7.4 → R7.8 に補正。2026-05時点で R7.8 が current_definitive 相当。",
+      "applied_at": "2026-05-10",
+      "r7_4_vs_r7_8_diff_check": "no_diff (訪問看護21コード行・通所介護29コード行とも完全一致)"
+    },
+    "alpha_5_8_1_hotfix": {
+      "purpose": "WAM_R8_6_8_PROVISIONAL_2026_04_30 の URL null / content未検証を解消。「その3」 (gno=22523) ページから同一PDF (20260416_004.pdf) が参照されていることを実体確認。content_verified=true・checked_promotion_allowed=false を明示化。alpha.5.8 の三層モデル本体・checked 20件・PDF検出には変更なし。",
+      "applied_at": "2026-05-10",
+      "scope": "source registry metadata only. master JSON business data unchanged."
+    },
+    "purpose": "介護保険サービスコード表の公式資料 source versioning。各加算の service_code_audit から source_id で参照。",
+    "policy": "案 (provisional) 資料だけで checked に昇格してはならない。definitive かつ対象年月に妥当な revision_status のものだけを根拠に使う。",
+    "source_kind_enum": ["definitive", "provisional", "draft", "unknown"],
+    "revision_status_enum": [
+      "current_definitive",
+      "current_or_future_definitive",
+      "historical_definitive",
+      "provisional_future",
+      "provisional_historical",
+      "draft",
+      "unknown"
+    ],
+    "source_kind_determination_rules": [
+      "(1) PDFタイトルに「案」がある場合は provisional",
+      "(2) PDFタイトルに「案」がなくても、親WAM NET detailページのタイトル・資料見出し・リンクラベルに「案」がある場合は provisional",
+      "(3) 親ページが「（その2）」「（その3）」など案・予備版の名称の場合も provisional",
+      "(4) 親ページが「確定版」明記でかつ資料見出し・リンクラベルに「案」がない場合のみ definitive 候補",
+      "(5) definitive でも effective_from / effective_to / document_version を必ず持たせる",
+      "(6) source_kind=provisional の資料だけで checked に昇格してはいけない",
+      "(7) checked_promotion_allowed=false の source は resolve_current_source_for_date でも current として返してはいけない"
+    ]
+  },
+  "sources": {
+    "WAM_R6_4_PROVISIONAL_2024_03_18": {
+      "source_id": "WAM_R6_4_PROVISIONAL_2024_03_18",
+      "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（その４）（令和6年3月18日事務連絡）",
+      "source_kind": "provisional",
+      "revision_status": "provisional_historical",
+      "effective_from": "2024-04-01",
+      "effective_to": "2024-05-31",
+      "published_at": "2024-03-18",
+      "updated_at": "2024-03-18",
+      "document_version": "2024-03-18版（案）",
+      "applies_to_services": ["tsusho_kaigo", "houmon_kaigo", "kyotaku_shien", "houmon_kango_kaigo"],
+      "page_or_section": "Ⅰ 居宅サービスコード（訪問介護 p1-60, 訪問看護 p62-69, 通所介護 p70-82, 居宅介護支援 p240+）",
+      "confirmed_at": "2026-05-07",
+      "confirmed_by": "alpha.5.5 audit (CareLinker)",
+      "notes": "PDF表紙に「（案）」明記あり、親ページも「（その4）」案・予備版。alpha.5.5 で誤って正本扱いしたが、alpha.5.6 で provisional と訂正。checked 昇格には使用しない。"
+    },
+    "WAM_R6_6_8_DEFINITIVE_2024_05_07": {
+      "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
+      "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（確定版）の一部訂正（令和6年5月10日事務連絡）",
+      "source_kind": "definitive",
+      "revision_status": "historical_definitive",
+      "effective_from": "2024-06-01",
+      "effective_to": "2025-03-31",
+      "published_at": "2024-05-07",
+      "updated_at": "2024-05-07",
+      "document_version": "R6.6/R6.8 確定版",
+      "applies_to_services": ["tsusho_kaigo", "houmon_kaigo", "kyotaku_shien", "houmon_kango_kaigo"],
+      "page_or_section": "訪問介護 p1-61, 訪問看護 p65-74, 通所介護 p75-87, 居宅介護支援 p242+",
+      "confirmed_at": "2026-05-09",
+      "confirmed_by": "alpha.5.6 audit (CareLinker)",
+      "notes": "PDF表紙・親ページとも「案」表示なし → definitive。令和6.6.1 改定で訪問看護加算の構造が確定（緊急時Ⅰ/Ⅱ×1/2四区分・ターミナル2,500u・初回Ⅰ/Ⅱ新設）。alpha.5.6 で houmon_kango_kaigo 14 加算を checked 化に使用。"
+    },
+    "WAM_R7_4_PROVISIONAL_2025_02_01": {
+      "source_id": "WAM_R7_4_PROVISIONAL_2025_02_01",
+      "source_title": "介護給付費単位数等サービスコード表（令和7年4月施行版）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2025/0130170719328/20250201_006.pdf",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（その２）（令和7年2月3日事務連絡）",
+      "source_kind": "provisional",
+      "revision_status": "provisional_historical",
+      "effective_from": "2025-04-01",
+      "effective_to": null,
+      "published_at": "2025-02-01",
+      "updated_at": "2025-02-01",
+      "document_version": "2025-02-01版（案・親ページが「その2」）",
+      "applies_to_services": ["tsusho_kaigo", "houmon_kaigo", "kyotaku_shien", "houmon_kango_kaigo"],
+      "page_or_section": "訪問介護 p1-107, 訪問看護 p109-129, 通所介護 p130-144, 居宅介護支援 p318-332",
+      "confirmed_at": "2026-05-10",
+      "confirmed_by": "alpha.5.7.1 audit (CareLinker)",
+      "notes": "alpha.5.7 で誤って current_definitive 扱いしたが、親ページが「その2」（案・予備版）のため alpha.5.7.1 で provisional に訂正。PDFタイトルだけでは「案」が見えないが、親ページ名で判定。checked 昇格には使用しない。"
+    },
+    "WAM_R7_4_DEFINITIVE_2025_03_28": {
+      "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+      "source_title": "介護給付費単位数等サービスコード表（R7.4.1）（令和7年4月施行版・確定版）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2025/0325232823856/20250328_005.pdf",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（確定版）（令和7年3月28日事務連絡）",
+      "source_kind": "definitive",
+      "revision_status": "historical_definitive",
+      "effective_from": "2025-04-01",
+      "effective_to": "2025-07-31",
+      "published_at": "2025-03-28",
+      "updated_at": "2025-03-28",
+      "document_version": "R7.4.1 確定版",
+      "applies_to_services": ["tsusho_kaigo", "houmon_kaigo", "kyotaku_shien", "houmon_kango_kaigo"],
+      "page_or_section": "訪問介護 p1-107, 訪問看護 p109-129, 通所介護 p130-144, 居宅介護支援 p318-332",
+      "confirmed_at": "2026-05-10",
+      "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
+      "alpha_5_7_2_revision_status_correction": {
+        "previous": "current_definitive",
+        "corrected_to": "historical_definitive",
+        "reason": "R7.4.1 は effective_to=2025-07-31 までの historical 期間。2026-05 現在は R7.8.1 (effective from 2025-08-01) が current_definitive のため。"
+      },
+      "notes": "親ページに「確定版」明記、リンクラベルも「②介護サービス（R7.4.1）」（案表記なし）。definitive。alpha.5.7.2 で historical_definitive に再分類（R7.4 期間は2025-04 〜 2025-07）。alpha.5.7 の 2025-02-01版（provisional）と PDF内容は同一だが、source_kind は親ページのstatusで判定する。"
+    },
+    "WAM_R7_8_DEFINITIVE_2025_03_28": {
+      "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
+      "source_title": "介護給付費単位数等サービスコード表（R7.8.1）（令和7年8月施行版・確定版）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2025/0325232829413/20250328_006.pdf",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（確定版）（令和7年3月28日事務連絡）",
+      "source_kind": "definitive",
+      "revision_status": "current_definitive",
+      "effective_from": "2025-08-01",
+      "effective_to": "2026-05-31",
+      "published_at": "2025-03-28",
+      "updated_at": "2025-03-28",
+      "document_version": "R7.8.1 確定版",
+      "applies_to_services": ["tsusho_kaigo", "houmon_kaigo", "kyotaku_shien", "houmon_kango_kaigo"],
+      "page_or_section": "訪問介護 p1-107, 訪問看護 p109-129, 通所介護 p130-144, 居宅介護支援 p318-332 (R7.4と同一構造・差分0)",
+      "confirmed_at": "2026-05-10",
+      "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
+      "diff_from_r7_4_definitive": {
+        "houmon_kango_kaigo_kasan_lines": "21 items, no_diff",
+        "tsusho_kaigo_kasan_lines": "29 items, no_diff",
+        "verification_method": "pdfplumber-based byte-equivalent code+name+unit comparison"
+      },
+      "notes": "親ページ「確定版」、リンクラベル「②介護サービス（R7.8.1）」（案表記なし）。definitive。alpha.5.7.2 で実体PDF取得・R7.4と差分0確認、current_definitive に昇格（2026-05時点で current）。R8.6.1案 (effective_from 2026-06-01) が出るまで current 維持予定。"
+    },
+    "WAM_R8_6_8_PROVISIONAL_2026_04_30": {
+      "source_id": "WAM_R8_6_8_PROVISIONAL_2026_04_30",
+      "source_title": "介護給付費単位数等サービスコード表（R8.6.1 / R8.8.1）（案）",
+      "content_title": "介護給付費単位数等サービスコード表（案）（令和8年6月・8月施行版）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2026/0414224940739/20260416_004.pdf",
+      "parent_page_url": "https://www.wam.go.jp/gyoseiShiryou/detail?gno=22523&ct=020050010",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（その3）（令和8年4月30日事務連絡）",
+      "parent_page_published_at": "2026-04-30",
+      "parent_page_updated_at": "2026-04-30",
+      "pdf_filename": "20260416_004.pdf",
+      "pdf_size_bytes": 1887737,
+      "pdf_pages": 406,
+      "content_verified": true,
+      "content_verified_at": "2026-05-10",
+      "content_verified_by": "alpha.5.8.1 audit (CareLinker, pdfplumber実体確認)",
+      "content_verification_keywords": {
+        "案_in_first_page": true,
+        "介護給付費単位数_in_first_page": true,
+        "サービスコード表_in_first_page": true
+      },
+      "source_kind": "provisional",
+      "revision_status": "provisional_future",
+      "checked_promotion_allowed": false,
+      "audit_note": "r8_6_8_provisional_future_not_used_for_checked",
+      "relation_to_2026_04_20": "same_pdf_under_new_parent_page",
+      "effective_from": "2026-06-01",
+      "effective_to": null,
+      "published_at": "2026-04-30",
+      "updated_at": "2026-04-30",
+      "document_version": "R8.6.1 / R8.8.1（案・その3）",
+      "applies_to_services": ["houmon_kango_kaigo", "tsusho_kaigo", "houmon_kaigo", "kyotaku_shien"],
+      "page_or_section": "Ⅰ-資料2② 介護サービス（R8.6.1）（案）。PDF実体は WAM_R8_6_8_PROVISIONAL_2026_04_20 と同一。",
+      "confirmed_at": "2026-05-10",
+      "confirmed_by": "alpha.5.8.1 audit (CareLinker)",
+      "same_pdf_under_new_parent_page": "WAM_R8_6_8_PROVISIONAL_2026_04_20 と同一PDF (20260416_004.pdf) を「その3」ページ (gno=22523) が再参照していることを alpha.5.8.1 で実体確認済 (1,887,737 bytes / 406 pages / 表紙に「（案）」表記)。",
+      "notes": "親ページ「（その3）」（案・予備版・令和8年4月30日事務連絡）。**確定版ではない・案資料**。R8.6.1 / R8.8.1 案として provisional_future。checked 昇格には絶対に使用しない。R8対応済みと表現してはならない。alpha.5.8.1 で URL・content_verified を充足し、checked_promotion_allowed=false を明示化。"
+    },
+    "WAM_R8_6_8_PROVISIONAL_2026_04_20": {
+      "source_id": "WAM_R8_6_8_PROVISIONAL_2026_04_20",
+      "source_title": "介護給付費単位数等サービスコード表（R8.6.1）（案）（令和8年6月施行版・案）",
+      "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2026/0414224940739/20260416_004.pdf",
+      "parent_page_title": "介護保険事務処理システム変更に係る参考資料（その２）（令和8年4月20日事務連絡）",
+      "source_kind": "provisional",
+      "revision_status": "provisional_future",
+      "checked_promotion_allowed": false,
+      "audit_note": "r8_6_8_provisional_future_not_used_for_checked",
+      "effective_from": "2026-06-01",
+      "effective_to": null,
+      "published_at": "2026-04-16",
+      "updated_at": "2026-04-20",
+      "document_version": "R8.6.1 / R8.8.1（案）",
+      "applies_to_services": ["houmon_kango_kaigo", "tsusho_kaigo", "houmon_kaigo", "kyotaku_shien"],
+      "page_or_section": "別途PDF確認要",
+      "confirmed_at": "2026-05-10",
+      "confirmed_by": "alpha.5.7.1 audit (CareLinker)",
+      "notes": "親ページ「（その2）」、リンクラベル「②介護サービス（R8.6.1）（案）（新規資料）」。**確定版ではない・案資料**。令和8年6月臨時改定対象（処遇改善加算 訪問看護新規対象・1.8%等）。checked 昇格には絶対に使用しない。future_candidate / provisional_future として audit に記録するに留める。alpha.5.8.1 で checked_promotion_allowed=false を明示化（「その3」と同一PDF）。"
+    }
+  },
+  "service_to_authoritative_source": {
+    "_note": "alpha.5.7.2 時点で各サービスの照合に使う authoritative source。current_definitive は R7.8 (effective 2025-08-01〜2026-05-31)。R7.4 は historical_definitive。",
+    "houmon_kango_kaigo": [
+      {"source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07", "role": "alpha.5.6 audit base (historical_definitive・R6.6/8期)"},
+      {"source_id": "WAM_R7_4_DEFINITIVE_2025_03_28", "role": "alpha.5.7.1 reconfirm (historical_definitive・R7.4期)"},
+      {"source_id": "WAM_R7_8_DEFINITIVE_2025_03_28", "role": "alpha.5.7.2 current_definitive reconfirm (R7.8期・no_diff from R7.4)"}
+    ],
+    "tsusho_kaigo": [
+      {"source_id": "WAM_R7_4_DEFINITIVE_2025_03_28", "role": "alpha.5.7.1 audit base (historical_definitive)"},
+      {"source_id": "WAM_R7_8_DEFINITIVE_2025_03_28", "role": "alpha.5.7.2 current_definitive reconfirm (no_diff from R7.4)"}
+    ],
+    "houmon_kaigo": [
+      {"source_id": "WAM_R7_4_DEFINITIVE_2025_03_28", "role": "alpha.5.7.1 audit base (historical_definitive)"},
+      {"source_id": "WAM_R7_8_DEFINITIVE_2025_03_28", "role": "alpha.5.7.2 current_definitive (R7.4と同一内容前提)"}
+    ],
+    "kyotaku_shien": [
+      {"source_id": "WAM_R7_4_DEFINITIVE_2025_03_28", "role": "alpha.5.7.1 audit base (historical_definitive)"},
+      {"source_id": "WAM_R7_8_DEFINITIVE_2025_03_28", "role": "alpha.5.7.2 current_definitive (R7.4と同一内容前提)"}
+    ]
+  },
+  "target_period_resolution_rules": {
+    "_note": "対象年月から current source を選ぶルール。実装は load_source_registry 関連 helper で。",
+    "rules": [
+      {"date_range": "2024-06-01 〜 2025-03-31", "current_source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07"},
+      {"date_range": "2025-04-01 〜 2025-07-31", "current_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28"},
+      {"date_range": "2025-08-01 〜 2026-05-31", "current_source_id": "WAM_R7_8_DEFINITIVE_2025_03_28"},
+      {"date_range": "2026-06-01 〜", "current_source_id": null, "note": "R8.6.1案は provisional_future / checked_promotion_allowed=false のため current として返さない。確定版が出るまで needs_review。"}
+    ],
+    "checked_promotion_allowed_filter": "checked_promotion_allowed=false の source は resolve_current_source_for_date でも current として返さない (alpha.5.8.1)"
+  }
+}

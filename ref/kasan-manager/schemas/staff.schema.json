@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "staff",
+  "description": "事業所職員データ（テナント固有）。",
+  "type": "object",
+  "required": ["_meta", "staff"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["schema", "office_code", "tenant_id"],
+      "properties": {
+        "schema": {"const": "staff"},
+        "schema_version": {"type": "string"},
+        "office_code": {"type": "string", "pattern": "^[0-9]{10}$"},
+        "tenant_id": {"type": "string"},
+        "updated": {"type": "string"}
+      }
+    },
+    "staff": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "role"],
+        "properties": {
+          "id": {"type": "string"},
+          "anonymized_name": {"type": "string"},
+          "role": {"type": "string"},
+          "qualifications": {"type": "array", "items": {"type": "string"}},
+          "joukin": {"type": "boolean"},
+          "joukin_kanzan": {"type": "number"},
+          "senjuu": {"type": "boolean"},
+          "kinzoku_years": {"type": "number"},
+          "shunin_cm": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}
