@@ -1089,3 +1089,160 @@ main {
 .history-summary { font-size: 12px; color: var(--ink-mute); }
 .history-actions { display: flex; gap: 6px; }
 
+/* ===== 解析詳細パネル / Reviewer / ポートフォリオ ===== */
+.analysis-detail {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: #fafbff;
+}
+.analysis-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  margin: 12px 0 8px;
+}
+.tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  padding: 6px 14px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink-mute);
+  border-radius: 6px 6px 0 0;
+}
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.active {
+  color: var(--accent-strong);
+  background: #fff;
+  border-color: var(--border);
+  border-bottom: 2px solid #fff;
+  margin-bottom: -2px;
+  font-weight: 700;
+}
+.tab-panel { display: none; padding: 8px 0; }
+.tab-panel.active { display: block; }
+#analysis-detail-report {
+  white-space: pre-wrap;
+  font: 13px/1.6 ui-monospace, Menlo, Consolas, monospace;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.judge-filter {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.judge-filter input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.kasan-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.kasan-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.kasan-card-name { font-weight: 700; }
+.kasan-card-status { font-size: 12px; color: var(--accent-strong); }
+.kasan-card-decided {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.kasan-card-meta {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-bottom: 4px;
+}
+.kasan-card-comment {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #fffbe6;
+  margin-bottom: 6px;
+}
+.kasan-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.kasan-card-actions input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.portfolio-head {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.portfolio-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 4px solid #b58a00;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.portfolio-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.portfolio-card-name { font-weight: 700; }
+.portfolio-card-revenue {
+  color: #8a6400;
+  font-weight: 700;
+  font-size: 14px;
+}
+.portfolio-card-meta {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-bottom: 6px;
+}
+.portfolio-card-actions {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.portfolio-card-actions li { margin-bottom: 2px; }
+

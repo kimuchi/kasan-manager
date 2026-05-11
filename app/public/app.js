@@ -1085,6 +1085,7 @@ async function initAuthPanel() {
   });
   $('#auth-redeem-btn')?.addEventListener('click', redeemAccessCode);
   $('#admin-code-issue-btn')?.addEventListener('click', issueAccessCodeAdmin);
+  initDetailPanelControls();
 
   // 状態監視
   fb.onAuthStateChanged(fb.auth, async (user) => {
@@ -1220,9 +1221,7 @@ async function refreshHistory() {
         unknown=${counts.unknown ?? 0}
       </div>
       <div class="history-actions">
-        <button type="button" data-analysis-id="${job.analysis_id}" class="ghost-btn history-view-btn">詳細</button>
-        <button type="button" data-analysis-id="${job.analysis_id}" data-decision="approved" class="ghost-btn history-review-btn">承認</button>
-        <button type="button" data-analysis-id="${job.analysis_id}" data-decision="returned" class="ghost-btn history-review-btn">差戻し</button>
+        <button type="button" data-analysis-id="${job.analysis_id}" class="ghost-btn history-view-btn">詳細・レビュー</button>
       </div>
     `;
     list.appendChild(row);
@@ -1230,39 +1229,258 @@ async function refreshHistory() {
   list.querySelectorAll('.history-view-btn').forEach((b) =>
     b.addEventListener('click', () => openAnalysisDetail(b.dataset.analysisId)),
   );
-  list.querySelectorAll('.history-review-btn').forEach((b) =>
-    b.addEventListener('click', () => submitReview(b.dataset.analysisId, b.dataset.decision)),
+}
+
+// 解析詳細画面: 加算別レビュー + ポートフォリオ最適化 + Markdown + 履歴
+const detailState = {
+  analysisId: null,
+  job: null,
+  result: null,
+  report: null,
+  decisions: [],
+  portfolio: null,
+};
+
+async function openAnalysisDetail(id) {
+  const panel = $('#analysis-detail-panel');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  $('#analysis-detail-judgements').textContent = '読み込み中…';
+  $('#analysis-detail-portfolio').textContent = '';
+  $('#analysis-detail-report').textContent = '';
+  $('#analysis-detail-history').textContent = '';
+  $('#analysis-detail-meta').textContent = '';
+  detailState.analysisId = id;
+
+  const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(id)}`);
+  if (!res.ok || !payload?.ok) {
+    $('#analysis-detail-judgements').textContent = `取得失敗: ${payload?.error || res.status}`;
+    return;
+  }
+  detailState.job = payload.job;
+  detailState.result = payload.result;
+  detailState.report = payload.report;
+  detailState.decisions = payload.review_decisions || [];
+
+  renderDetailMeta();
+  renderJudgementsList();
+  renderDetailHistory();
+  renderDetailReport();
+  // ポートフォリオは別 fetch
+  fetchAndRenderPortfolio();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderDetailMeta() {
+  const m = $('#analysis-detail-meta');
+  const j = detailState.job || {};
+  const created = j.created_at ? new Date(j.created_at).toLocaleString('ja-JP') : '-';
+  m.innerHTML = `
+    <div><strong>${escapeHtml(j.service || '-')}</strong> /
+      ${escapeHtml(j.office || j.facility_id || '-')} /
+      ${escapeHtml(j.service_month || '-')} /
+      <span class="auth-plan-badge ${j.review_status === 'approved' ? 'paid' : ''}">${escapeHtml(j.review_status || 'draft')}</span></div>
+    <div class="hint">analysis_id=<code>${escapeHtml(j.analysis_id || detailState.analysisId)}</code> / 作成: ${created}</div>
+  `;
+}
+
+function renderJudgementsList() {
+  const target = $('#analysis-detail-judgements');
+  const result = detailState.result || {};
+  const judgements = result.judgements || {};
+  const perKasanStatus = detailState.job?.per_kasan_status || {};
+  const filterUndecided = $('#judge-filter-undecided').checked;
+  const filterWaiting = $('#judge-filter-waiting').checked;
+  const searchQ = ($('#judge-filter-search').value || '').toLowerCase();
+
+  const entries = Object.entries(judgements).filter(([k, jud]) => {
+    const status = jud.algorithm_judgement || 'unknown';
+    if (filterWaiting && !['waiting', 'unknown', 'claimed_but_requirements_unknown'].includes(status)) return false;
+    if (filterUndecided && perKasanStatus[k]?.decision === 'approved') return false;
+    if (searchQ) {
+      const n = (jud.name || k).toLowerCase();
+      if (!n.includes(searchQ)) return false;
+    }
+    return true;
+  });
+
+  if (!entries.length) {
+    target.textContent = '（フィルタ条件に合致する加算はありません）';
+    return;
+  }
+  target.innerHTML = '';
+  for (const [key, jud] of entries) {
+    const card = document.createElement('div');
+    card.className = 'kasan-card';
+    const status = jud.algorithm_judgement || 'unknown';
+    const algLabel = ALG_LABEL[status] || status;
+    const decision = perKasanStatus[key] || null;
+    card.innerHTML = `
+      <div class="kasan-card-head">
+        <span class="kasan-card-name">${escapeHtml(jud.name || key)}</span>
+        <span class="kasan-card-status">${algLabel}</span>
+        ${decision ? `<span class="kasan-card-decided">${escapeHtml(decision.decision)}${decision.reviewer_email ? ` by ${escapeHtml(decision.reviewer_email)}` : ''}</span>` : ''}
+      </div>
+      <div class="kasan-card-meta">
+        ${jud.unit_per_day ? `${jud.unit_per_day} 単位/日` : jud.unit_per_month ? `${jud.unit_per_month} 単位/月` : '単位未設定'}
+        ${jud.priority_hint ? ` / ${escapeHtml(jud.priority_hint)}` : ''}
+      </div>
+      ${decision?.comment ? `<div class="kasan-card-comment">💬 ${escapeHtml(decision.comment)}</div>` : ''}
+      <div class="kasan-card-actions">
+        <input type="text" placeholder="コメント（任意）" data-kasan-comment="${escapeHtml(key)}" />
+        <button type="button" class="ghost-btn" data-kasan-approve="${escapeHtml(key)}">承認</button>
+        <button type="button" class="ghost-btn" data-kasan-return="${escapeHtml(key)}">差戻し</button>
+        <button type="button" class="ghost-btn" data-kasan-await="${escapeHtml(key)}">保留</button>
+      </div>
+    `;
+    target.appendChild(card);
+  }
+  target.querySelectorAll('[data-kasan-approve]').forEach((b) =>
+    b.addEventListener('click', () => submitPerKasanReview(b.dataset.kasanApprove, 'approved')),
+  );
+  target.querySelectorAll('[data-kasan-return]').forEach((b) =>
+    b.addEventListener('click', () => submitPerKasanReview(b.dataset.kasanReturn, 'returned')),
+  );
+  target.querySelectorAll('[data-kasan-await]').forEach((b) =>
+    b.addEventListener('click', () => submitPerKasanReview(b.dataset.kasanAwait, 'awaiting_review')),
   );
 }
 
-async function openAnalysisDetail(id) {
-  const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(id)}`);
-  if (!res.ok || !payload?.ok) {
-    alert(`取得失敗: ${payload?.error || res.status}`);
-    return;
-  }
-  if (payload.report) {
-    const w = window.open('', '_blank', 'noopener');
-    if (w) {
-      w.document.write(`<pre style="white-space:pre-wrap;font:14px/1.6 monospace;padding:20px">${escapeHtml(payload.report)}</pre>`);
-      w.document.title = `解析 ${id}`;
-    }
-  } else {
-    alert(`レポートが保存されていません（id=${id}）`);
-  }
-}
-
-async function submitReview(id, decision) {
-  const comment = prompt(`${decision === 'approved' ? '承認' : '差戻し'} のコメント（任意）`);
+async function submitPerKasanReview(kasanKey, decision) {
+  const id = detailState.analysisId;
+  if (!id) return;
+  const commentInput = document.querySelector(`[data-kasan-comment="${kasanKey}"]`);
+  const comment = commentInput?.value?.trim() || null;
   const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(id)}/review`, {
     method: 'POST',
-    body: { decision, comment: comment || null },
+    body: { decision, kasan_key: kasanKey, comment },
   });
   if (res.ok && payload?.ok) {
-    refreshHistory();
+    if (commentInput) commentInput.value = '';
+    await refreshDetail();
   } else {
     alert(`登録失敗: ${payload?.error || res.status}`);
   }
+}
+
+async function refreshDetail() {
+  // 全体メタ更新のため再取得
+  const id = detailState.analysisId;
+  const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(id)}`);
+  if (res.ok && payload?.ok) {
+    detailState.job = payload.job;
+    detailState.decisions = payload.review_decisions || [];
+    renderDetailMeta();
+    renderJudgementsList();
+    renderDetailHistory();
+    refreshHistory(); // 履歴一覧側も更新
+  }
+}
+
+function renderDetailReport() {
+  const pre = $('#analysis-detail-report');
+  pre.textContent = detailState.report || '（Markdown レポートが保存されていません）';
+}
+
+function renderDetailHistory() {
+  const target = $('#analysis-detail-history');
+  if (!detailState.decisions?.length) {
+    target.textContent = '（レビュー履歴はまだありません）';
+    return;
+  }
+  target.innerHTML = '';
+  for (const d of detailState.decisions) {
+    const row = document.createElement('div');
+    row.className = 'history-row';
+    const at = d.decided_at ? new Date(d.decided_at).toLocaleString('ja-JP') : '-';
+    row.innerHTML = `
+      <div class="history-meta">
+        <span class="history-date">${at}</span>
+        ${d.kasan_key ? `<code>${escapeHtml(d.kasan_key)}</code>` : '<span>(全体)</span>'}
+        <span class="history-review">${escapeHtml(d.decision)}</span>
+      </div>
+      <div class="history-summary">
+        ${d.comment ? escapeHtml(d.comment) : ''}
+        ${d.reviewer_email ? `<br>by ${escapeHtml(d.reviewer_email)}` : ''}
+      </div>
+      <div></div>
+    `;
+    target.appendChild(row);
+  }
+}
+
+async function fetchAndRenderPortfolio() {
+  const target = $('#analysis-detail-portfolio');
+  target.textContent = '読み込み中…';
+  const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(detailState.analysisId)}/portfolio`);
+  if (!res.ok || !payload?.ok) {
+    target.textContent = `取得失敗: ${payload?.error || res.status}`;
+    return;
+  }
+  detailState.portfolio = payload.portfolio;
+  renderPortfolio();
+}
+
+function renderPortfolio() {
+  const target = $('#analysis-detail-portfolio');
+  const p = detailState.portfolio;
+  if (!p) {
+    target.textContent = '';
+    return;
+  }
+  target.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'portfolio-head';
+  head.innerHTML = `
+    <p><strong>${p.recommendation_count}</strong> 件の候補 /
+       見込み <strong>${(p.total_potential_yen_per_month || 0).toLocaleString('ja-JP')}</strong> 円/月</p>
+    <p class="hint">${escapeHtml(p.assumptions?.note || '')}</p>
+  `;
+  target.appendChild(head);
+  if (!p.recommendations?.length) {
+    const empty = document.createElement('p');
+    empty.textContent = '（追加で取りに行ける加算はありません — 既に取れる加算は取れていそうです）';
+    target.appendChild(empty);
+    return;
+  }
+  for (const rec of p.recommendations) {
+    const card = document.createElement('div');
+    card.className = 'portfolio-card';
+    const rev = rec.revenue_per_month_yen ? rec.revenue_per_month_yen.toLocaleString('ja-JP') : '-';
+    card.innerHTML = `
+      <div class="portfolio-card-head">
+        <span class="portfolio-card-name">${escapeHtml(rec.kasan_name)}</span>
+        <span class="portfolio-card-revenue">${rev} 円/月</span>
+      </div>
+      <div class="portfolio-card-meta">
+        ${escapeHtml(rec.rationale || '')}
+        ${rec.unit_per_day ? ` / ${rec.unit_per_day} 単位/日` : ''}
+        ${rec.unit_type ? ` (${escapeHtml(rec.unit_type)})` : ''}
+      </div>
+      <ul class="portfolio-card-actions">
+        ${(rec.action_items || []).map((a) => `<li>${escapeHtml(a)}</li>`).join('')}
+      </ul>
+    `;
+    target.appendChild(card);
+  }
+}
+
+// タブ切替・フィルタ・閉じるボタン
+function initDetailPanelControls() {
+  const panel = $('#analysis-detail-panel');
+  if (!panel) return;
+  $('#analysis-detail-close')?.addEventListener('click', () => panel.classList.add('hidden'));
+  for (const btn of panel.querySelectorAll('.tab-btn')) {
+    btn.addEventListener('click', () => {
+      panel.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      panel.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+      btn.classList.add('active');
+      $(`#tab-${btn.dataset.tab}`).classList.add('active');
+    });
+  }
+  ['#judge-filter-undecided', '#judge-filter-waiting', '#judge-filter-search'].forEach((sel) => {
+    $(sel)?.addEventListener('input', () => detailState.result && renderJudgementsList());
+  });
 }
 
 async function issueAccessCodeAdmin() {

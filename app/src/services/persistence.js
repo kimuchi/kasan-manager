@@ -113,15 +113,34 @@ export async function loadAnalysisArtifact({ analysisId, uid, kind = 'result' })
   return buf ? buf.toString('utf-8') : null;
 }
 
-// レビュー判断の記録。review_status と紐づけて履歴を残す。
+// レビュー判断の記録。
+// - kasan_key 指定: その加算の per-kasan 判断を 1 件記録（履歴蓄積）
+// - kasan_key 未指定: 解析全体に対する overall judgement として記録
+//
+// 副作用として、analysis_jobs に以下を denormalize 反映:
+//   - per_kasan_status: { [kasan_key]: { decision, comment, decided_at, reviewer_email } }
+//   - review_status: 全体集約。すべての判定済 kasan が approved → 'approved'、
+//     1 つでも returned があれば 'returned'、awaiting_review があれば 'awaiting_review'、
+//     全くなければ 'draft'。
+export function aggregateReviewStatus(perKasanStatus) {
+  const values = Object.values(perKasanStatus || {});
+  if (values.length === 0) return 'draft';
+  if (values.some((v) => v?.decision === 'returned')) return 'returned';
+  if (values.some((v) => v?.decision === 'awaiting_review')) return 'awaiting_review';
+  if (values.every((v) => v?.decision === 'approved')) return 'approved';
+  return 'awaiting_review';
+}
+
+const VALID_DECISIONS = new Set(['approved', 'returned', 'awaiting_review']);
+
 export async function recordReviewDecision({ analysisId, kasanKey, decision, comment, reviewerUid, reviewerEmail }) {
   const db = getFirestoreClient();
   if (!db) throw new Error('firestore_unavailable');
-  if (!['approved', 'returned', 'awaiting_review'].includes(decision)) {
+  if (!VALID_DECISIONS.has(decision)) {
     throw new Error('invalid_decision');
   }
-  const ref = db.collection(COLLECTION_REVIEWS).doc();
-  await ref.set({
+  const jobRef = db.collection(COLLECTION_JOBS).doc(analysisId);
+  const decisionDoc = {
     analysis_id: analysisId,
     kasan_key: kasanKey || null,
     decision,
@@ -129,12 +148,31 @@ export async function recordReviewDecision({ analysisId, kasanKey, decision, com
     reviewer_uid: reviewerUid,
     reviewer_email: reviewerEmail || null,
     decided_at: new Date(),
+  };
+  await db.collection(COLLECTION_REVIEWS).add(decisionDoc);
+  // analysis_jobs に per_kasan_status を merge + 集約 review_status を更新
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(jobRef);
+    if (!snap.exists) return;
+    const data = snap.data();
+    const perKasanStatus = { ...(data.per_kasan_status || {}) };
+    const key = kasanKey || '__overall__';
+    perKasanStatus[key] = {
+      decision,
+      comment: comment || null,
+      decided_at: new Date(),
+      reviewer_email: reviewerEmail || null,
+    };
+    // overall キーは集約には使わず、kasan キーのみで集約
+    const forAggregate = { ...perKasanStatus };
+    delete forAggregate.__overall__;
+    const reviewStatus = aggregateReviewStatus(forAggregate);
+    tx.update(jobRef, {
+      per_kasan_status: perKasanStatus,
+      review_status: reviewStatus,
+      last_reviewed_at: new Date(),
+    });
   });
-  // analysis_jobs.review_status を最新に
-  await db
-    .collection(COLLECTION_JOBS)
-    .doc(analysisId)
-    .update({ review_status: decision, last_reviewed_at: new Date() });
   await logAudit({
     uid: reviewerUid,
     eventType: 'review_decision',
@@ -143,14 +181,13 @@ export async function recordReviewDecision({ analysisId, kasanKey, decision, com
   return { ok: true };
 }
 
-export async function listReviewDecisions({ analysisId }) {
+export async function listReviewDecisions({ analysisId, kasanKey = null }) {
   const db = getFirestoreClient();
   if (!db) return [];
-  const snap = await db
-    .collection(COLLECTION_REVIEWS)
-    .where('analysis_id', '==', analysisId)
-    .orderBy('decided_at', 'desc')
-    .get();
+  let q = db.collection(COLLECTION_REVIEWS).where('analysis_id', '==', analysisId);
+  if (kasanKey) q = q.where('kasan_key', '==', kasanKey);
+  q = q.orderBy('decided_at', 'desc');
+  const snap = await q.get();
   return snap.docs.map((d) => {
     const dd = d.data();
     return {
@@ -176,6 +213,13 @@ export async function logAudit({ uid, eventType, detail }) {
 }
 
 function serializeJob(d) {
+  const perKasanStatus = {};
+  for (const [k, v] of Object.entries(d.per_kasan_status || {})) {
+    perKasanStatus[k] = {
+      ...v,
+      decided_at: v?.decided_at?.toDate?.() ? v.decided_at.toDate().toISOString() : v?.decided_at || null,
+    };
+  }
   return {
     analysis_id: d.analysis_id,
     uid: d.uid,
@@ -186,8 +230,11 @@ function serializeJob(d) {
     review_status: d.review_status,
     service: d.service,
     office: d.office,
+    facility_id: d.facility_id,
+    service_month: d.service_month,
     kasan_count: d.kasan_count,
     summary_counts: d.summary_counts,
     mapping_warnings: d.mapping_warnings,
+    per_kasan_status: perKasanStatus,
   };
 }

@@ -72,6 +72,7 @@ import {
   recordReviewDecision,
   listReviewDecisions,
 } from './services/persistence.js';
+import { optimizePortfolio } from './services/portfolio.js';
 
 // 起動前に Secret Manager から hydrate（失敗しても env だけで動く）
 await hydrateSecretsFromManager().catch((err) => {
@@ -333,6 +334,63 @@ app.post('/api/analyses/:id/review', heavyLimiter, requirePaid, async (req, res)
   } catch (err) {
     const map = { invalid_decision: 400, firestore_unavailable: 503 };
     res.status(map[err.message] || 500).json({ ok: false, error: err.message });
+  }
+});
+
+// 加算別レビュー履歴。kasan_key を渡せばその加算の決定一覧、未指定なら解析全体。
+app.get('/api/analyses/:id/decisions', requirePaid, async (req, res) => {
+  try {
+    const job = await getAnalysisJob({
+      analysisId: req.params.id,
+      uid: req.user.uid,
+      isAdmin: req.user.isAdmin,
+    });
+    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
+    const kasanKey = req.query?.kasan_key ? String(req.query.kasan_key) : null;
+    const decisions = await listReviewDecisions({ analysisId: req.params.id, kasanKey });
+    res.json({ ok: true, decisions, per_kasan_status: job.per_kasan_status || {} });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ============================================================
+// ポートフォリオ最適化 PoC
+// ============================================================
+// 有料ユーザー専用: 保存済 analysis から「あと一歩で取れる加算」を ROI で並べる
+app.get('/api/analyses/:id/portfolio', requirePaid, async (req, res) => {
+  try {
+    const job = await getAnalysisJob({
+      analysisId: req.params.id,
+      uid: req.user.uid,
+      isAdmin: req.user.isAdmin,
+    });
+    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
+    const resultText = await loadAnalysisArtifact({
+      analysisId: req.params.id,
+      uid: job.uid,
+      kind: 'result',
+    });
+    if (!resultText) return res.status(404).json({ ok: false, error: 'result_not_persisted' });
+    const result = JSON.parse(resultText);
+    const portfolio = optimizePortfolio({ judgeResult: result });
+    res.json({ ok: true, portfolio });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 無料ユーザーでも分析の生 JSON を渡せば最適化候補を返す（保存はしない）
+app.post('/api/portfolio/optimize', heavyLimiter, async (req, res) => {
+  try {
+    const judgeResult = req.body?.judge || req.body?.result_json || req.body;
+    if (!judgeResult || typeof judgeResult !== 'object' || !judgeResult.judgements) {
+      return res.status(400).json({ ok: false, error: 'bad_request', message: 'judge 結果（judgements を含む JSON）が必要です' });
+    }
+    const portfolio = optimizePortfolio({ judgeResult });
+    res.json({ ok: true, portfolio });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

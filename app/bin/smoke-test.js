@@ -816,5 +816,98 @@ await test('auth middleware: requireAdmin は非 admin で 403', async () => {
   assert.equal(status, 403);
 });
 
+// =====================================================================
+// Reviewer 集約ロジック
+// =====================================================================
+await test('Reviewer: aggregateReviewStatus 全 approved → approved', async () => {
+  const { aggregateReviewStatus } = await import('../src/services/persistence.js');
+  assert.equal(
+    aggregateReviewStatus({
+      a: { decision: 'approved' },
+      b: { decision: 'approved' },
+    }),
+    'approved',
+  );
+});
+
+await test('Reviewer: aggregateReviewStatus 1 件でも returned → returned', async () => {
+  const { aggregateReviewStatus } = await import('../src/services/persistence.js');
+  assert.equal(
+    aggregateReviewStatus({
+      a: { decision: 'approved' },
+      b: { decision: 'returned' },
+      c: { decision: 'awaiting_review' },
+    }),
+    'returned',
+  );
+});
+
+await test('Reviewer: aggregateReviewStatus 一部のみ approved + 残 awaiting → awaiting_review', async () => {
+  const { aggregateReviewStatus } = await import('../src/services/persistence.js');
+  assert.equal(
+    aggregateReviewStatus({
+      a: { decision: 'approved' },
+      b: { decision: 'awaiting_review' },
+    }),
+    'awaiting_review',
+  );
+});
+
+await test('Reviewer: aggregateReviewStatus 空 → draft', async () => {
+  const { aggregateReviewStatus } = await import('../src/services/persistence.js');
+  assert.equal(aggregateReviewStatus({}), 'draft');
+  assert.equal(aggregateReviewStatus(null), 'draft');
+});
+
+// =====================================================================
+// ポートフォリオ最適化 PoC
+// =====================================================================
+await test('Portfolio: 通所介護 DEMO-0004 から候補が抽出される', async () => {
+  const { optimizePortfolio } = await import('../src/services/portfolio.js');
+  const r = await runJudge({ service: 'tsusho_kaigo', office: 'DEMO-0004' });
+  r.user_summary_display = { users_total: 40 };
+  const p = optimizePortfolio({ judgeResult: r });
+  assert.ok(p.recommendations.length > 0, '推奨が 1 件以上');
+  // 上位は priority_score 降順
+  for (let i = 0; i < p.recommendations.length - 1; i += 1) {
+    assert.ok(
+      (p.recommendations[i].priority_score || 0) >= (p.recommendations[i + 1].priority_score || 0),
+      'priority_score が降順',
+    );
+  }
+  // 各候補は必須キーを持つ
+  for (const rec of p.recommendations) {
+    assert.ok(rec.kasan_key && rec.kasan_name && rec.algorithm_judgement);
+    assert.ok(Array.isArray(rec.action_items));
+  }
+  assert.ok(p.total_potential_yen_per_month >= 0);
+  assert.equal(p.assumptions.yen_per_unit, 10.27);
+});
+
+await test('Portfolio: judgements が空ならゼロ件', async () => {
+  const { optimizePortfolio } = await import('../src/services/portfolio.js');
+  const p = optimizePortfolio({ judgeResult: { judgements: {} } });
+  assert.equal(p.recommendation_count, 0);
+  assert.equal(p.total_potential_yen_per_month, 0);
+});
+
+await test('Portfolio: clear / currently_claimed / not_applicable は候補から除外', async () => {
+  const { optimizePortfolio } = await import('../src/services/portfolio.js');
+  const r = {
+    service: 'tsusho_kaigo',
+    judgements: {
+      a: { algorithm_judgement: 'clear', name: 'A' },
+      b: { algorithm_judgement: 'currently_claimed', name: 'B' },
+      c: { algorithm_judgement: 'not_applicable', name: 'C', applicability: 'not_applicable' },
+      d: { algorithm_judgement: 'waiting', name: 'D' },
+    },
+    evidence_checklist: [],
+    user_summary_display: { users_total: 30 },
+  };
+  const p = optimizePortfolio({ judgeResult: r });
+  assert.equal(p.recommendation_count, 1);
+  assert.equal(p.recommendations[0].kasan_key, 'd');
+});
+
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
 if (failed > 0) process.exit(1);

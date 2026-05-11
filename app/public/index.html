@@ -106,6 +106,50 @@
           <div id="auth-history-list" class="judge-checklist"></div>
         </div>
 
+        <!-- 解析詳細パネル（履歴クリックで開く） -->
+        <div id="analysis-detail-panel" class="hidden analysis-detail">
+          <div class="analysis-detail-header">
+            <h3 class="result-h3">📋 解析詳細</h3>
+            <button type="button" id="analysis-detail-close" class="ghost-btn">× 閉じる</button>
+          </div>
+          <div id="analysis-detail-meta" class="result-meta"></div>
+
+          <div class="tab-bar">
+            <button type="button" class="tab-btn active" data-tab="judgements">加算別 / レビュー</button>
+            <button type="button" class="tab-btn" data-tab="portfolio">📊 ポートフォリオ最適化</button>
+            <button type="button" class="tab-btn" data-tab="report">📜 Markdown レポート</button>
+            <button type="button" class="tab-btn" data-tab="history">🕘 レビュー履歴</button>
+          </div>
+
+          <div id="tab-judgements" class="tab-panel active">
+            <p class="hint">
+              各加算ごとに「承認」「差戻し」「保留」を記録できます。すべて承認になれば解析全体も自動的に承認状態に集約されます。
+            </p>
+            <div class="judge-filter">
+              <label><input type="checkbox" id="judge-filter-undecided" checked /> 未判定のみ</label>
+              <label><input type="checkbox" id="judge-filter-waiting" /> waiting/unknown のみ</label>
+              <input type="text" id="judge-filter-search" placeholder="加算名で絞り込み…" />
+            </div>
+            <div id="analysis-detail-judgements"></div>
+          </div>
+
+          <div id="tab-portfolio" class="tab-panel">
+            <p class="hint">
+              <strong>あと一歩で取れる加算</strong>を、月額収益（概算）と必要工数で並べた優先度ランキングです。
+              地域単価・実稼働日数の前提は <a href="/docs/PORTFOLIO.md" target="_blank">PORTFOLIO.md</a> を参照してください。
+            </p>
+            <div id="analysis-detail-portfolio"></div>
+          </div>
+
+          <div id="tab-report" class="tab-panel">
+            <pre id="analysis-detail-report"></pre>
+          </div>
+
+          <div id="tab-history" class="tab-panel">
+            <div id="analysis-detail-history"></div>
+          </div>
+        </div>
+
         <!-- 管理者: アクセスコード発行・一覧 -->
         <div id="auth-admin-section" class="hidden">
           <h3 class="result-h3">🛠 管理者: アクセスコード発行</h3>
