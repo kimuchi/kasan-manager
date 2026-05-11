@@ -996,3 +996,96 @@ main {
 .priority.high { background: var(--error-soft); color: var(--error); }
 .priority.low { background: #eef0f6; color: var(--ink-mute); }
 
+/* ===== 認証・プラン UI ===== */
+.auth-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  background: #fff;
+}
+.auth-pill.signed-in { border-color: var(--accent); }
+.auth-pill.paid {
+  border-color: #b58a00;
+  background: linear-gradient(90deg, #fff7d6 0%, #fffaea 100%);
+}
+.auth-pill button {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.auth-collapsible {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 16px;
+}
+.auth-collapsible > summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.auth-collapsible > summary::-webkit-details-marker { display: none; }
+.auth-summary { display: inline-flex; align-items: center; gap: 8px; }
+.auth-collapsible[open] > div { margin-top: 12px; }
+.auth-actions { display: flex; gap: 12px; margin-bottom: 8px; }
+.auth-email-toggle {
+  margin-top: 6px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+}
+.auth-email-toggle > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+.auth-profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 12px;
+}
+.auth-plan-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #eef0f6;
+  color: var(--ink-mute);
+}
+.auth-plan-badge.paid {
+  background: linear-gradient(90deg, #ffe79a 0%, #ffd76a 100%);
+  color: #5a4500;
+  font-weight: 700;
+}
+.auth-code-redeem {
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+  margin-bottom: 12px;
+}
+.history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  background: #fff;
+  font-size: 13px;
+}
+.history-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.history-date { color: var(--ink-mute); }
+.history-source { color: var(--accent-strong); }
+.history-review { color: var(--ink-mute); font-style: italic; }
+.history-summary { font-size: 12px; color: var(--ink-mute); }
+.history-actions { display: flex; gap: 6px; }
+

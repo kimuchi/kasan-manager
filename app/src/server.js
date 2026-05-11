@@ -54,6 +54,31 @@ import {
 import { isSessionSecretConfigured, redactSecret } from './utils/cookie-seal.js';
 import { buildAnalysisEnvelope } from './utils/analysis-envelope.js';
 import { docsRouter, isDocsAvailable } from './routes/docs.js';
+import { hydrateSecretsFromManager } from './services/secrets.js';
+import { initFirebase, isFirebaseInitialized } from './services/firebase-admin.js';
+import { authMiddleware, requireAuth, requirePaid, requireAdmin } from './middleware/auth.js';
+import { getUserFullView } from './services/users.js';
+import {
+  issueAccessCode,
+  listAccessCodes,
+  revokeAccessCode,
+  redeemAccessCode,
+} from './services/access-codes.js';
+import {
+  persistAnalysisIfPaid,
+  listAnalysisJobsForUser,
+  getAnalysisJob,
+  loadAnalysisArtifact,
+  recordReviewDecision,
+  listReviewDecisions,
+} from './services/persistence.js';
+
+// 起動前に Secret Manager から hydrate（失敗しても env だけで動く）
+await hydrateSecretsFromManager().catch((err) => {
+  console.warn(`[startup] Secret Manager hydration skipped: ${err?.message || err}`);
+});
+// Firebase Admin（Firestore / Auth / Storage）を初期化（失敗しても無料モードのみで動く）
+initFirebase();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,6 +127,9 @@ app.use('/api', generalLimiter);
 // /api/* の変更系には CSRF 検証を適用
 app.use('/api', csrfVerifyMiddleware);
 
+// /api/* で Firebase ID トークンがあれば検証し req.user を populate
+app.use('/api', authMiddleware);
+
 // ============================================================
 // ヘルス・ステータス
 // ============================================================
@@ -141,7 +169,171 @@ app.get('/api/health', (req, res) => {
       token: req.csrfToken, // フロントが localStorage 不使用で読める。SameSite で守られる
     },
     docs: { available: isDocsAvailable() },
+    auth: {
+      // クライアントが Firebase ログイン UI を出すための条件:
+      // - サーバ側で Firebase Admin SDK が初期化されている（ID トークン検証可能）
+      // - かつ Firebase Web SDK の public config が env に設定されている
+      firebase_enabled: isFirebaseInitialized() && Boolean(buildFirebaseWebConfig()),
+      web_config: buildFirebaseWebConfig(),
+    },
   });
+});
+
+function buildFirebaseWebConfig() {
+  // これらはすべて public な値（Firebase の API key は同一プロジェクト内の認証用で機密ではない）
+  const cfg = {
+    apiKey: process.env.FIREBASE_WEB_API_KEY || null,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || null,
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT_ID || null,
+    appId: process.env.FIREBASE_APP_ID || null,
+  };
+  if (!cfg.apiKey || !cfg.authDomain || !cfg.projectId) return null;
+  return cfg;
+}
+
+// ============================================================
+// 認証・プラン・アクセスコード API
+// ============================================================
+app.get('/api/me', (req, res) => {
+  if (!req.user?.uid) return res.json({ authenticated: false });
+  res.json({
+    authenticated: true,
+    uid: req.user.uid,
+    email: req.user.email,
+    displayName: req.user.displayName,
+    planTier: req.user.planTier,
+    planExpiresAt: req.user.planExpiresAt,
+    isAdmin: req.user.isAdmin,
+  });
+});
+
+app.get('/api/me/full', requireAuth, async (req, res) => {
+  try {
+    const view = await getUserFullView(req.user.uid);
+    res.json({ ok: true, user: view });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/access-codes/redeem', heavyLimiter, requireAuth, async (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  if (!code) return res.status(400).json({ ok: false, error: 'empty_code', message: 'アクセスコードを入力してください' });
+  try {
+    const r = await redeemAccessCode(code, { uid: req.user.uid, email: req.user.email });
+    res.json({ ok: true, ...r });
+  } catch (err) {
+    const map = {
+      code_not_found: { status: 404, message: 'コードが見つかりません' },
+      code_revoked: { status: 410, message: 'このコードは失効しています' },
+      code_already_redeemed: { status: 409, message: 'このコードは使用済みです' },
+      empty_code: { status: 400, message: 'コードが空です' },
+      firestore_unavailable: { status: 503, message: 'バックエンドが利用できません' },
+    };
+    const m = map[err.message] || { status: 500, message: err.message };
+    res.status(m.status).json({ ok: false, error: err.message, message: m.message });
+  }
+});
+
+app.post('/api/admin/access-codes', heavyLimiter, requireAdmin, async (req, res) => {
+  const durationDays = Number(req.body?.durationDays);
+  const note = req.body?.note ? String(req.body.note).slice(0, 500) : null;
+  try {
+    const doc = await issueAccessCode({
+      durationDays,
+      note,
+      issuedBy: req.user.uid,
+      issuedByEmail: req.user.email,
+    });
+    res.json({ ok: true, code: doc });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/access-codes', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(500, Math.max(1, Number(req.query?.limit) || 100));
+    const codes = await listAccessCodes({ limit });
+    res.json({ ok: true, codes });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.delete('/api/admin/access-codes/:code', requireAdmin, async (req, res) => {
+  try {
+    const doc = await revokeAccessCode(req.params.code, { revokedBy: req.user.uid });
+    res.json({ ok: true, code: doc });
+  } catch (err) {
+    const map = {
+      code_not_found: 404,
+      already_redeemed: 409,
+    };
+    res.status(map[err.message] || 500).json({ ok: false, error: err.message });
+  }
+});
+
+// ============================================================
+// 分析履歴・レビュー（有料プラン専用）
+// ============================================================
+app.get('/api/analyses', requirePaid, async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query?.limit) || 50));
+    const jobs = await listAnalysisJobsForUser(req.user.uid, { limit });
+    res.json({ ok: true, jobs });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/analyses/:id', requirePaid, async (req, res) => {
+  try {
+    const job = await getAnalysisJob({
+      analysisId: req.params.id,
+      uid: req.user.uid,
+      isAdmin: req.user.isAdmin,
+    });
+    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
+    const result = await loadAnalysisArtifact({ analysisId: req.params.id, uid: job.uid, kind: 'result' });
+    const report = await loadAnalysisArtifact({ analysisId: req.params.id, uid: job.uid, kind: 'report' });
+    const decisions = await listReviewDecisions({ analysisId: req.params.id });
+    res.json({
+      ok: true,
+      job,
+      result: result ? JSON.parse(result) : null,
+      report,
+      review_decisions: decisions,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/analyses/:id/review', heavyLimiter, requirePaid, async (req, res) => {
+  try {
+    const job = await getAnalysisJob({
+      analysisId: req.params.id,
+      uid: req.user.uid,
+      isAdmin: req.user.isAdmin,
+    });
+    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
+    const decision = String(req.body?.decision || '');
+    const kasanKey = req.body?.kasan_key ? String(req.body.kasan_key) : null;
+    const comment = req.body?.comment ? String(req.body.comment).slice(0, 2000) : null;
+    const r = await recordReviewDecision({
+      analysisId: req.params.id,
+      kasanKey,
+      decision,
+      comment,
+      reviewerUid: req.user.uid,
+      reviewerEmail: req.user.email,
+    });
+    res.json(r);
+  } catch (err) {
+    const map = { invalid_decision: 400, firestore_unavailable: 503 };
+    res.status(map[err.message] || 500).json({ ok: false, error: err.message });
+  }
 });
 
 // ============================================================
@@ -467,10 +659,21 @@ async function handleCposAnalyze(req, res) {
     enriched.source_type = envelope.source_type;
     enriched.review_status = envelope.review_status;
     enriched.mapping_warnings = envelope.mapping_warnings;
+    const reportMarkdown = renderMarkdown(enriched);
+    // 有料ユーザーなら Firestore + GCS に保存（失敗してもレスポンスは止めない）
+    const persistInfo = await persistAnalysisIfPaid({
+      req,
+      analysisId: envelope.analysis_id,
+      judgeResult: enriched,
+      markdown: reportMarkdown,
+      sourceType: envelope.source_type,
+      extra: { facility_id: facilityId, service_month: serviceMonth },
+    }).catch((err) => ({ persisted: false, reason: err.message }));
     res.json({
       ok: true,
       ...envelope,
-      reportMarkdown: renderMarkdown(enriched),
+      persisted: persistInfo.persisted,
+      reportMarkdown,
       resultJson: enriched,
       cpos: { facilityId, serviceMonth, schemaVersion: validated.schemaVersion || null, sourceEndpoint },
     });
@@ -641,7 +844,14 @@ app.post(
       judgeResult.review_status = envelope.review_status;
       judgeResult.mapping_warnings = envelope.mapping_warnings;
       const markdown = renderMarkdown(judgeResult);
-      res.json({ ...envelope, judge: judgeResult, markdown });
+      const persistInfo = await persistAnalysisIfPaid({
+        req,
+        analysisId: envelope.analysis_id,
+        judgeResult,
+        markdown,
+        sourceType: envelope.source_type,
+      }).catch((err) => ({ persisted: false, reason: err.message }));
+      res.json({ ...envelope, persisted: persistInfo.persisted, judge: judgeResult, markdown });
     } catch (err) {
       console.error('[judge] error:', err);
       res.status(500).json({ error: err.message || '判定中に予期しないエラーが発生しました。' });

@@ -25,7 +25,7 @@ const DOMAIN_LABEL = {
   disability: '障害福祉',
 };
 
-// /api/health で取得した設定を保持（reCAPTCHA / レート制限 / CPOS / CSRF）
+// /api/health で取得した設定を保持（reCAPTCHA / レート制限 / CPOS / CSRF / Auth）
 const appConfig = {
   recaptcha_enabled: false,
   recaptcha_site_key: null,
@@ -36,9 +36,42 @@ const appConfig = {
   cpos_default_url: null,
   csrf_header_name: 'x-csrf-token',
   csrf_token: null,
+  // Firebase Auth
+  firebase_enabled: false,
+  firebase_web_config: null,
+  firebase_loaded: false,
+  // ログイン状態キャッシュ
+  current_user: null, // { uid, email, planTier, isAdmin, ... } | null
+  current_id_token: null,
 };
 
-// CSRF トークン付きで JSON を送る fetch ラッパー
+// Firebase Auth の SDK は遅延ロード（ESM CDN）
+async function loadFirebaseSdk() {
+  if (appConfig.firebase_loaded) return window.__kasanFirebase;
+  if (!appConfig.firebase_web_config) throw new Error('Firebase 設定が読み込まれていません');
+  const [{ initializeApp }, authMod] = await Promise.all([
+    import('https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js'),
+  ]);
+  const app = initializeApp(appConfig.firebase_web_config);
+  const auth = authMod.getAuth(app);
+  authMod.setPersistence(auth, authMod.browserLocalPersistence).catch(() => {});
+  const mod = {
+    app,
+    auth,
+    GoogleAuthProvider: authMod.GoogleAuthProvider,
+    signInWithPopup: authMod.signInWithPopup,
+    signInWithEmailAndPassword: authMod.signInWithEmailAndPassword,
+    createUserWithEmailAndPassword: authMod.createUserWithEmailAndPassword,
+    signOut: authMod.signOut,
+    onAuthStateChanged: authMod.onAuthStateChanged,
+  };
+  window.__kasanFirebase = mod;
+  appConfig.firebase_loaded = true;
+  return mod;
+}
+
+// CSRF / Firebase ID トークン付きで JSON を送る fetch ラッパー
 async function jsonFetch(url, { method = 'GET', body = null, headers = {} } = {}) {
   const opts = {
     method,
@@ -52,12 +85,28 @@ async function jsonFetch(url, { method = 'GET', body = null, headers = {} } = {}
   if (method !== 'GET' && appConfig.csrf_token) {
     opts.headers[appConfig.csrf_header_name] = appConfig.csrf_token;
   }
+  // ログイン済なら Firebase ID トークンを Authorization に付与
+  const idToken = await getFreshIdToken();
+  if (idToken) {
+    opts.headers['authorization'] = `Bearer ${idToken}`;
+  }
   const res = await fetch(url, opts);
   let payload = null;
   try {
     payload = await res.json();
   } catch {}
   return { res, payload };
+}
+
+async function getFreshIdToken() {
+  if (!appConfig.firebase_loaded) return null;
+  const fb = window.__kasanFirebase;
+  if (!fb || !fb.auth.currentUser) return null;
+  try {
+    return await fb.auth.currentUser.getIdToken();
+  } catch {
+    return null;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -69,6 +118,9 @@ async function initApp() {
   initServices();
   initFileInputs();
   initAnalyzeButtons();
+  if (appConfig.firebase_enabled) {
+    initAuthPanel();
+  }
   // CPOS 折りたたみパネルは閉じた状態で表示（ready のときのみ）。
   // 未設定なら main 末尾に控えめな notice。
   if (appConfig.cpos_panel_visible && appConfig.cpos_ready) {
@@ -123,6 +175,11 @@ async function initStatusPill() {
       appConfig.cpos_ready = Boolean(json.cpos.ready);
       appConfig.cpos_default_url = json.cpos.default_base_url || null;
       appConfig.cpos_not_ready_message = json.cpos.not_ready_message || null;
+    }
+    // Firebase Auth 設定（クライアント設定が来ていれば有効）
+    if (json.auth?.firebase_enabled && json.auth?.web_config) {
+      appConfig.firebase_enabled = true;
+      appConfig.firebase_web_config = json.auth.web_config;
     }
   } catch (err) {
     pill.classList.add('error');
@@ -969,4 +1026,309 @@ function showCposAnalyzeError(err) {
 
   errSec.classList.remove('hidden');
   errSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// =====================================================================
+// 認証パネル（Firebase Auth + プラン + アクセスコード）
+// =====================================================================
+async function initAuthPanel() {
+  const panel = $('#auth-panel');
+  const openBtn = $('#auth-open-btn');
+  if (!panel || !openBtn) return;
+  panel.classList.remove('hidden');
+  openBtn.addEventListener('click', () => {
+    panel.open = true;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  let fb;
+  try {
+    fb = await loadFirebaseSdk();
+  } catch (err) {
+    $('#auth-signin-hint').textContent = `Firebase 読み込み失敗: ${err.message}`;
+    return;
+  }
+
+  // ログインボタン
+  $('#auth-google-btn')?.addEventListener('click', async () => {
+    setAuthHint('Google サインインを実行中…');
+    try {
+      await fb.signInWithPopup(fb.auth, new fb.GoogleAuthProvider());
+    } catch (err) {
+      setAuthHint(`サインイン失敗: ${err.message}`);
+    }
+  });
+  $('#auth-email-signin-btn')?.addEventListener('click', async () => {
+    const email = $('#auth_email').value.trim();
+    const pw = $('#auth_password').value;
+    if (!email || !pw) return setAuthHint('メールとパスワードを入力してください');
+    setAuthHint('ログイン中…');
+    try {
+      await fb.signInWithEmailAndPassword(fb.auth, email, pw);
+    } catch (err) {
+      setAuthHint(`ログイン失敗: ${err.message}`);
+    }
+  });
+  $('#auth-email-signup-btn')?.addEventListener('click', async () => {
+    const email = $('#auth_email').value.trim();
+    const pw = $('#auth_password').value;
+    if (!email || !pw) return setAuthHint('メールとパスワード（6 文字以上）を入力してください');
+    setAuthHint('新規登録中…');
+    try {
+      await fb.createUserWithEmailAndPassword(fb.auth, email, pw);
+    } catch (err) {
+      setAuthHint(`登録失敗: ${err.message}`);
+    }
+  });
+  $('#auth-signout-btn')?.addEventListener('click', async () => {
+    await fb.signOut(fb.auth);
+  });
+  $('#auth-redeem-btn')?.addEventListener('click', redeemAccessCode);
+  $('#admin-code-issue-btn')?.addEventListener('click', issueAccessCodeAdmin);
+
+  // 状態監視
+  fb.onAuthStateChanged(fb.auth, async (user) => {
+    if (!user) {
+      appConfig.current_user = null;
+      renderAuthState(null);
+      return;
+    }
+    // ログイン直後: /api/me で plan_tier を取得して状態反映
+    try {
+      const idToken = await user.getIdToken();
+      appConfig.current_id_token = idToken;
+      const { res, payload } = await jsonFetch('/api/me');
+      if (res.ok && payload?.authenticated) {
+        appConfig.current_user = payload;
+        renderAuthState(payload);
+        if (payload.planTier === 'paid') refreshHistory();
+        if (payload.isAdmin) refreshAdminCodes();
+      } else {
+        renderAuthState({ uid: user.uid, email: user.email, planTier: 'free', isAdmin: false });
+      }
+    } catch (err) {
+      setAuthHint(`プロフィール読み込み失敗: ${err.message}`);
+    }
+  });
+}
+
+function setAuthHint(text) {
+  const el = $('#auth-signin-hint');
+  if (el) el.textContent = text || '';
+}
+
+function setRedeemHint(text) {
+  const el = $('#auth-redeem-hint');
+  if (el) el.textContent = text || '';
+}
+
+function setAdminCodeHint(text) {
+  const el = $('#admin-code-hint');
+  if (el) el.textContent = text || '';
+}
+
+function renderAuthState(user) {
+  const signin = $('#auth-signin-panel');
+  const profile = $('#auth-profile-panel');
+  const pill = $('#auth-pill');
+  const status = $('#auth-status');
+  const openBtn = $('#auth-open-btn');
+  if (!user) {
+    signin?.classList.remove('hidden');
+    profile?.classList.add('hidden');
+    if (status) status.textContent = '未ログイン';
+    if (openBtn) openBtn.textContent = 'ログイン';
+    pill?.classList.remove('signed-in', 'paid');
+    return;
+  }
+  signin?.classList.add('hidden');
+  profile?.classList.remove('hidden');
+  $('#auth-display-name').textContent = user.displayName || user.email || user.uid;
+  $('#auth-email-display').textContent = user.email || '-';
+  const badge = $('#auth-plan-badge');
+  if (user.planTier === 'paid') {
+    badge.textContent = '有料プラン';
+    badge.classList.add('paid');
+    pill?.classList.add('paid');
+  } else {
+    badge.textContent = '無料';
+    badge.classList.remove('paid');
+    pill?.classList.remove('paid');
+  }
+  $('#auth-plan-expires').textContent = user.planExpiresAt
+    ? new Date(user.planExpiresAt).toLocaleString('ja-JP')
+    : '-';
+  if (status) status.textContent = user.email || 'ログイン中';
+  if (openBtn) openBtn.textContent = user.planTier === 'paid' ? 'プラン管理' : 'アクセスコード';
+  pill?.classList.add('signed-in');
+  $('#auth-history-section')?.classList.toggle('hidden', user.planTier !== 'paid');
+  $('#auth-admin-section')?.classList.toggle('hidden', !user.isAdmin);
+}
+
+async function redeemAccessCode() {
+  const codeInput = $('#auth-code-input');
+  const code = codeInput.value.trim().toUpperCase();
+  if (!code) return setRedeemHint('コードを入力してください');
+  setRedeemHint('適用中…');
+  const { res, payload } = await jsonFetch('/api/access-codes/redeem', {
+    method: 'POST',
+    body: { code },
+  });
+  if (res.ok && payload?.ok) {
+    setRedeemHint(`✅ 適用しました。有効期限: ${new Date(payload.planExpiresAt).toLocaleString('ja-JP')}`);
+    codeInput.value = '';
+    // /api/me を読み直して状態更新
+    const me = await jsonFetch('/api/me');
+    if (me.payload?.authenticated) {
+      appConfig.current_user = me.payload;
+      renderAuthState(me.payload);
+      refreshHistory();
+    }
+  } else {
+    setRedeemHint(`❌ ${payload?.message || payload?.error || `エラー HTTP ${res.status}`}`);
+  }
+}
+
+async function refreshHistory() {
+  const list = $('#auth-history-list');
+  if (!list) return;
+  list.textContent = '読み込み中…';
+  const { res, payload } = await jsonFetch('/api/analyses?limit=50');
+  if (!res.ok || !payload?.ok) {
+    list.textContent = `履歴取得失敗: ${payload?.error || res.status}`;
+    return;
+  }
+  if (!payload.jobs?.length) {
+    list.textContent = '（まだ履歴はありません。判定を実行すると保存されます）';
+    return;
+  }
+  list.innerHTML = '';
+  for (const job of payload.jobs) {
+    const row = document.createElement('div');
+    row.className = 'history-row';
+    const date = job.created_at ? new Date(job.created_at).toLocaleString('ja-JP') : '-';
+    const counts = job.summary_counts || {};
+    row.innerHTML = `
+      <div class="history-meta">
+        <span class="history-date">${date}</span>
+        <span class="history-service">${escapeHtml(job.service || '-')}</span>
+        <span class="history-source">${escapeHtml(job.source_type || '-')}</span>
+        <span class="history-review">${escapeHtml(job.review_status || 'draft')}</span>
+      </div>
+      <div class="history-summary">
+        clear=${counts.clear ?? 0} / waiting=${counts.waiting ?? 0} / not_clear=${counts.not_clear ?? 0} /
+        unknown=${counts.unknown ?? 0}
+      </div>
+      <div class="history-actions">
+        <button type="button" data-analysis-id="${job.analysis_id}" class="ghost-btn history-view-btn">詳細</button>
+        <button type="button" data-analysis-id="${job.analysis_id}" data-decision="approved" class="ghost-btn history-review-btn">承認</button>
+        <button type="button" data-analysis-id="${job.analysis_id}" data-decision="returned" class="ghost-btn history-review-btn">差戻し</button>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+  list.querySelectorAll('.history-view-btn').forEach((b) =>
+    b.addEventListener('click', () => openAnalysisDetail(b.dataset.analysisId)),
+  );
+  list.querySelectorAll('.history-review-btn').forEach((b) =>
+    b.addEventListener('click', () => submitReview(b.dataset.analysisId, b.dataset.decision)),
+  );
+}
+
+async function openAnalysisDetail(id) {
+  const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(id)}`);
+  if (!res.ok || !payload?.ok) {
+    alert(`取得失敗: ${payload?.error || res.status}`);
+    return;
+  }
+  if (payload.report) {
+    const w = window.open('', '_blank', 'noopener');
+    if (w) {
+      w.document.write(`<pre style="white-space:pre-wrap;font:14px/1.6 monospace;padding:20px">${escapeHtml(payload.report)}</pre>`);
+      w.document.title = `解析 ${id}`;
+    }
+  } else {
+    alert(`レポートが保存されていません（id=${id}）`);
+  }
+}
+
+async function submitReview(id, decision) {
+  const comment = prompt(`${decision === 'approved' ? '承認' : '差戻し'} のコメント（任意）`);
+  const { res, payload } = await jsonFetch(`/api/analyses/${encodeURIComponent(id)}/review`, {
+    method: 'POST',
+    body: { decision, comment: comment || null },
+  });
+  if (res.ok && payload?.ok) {
+    refreshHistory();
+  } else {
+    alert(`登録失敗: ${payload?.error || res.status}`);
+  }
+}
+
+async function issueAccessCodeAdmin() {
+  const days = Number($('#admin-code-duration').value) || 30;
+  const note = $('#admin-code-note').value.trim() || null;
+  setAdminCodeHint('発行中…');
+  const { res, payload } = await jsonFetch('/api/admin/access-codes', {
+    method: 'POST',
+    body: { durationDays: days, note },
+  });
+  if (res.ok && payload?.ok) {
+    setAdminCodeHint(`✅ 発行: ${payload.code.code}（${payload.code.durationDays} 日）`);
+    $('#admin-code-note').value = '';
+    refreshAdminCodes();
+  } else {
+    setAdminCodeHint(`❌ ${payload?.error || res.status}`);
+  }
+}
+
+async function refreshAdminCodes() {
+  const list = $('#admin-code-list');
+  if (!list) return;
+  const { res, payload } = await jsonFetch('/api/admin/access-codes?limit=200');
+  if (!res.ok || !payload?.ok) {
+    list.textContent = `一覧取得失敗: ${payload?.error || res.status}`;
+    return;
+  }
+  if (!payload.codes?.length) {
+    list.textContent = '（発行済みコードはまだありません）';
+    return;
+  }
+  list.innerHTML = '';
+  for (const c of payload.codes) {
+    const row = document.createElement('div');
+    row.className = 'history-row';
+    row.innerHTML = `
+      <div class="history-meta">
+        <code>${escapeHtml(c.code)}</code>
+        <span>${c.durationDays}日</span>
+        <span class="history-review">${escapeHtml(c.status)}</span>
+        <span>${c.issuedAt ? new Date(c.issuedAt).toLocaleDateString('ja-JP') : '-'}</span>
+      </div>
+      <div class="history-summary">
+        ${c.note ? escapeHtml(c.note) : ''}
+        ${c.redeemedByEmail ? `<br>redeemed by ${escapeHtml(c.redeemedByEmail)}` : ''}
+      </div>
+      <div class="history-actions">
+        ${c.status === 'issued' ? `<button type="button" data-code="${escapeHtml(c.code)}" class="ghost-btn revoke-btn">失効</button>` : ''}
+      </div>
+    `;
+    list.appendChild(row);
+  }
+  list.querySelectorAll('.revoke-btn').forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm(`コード ${b.dataset.code} を失効しますか？`)) return;
+      const r = await jsonFetch(`/api/admin/access-codes/${encodeURIComponent(b.dataset.code)}`, {
+        method: 'DELETE',
+      });
+      if (r.res.ok) refreshAdminCodes();
+      else alert(`失効失敗: ${r.payload?.error || r.res.status}`);
+    }),
+  );
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
+  );
 }

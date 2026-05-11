@@ -27,8 +27,107 @@
           <span class="dot"></span>
           <span id="status-text">接続確認中…</span>
         </div>
+        <div class="auth-pill" id="auth-pill">
+          <span id="auth-status">未ログイン</span>
+          <button type="button" id="auth-open-btn" class="ghost-btn">ログイン</button>
+        </div>
       </div>
     </header>
+
+    <!-- ログイン / プラン / アクセスコード パネル（折りたたみ） -->
+    <details id="auth-panel" class="auth-collapsible hidden">
+      <summary class="auth-summary">
+        <span class="auth-summary-icon">👤</span>
+        <span class="auth-summary-text" id="auth-summary-text">ログイン / プラン / アクセスコード</span>
+      </summary>
+
+      <!-- 未ログイン: ログイン UI -->
+      <div id="auth-signin-panel">
+        <p class="lead">
+          ログインすると、有料プラン（アクセスコード）で <strong>判定履歴の保存・レビュー機能</strong> が使えます。
+          無料でも判定機能は同じように使えます。
+        </p>
+        <div class="auth-actions">
+          <button type="button" id="auth-google-btn" class="primary-btn">
+            <span class="btn-icon">🔑</span>
+            <span>Google でログイン</span>
+          </button>
+        </div>
+        <details class="auth-email-toggle">
+          <summary>メール / パスワードでログイン（詳しい人向け）</summary>
+          <div class="grid">
+            <div class="field">
+              <label for="auth_email">メールアドレス</label>
+              <input type="email" id="auth_email" autocomplete="email" placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label for="auth_password">パスワード</label>
+              <input type="password" id="auth_password" autocomplete="current-password" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <div>
+                <button type="button" id="auth-email-signin-btn" class="primary-btn">ログイン</button>
+                <button type="button" id="auth-email-signup-btn" class="ghost-btn">新規登録</button>
+              </div>
+            </div>
+          </div>
+        </details>
+        <p class="hint" id="auth-signin-hint"></p>
+      </div>
+
+      <!-- ログイン済: プロフィール + プラン + 履歴 -->
+      <div id="auth-profile-panel" class="hidden">
+        <div class="auth-profile-meta">
+          <p class="lead">
+            <strong id="auth-display-name">-</strong>
+            <span class="auth-plan-badge" id="auth-plan-badge">無料</span>
+          </p>
+          <p class="hint">
+            メール: <code id="auth-email-display">-</code><br />
+            プラン有効期限: <span id="auth-plan-expires">-</span>
+          </p>
+          <button type="button" id="auth-signout-btn" class="ghost-btn">ログアウト</button>
+        </div>
+
+        <div class="auth-code-redeem">
+          <h3 class="result-h3">🎟 アクセスコード入力</h3>
+          <p class="hint">配布されたアクセスコードを入力すると、その期間だけ有料プラン（履歴・レビュー機能）が有効になります。</p>
+          <div class="cpos-pat-row">
+            <input type="text" id="auth-code-input" placeholder="ABCD-EFGH-JKLM-NPQR" />
+            <button type="button" id="auth-redeem-btn" class="primary-btn">適用</button>
+          </div>
+          <p class="hint" id="auth-redeem-hint"></p>
+        </div>
+
+        <!-- 履歴（有料プラン専用） -->
+        <div id="auth-history-section" class="hidden">
+          <h3 class="result-h3">🗂 解析履歴（直近 50 件）</h3>
+          <div id="auth-history-list" class="judge-checklist"></div>
+        </div>
+
+        <!-- 管理者: アクセスコード発行・一覧 -->
+        <div id="auth-admin-section" class="hidden">
+          <h3 class="result-h3">🛠 管理者: アクセスコード発行</h3>
+          <div class="grid">
+            <div class="field">
+              <label for="admin-code-duration">有効日数</label>
+              <input type="number" id="admin-code-duration" value="30" min="1" max="3650" />
+            </div>
+            <div class="field">
+              <label for="admin-code-note">メモ（任意）</label>
+              <input type="text" id="admin-code-note" placeholder="例: 山田事業所向け 4月分" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button type="button" id="admin-code-issue-btn" class="primary-btn">発行</button>
+            </div>
+          </div>
+          <p class="hint" id="admin-code-hint"></p>
+          <div id="admin-code-list" class="judge-checklist"></div>
+        </div>
+      </div>
+    </details>
 
     <main>
       <details id="cpos-section" class="cpos-collapsible hidden">

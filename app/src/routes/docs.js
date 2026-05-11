@@ -115,6 +115,7 @@ function buildBreadcrumb(relPath) {
 
 const TOC_LINKS = [
   { href: '/docs/USER_GUIDE.md', label: '使い方' },
+  { href: '/docs/AUTH_AND_PLANS.md', label: 'ログイン / プラン' },
   { href: '/docs/CPOS_TOKEN.md', label: 'CPOS 連携 (PAT)' },
   { href: '/docs/json/', label: 'JSON 形式' },
   { href: '/docs/DATA_SAFETY.md', label: 'データ取扱方針' },

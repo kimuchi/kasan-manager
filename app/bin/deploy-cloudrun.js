@@ -81,17 +81,18 @@ function ts() {
 // プレフィックスマッチで「サーバが見るかもしれない値」を全部拾う。
 // ただし GCP デプロイ用の値（GCP_* / CLOUD_RUN_* / KASAN_DEFAULT_CPOS_BASE_URL は転送するが
 // CLOUD_RUN_MEMORY 等のデプロイ専用値は除外する）は別途 EXCLUDE_KEYS で除外。
-const FORWARD_PREFIXES = ['KASAN_', 'CPOS_', 'RECAPTCHA_', 'RATE_LIMIT_', 'GEMINI_'];
+const FORWARD_PREFIXES = ['KASAN_', 'CPOS_', 'RECAPTCHA_', 'RATE_LIMIT_', 'GEMINI_', 'FIREBASE_'];
 const FORWARD_EXACT = new Set([
   'NODE_ENV',
   'TRUST_PROXY',
   'MAX_UPLOAD_BYTES',
   'HOST',
+  // GCP_PROJECT_ID は Firebase Admin SDK が参照するため転送（EXCLUDE_KEYS で除外しないように後段で復活）
+  'GCP_PROJECT_ID',
   // PORT は Cloud Run 側が固定なので転送しない
 ]);
 const EXCLUDE_KEYS = new Set([
-  // GCP のデプロイ設定はサーバ実行時に不要
-  'GCP_PROJECT_ID',
+  // GCP のデプロイ設定はサーバ実行時に不要（GCP_PROJECT_ID は FORWARD_EXACT に入れたので除外しない）
   'GCP_REGION',
   'GCP_ARTIFACT_REPO',
   'CLOUD_RUN_SERVICE_NAME',
