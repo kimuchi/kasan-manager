@@ -29,6 +29,7 @@ const KIND_TO_SCHEMA = {
   evidence: 'evidence.schema.json',
   regulatory_master: 'regulatory_master.schema.json',
   cpos_export_bundle: 'cpos_export_bundle.schema.json',
+  analysis_source: 'analysis_source.schema.json',
 };
 
 function parseArgs(argv) {

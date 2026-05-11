@@ -1,5 +1,44 @@
-// CPOS API レスポンスの型情報と最小限のバリデーション
-// 厳密なスキーマ検証は ajv 等を導入せず、必要最小限のチェックだけ行う。
+// CPOS API レスポンスの型情報とバリデーション
+//
+// 正規スキーマ schemas/analysis_source.schema.json に対して Ajv で検証する。
+// 未対応 schemaVersion は警告のみ・互換 best-effort。
+
+import { readFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const APP_ROOT = path.resolve(__dirname, '..', '..', '..');
+const PROJECT_ROOT = path.resolve(APP_ROOT, '..');
+const ANALYSIS_SOURCE_SCHEMA_PATH = path.join(PROJECT_ROOT, 'schemas', 'analysis_source.schema.json');
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+addFormats(ajv);
+
+let analysisSourceValidator = null;
+
+function loadAnalysisSourceValidator() {
+  if (analysisSourceValidator) return analysisSourceValidator;
+  if (!existsSync(ANALYSIS_SOURCE_SCHEMA_PATH)) {
+    // フォールバック: schema ファイルがない環境では緩い検証だけ行う
+    analysisSourceValidator = (data) => {
+      if (!data || typeof data !== 'object') return false;
+      if (typeof data.schemaVersion !== 'string') return false;
+      if (!data.facility?.id) return false;
+      if (!data.serviceMonth) return false;
+      analysisSourceValidator.errors = null;
+      return true;
+    };
+    return analysisSourceValidator;
+  }
+  const schema = JSON.parse(readFileSync(ANALYSIS_SOURCE_SCHEMA_PATH, 'utf-8'));
+  analysisSourceValidator = ajv.compile(schema);
+  return analysisSourceValidator;
+}
 
 /**
  * @typedef {object} BootstrapResponse
@@ -48,11 +87,39 @@ export function validateAnalysisSource(payload) {
       `[cpos] 警告: 想定外の schemaVersion=${payload.schemaVersion}（サポート: ${[...SUPPORTED_SCHEMA_VERSIONS].join(',')}）`,
     );
   }
-  if (!payload.facility?.id) throw new Error('analysis-source: facility.id がありません');
-  if (!payload.serviceMonth) throw new Error('analysis-source: serviceMonth がありません');
+  const validate = loadAnalysisSourceValidator();
+  const ok = validate(payload);
+  if (!ok) {
+    const detail = (validate.errors || [])
+      .slice(0, 5)
+      .map((e) => `${e.instancePath || '$'}: ${e.message}`)
+      .join('; ');
+    throw new Error(`analysis-source: スキーマ違反 (${detail})`);
+  }
   return payload;
 }
 
 export function isSupportedSchemaVersion(version) {
   return SUPPORTED_SCHEMA_VERSIONS.has(String(version));
+}
+
+// dataCompleteness から warnings 互換の警告を派生させる（mapping_warnings 出力用）
+export function deriveCompletenessWarnings(payload) {
+  const dc = payload?.dataCompleteness || {};
+  const labelMap = {
+    facility: '事業所マスタ',
+    users: '利用者マスタ',
+    staffing: '常勤換算',
+    qualifiedPersons: '有資格者名簿',
+    billing: '請求明細',
+    provision: '給付管理',
+    records: '記録',
+  };
+  const warnings = [];
+  for (const [k, v] of Object.entries(dc)) {
+    const label = labelMap[k] || k;
+    if (v === 'missing') warnings.push(`${label}: 未登録（影響する加算は判定保留）`);
+    else if (v === 'partial') warnings.push(`${label}: 一部のみ登録（一部要件は確認が必要）`);
+  }
+  return warnings;
 }

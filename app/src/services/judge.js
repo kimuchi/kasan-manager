@@ -196,6 +196,14 @@ export function judgeKasan(kasanKey, kasanDef, tenantStatus) {
     roi_estimation: kasanDef.roi_estimation,
     interaction: kasanDef.interaction,
     tips: kasanDef.tips || [],
+    // ref Python の per-kasan メタを伝播（mapping 保留・監査用）
+    source_status: kasanDef.source_status || 'checked',
+    service_code_mapping_status:
+      kasanDef.service_code_mapping_status || 'pattern_based_unverified',
+    service_code_audit: kasanDef.service_code_audit || null,
+    overall_mapping_status: kasanDef.overall_mapping_status || null,
+    applicability: kasanDef.applicability || 'applicable',
+    applicability_reason: kasanDef.applicability_reason || null,
   };
 }
 
@@ -353,16 +361,16 @@ export async function run({
 
   const dslResults = {};
   for (const [kasanKey, kasanDef] of Object.entries(kasans)) {
-    let itemMeta;
-    if (kasanDef.applicability === 'not_applicable') {
-      itemMeta = {
-        source_status: kasanDef.source_status,
-        applicability: 'not_applicable',
-        applicability_reason: kasanDef.applicability_reason,
-      };
-    } else {
-      itemMeta = { source_status: kasanDef.source_status || 'checked' };
-    }
+    // ref Python の itemMeta と同等に、per-kasan のサービスコード照合状態と applicability を渡す
+    const itemMeta = {
+      source_status: kasanDef.source_status || 'checked',
+      service_code_mapping_status:
+        kasanDef.service_code_mapping_status || 'pattern_based_unverified',
+      service_code_audit: kasanDef.service_code_audit || null,
+      overall_mapping_status: kasanDef.overall_mapping_status || null,
+      applicability: kasanDef.applicability || 'applicable',
+      applicability_reason: kasanDef.applicability_reason || null,
+    };
     dslResults[kasanKey] = evaluateRequirementLogic(kasanDef.requirement_logic, facts, itemMeta);
   }
 

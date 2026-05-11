@@ -195,8 +195,13 @@ export function evaluateNode(node, facts, mappingUnverified = false) {
 export function evaluateRequirementLogic(logic, facts, itemMeta) {
   const notes = [];
   let mappingUnverified = false;
-  const smap = (facts.receipt_pdf || {}).service_code_mapping_status;
-  if (smap === 'pattern_based_unverified') {
+  // mapping 保留判定: per-kasan メタ（itemMeta.service_code_mapping_status / overall_mapping_status）を優先し、
+  // 無ければ evidence の service_code_mapping_status にフォールバック
+  const perKasanMapping =
+    itemMeta?.overall_mapping_status || itemMeta?.service_code_mapping_status;
+  const evidenceMapping = (facts.receipt_pdf || {}).service_code_mapping_status;
+  const effectiveMapping = perKasanMapping || evidenceMapping;
+  if (effectiveMapping === 'pattern_based_unverified') {
     mappingUnverified = true;
     notes.push(PATTERN_UNVERIFIED_NOTE);
   }

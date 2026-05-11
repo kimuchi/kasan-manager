@@ -37,7 +37,7 @@ import {
   isAllowedBaseUrl,
   normalizeBaseUrl,
 } from './services/cpos/client.js';
-import { validateAnalysisSource } from './services/cpos/schemas.js';
+import { validateAnalysisSource, deriveCompletenessWarnings } from './services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from './services/cpos/errors.js';
 import {
   toEngineInputs as toCposEngineInputs,
@@ -52,6 +52,7 @@ import {
   toPublicSessionView,
 } from './services/cpos/auth.js';
 import { isSessionSecretConfigured, redactSecret } from './utils/cookie-seal.js';
+import { buildAnalysisEnvelope } from './utils/analysis-envelope.js';
 import { docsRouter, isDocsAvailable } from './routes/docs.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -372,7 +373,7 @@ app.get('/api/cpos/facilities', async (req, res) => {
 });
 
 // 加算分析: CPOS から bundle を取り、既存判定エンジンで判定 → Markdown を返す（指示書 §4.6 / §4.7）
-app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analyze'), async (req, res) => {
+async function handleCposAnalyze(req, res) {
   const session = requireCposSession(req, res);
   if (!session) return;
   const facilityId = String(req.body?.facilityId || '').trim();
@@ -403,6 +404,7 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
     // 旧仕様への後方互換のため、analysis-source が 404 のときだけ kasan/export に fallback する。
     let source;
     let sourceEndpoint = null;
+    let sourceTypeForEnvelope = 'cpos_analysis_source';
     try {
       sourceEndpoint = '/api/kasan/v1/analysis-source';
       source = await client.getAnalysisSource({ facilityId, serviceMonth, includePii: false });
@@ -415,6 +417,7 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
         });
         sourceEndpoint = '/api/platform/kasan/export';
         source = await client.getKasanExport({ facilityId, serviceMonth, serviceKey });
+        sourceTypeForEnvelope = 'cpos_kasan_export';
       } else {
         throw err;
       }
@@ -447,11 +450,29 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
       serviceMonth,
       subjectUserEmail: session.subjectUserEmail,
     };
+    // dataCompleteness=missing/partial 由来の警告を mapping_warnings に集約
+    const completenessWarnings = deriveCompletenessWarnings(validated);
+    // unmapped_cpos_addons を mapping_warnings に集約
+    const unmappedWarnings = [];
+    for (const ev of enriched.evidence?.evidence || enriched.cpos_metadata?.evidence || []) {
+      const um = ev.unmapped_cpos_addons || [];
+      for (const k of um) unmappedWarnings.push(`CPOS addOnKey 未マッピング: ${k}`);
+    }
+    const envelope = buildAnalysisEnvelope({
+      sourceType: sourceTypeForEnvelope,
+      cposMetadata: inputs.metadata,
+      extraWarnings: [...completenessWarnings, ...unmappedWarnings],
+    });
+    enriched.analysis_id = envelope.analysis_id;
+    enriched.source_type = envelope.source_type;
+    enriched.review_status = envelope.review_status;
+    enriched.mapping_warnings = envelope.mapping_warnings;
     res.json({
       ok: true,
+      ...envelope,
       reportMarkdown: renderMarkdown(enriched),
       resultJson: enriched,
-      cpos: { facilityId, serviceMonth, schemaVersion: validated.schemaVersion || null },
+      cpos: { facilityId, serviceMonth, schemaVersion: validated.schemaVersion || null, sourceEndpoint },
     });
   } catch (err) {
     if (err instanceof CposApiError) {
@@ -466,7 +487,11 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
     }
     handleCposUpstreamError(err, res);
   }
-});
+}
+
+app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
+// 正規エンドポイント別名（指示書 §6 命名統一）。挙動は /api/analyze/from-cpos と同一。
+app.post('/api/cpos/facility/analyze', heavyLimiter, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
 
 // ============================================================
 // 既存（手動入力 / PDF）— 互換維持
@@ -609,8 +634,14 @@ app.post(
         inlineEvidence,
       });
       judgeResult = await applyInlineFiles(judgeResult, service, files);
+      const sourceType = inlineEvidence ? 'manual_pdf' : 'manual_inputs';
+      const envelope = buildAnalysisEnvelope({ sourceType });
+      judgeResult.analysis_id = envelope.analysis_id;
+      judgeResult.source_type = envelope.source_type;
+      judgeResult.review_status = envelope.review_status;
+      judgeResult.mapping_warnings = envelope.mapping_warnings;
       const markdown = renderMarkdown(judgeResult);
-      res.json({ judge: judgeResult, markdown });
+      res.json({ ...envelope, judge: judgeResult, markdown });
     } catch (err) {
       console.error('[judge] error:', err);
       res.status(500).json({ error: err.message || '判定中に予期しないエラーが発生しました。' });

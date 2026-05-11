@@ -631,5 +631,94 @@ await test('readCposSessionDetailed: cookie 無し時は missing_cookie', async 
   assert.equal(r.reason, 'missing_cookie');
 });
 
+// =====================================================================
+// 改修指示書: P0/P1 追加項目
+// =====================================================================
+
+await test('Schema: validateAnalysisSource が schemaVersion 違反を検出', async () => {
+  // 必須フィールド facility.id が無いケース
+  assert.throws(() => validateAnalysisSource({ schemaVersion: '1.0', serviceMonth: '2026-04' }));
+  // serviceMonth が YYYY-MM パターンに合わないケース
+  assert.throws(() =>
+    validateAnalysisSource({
+      schemaVersion: '1.0',
+      facility: { id: 'fa' },
+      serviceMonth: '20260401',
+    }),
+  );
+  // dataCompleteness 値が enum 外
+  assert.throws(() =>
+    validateAnalysisSource({
+      schemaVersion: '1.0',
+      facility: { id: 'fa' },
+      serviceMonth: '2026-04',
+      dataCompleteness: { facility: 'totally_unknown' },
+    }),
+  );
+});
+
+await test('Schema: deriveCompletenessWarnings が missing/partial を日本語化', async () => {
+  const { deriveCompletenessWarnings } = await import('../src/services/cpos/schemas.js');
+  const ws = deriveCompletenessWarnings({
+    dataCompleteness: { facility: 'complete', users: 'partial', billing: 'missing' },
+  });
+  assert.equal(ws.length, 2);
+  assert.ok(ws.some((w) => w.includes('利用者マスタ') && w.includes('一部のみ登録')));
+  assert.ok(ws.some((w) => w.includes('請求明細') && w.includes('未登録')));
+});
+
+await test('Mapping: cpos_addon_mapping は 4 サービス × 主要加算をカバー', async () => {
+  const mapping = await loadAddonMapping();
+  const byService = {};
+  for (const m of mapping.mappings) {
+    byService[m.service_key] = (byService[m.service_key] || 0) + 1;
+  }
+  for (const k of ['tsusho_kaigo', 'houmon_kaigo', 'kyotaku_shien', 'houmon_kango_kaigo']) {
+    assert.ok((byService[k] || 0) >= 5, `service_key=${k} のマッピング数=${byService[k] || 0}（5 以上を期待）`);
+  }
+});
+
+await test('Judge: judgeKasan が per-kasan mapping meta を返す', async () => {
+  const result = await runJudge({ service: 'tsusho_kaigo', office: 'DEMO-0004' });
+  const judgements = result.judgements || {};
+  const keys = Object.keys(judgements);
+  assert.ok(keys.length > 0, 'judgements が空');
+  let foundChecked = false;
+  let foundUnverified = false;
+  for (const k of keys) {
+    const j = judgements[k];
+    // すべての判定に source_status / service_code_mapping_status が必ず付与されている
+    assert.ok(j.source_status, `${k}: source_status missing`);
+    assert.ok(j.service_code_mapping_status, `${k}: service_code_mapping_status missing`);
+    if (j.service_code_mapping_status === 'verified_against_official_master') foundChecked = true;
+    if (j.service_code_mapping_status === 'pattern_based_unverified') foundUnverified = true;
+  }
+  // tsusho_kaigo マスタには両ステータスが混在しているはず（regulatory_master の検証）
+  assert.ok(foundChecked || foundUnverified, '少なくとも 1 つは mapping ステータスを持つ');
+});
+
+// =====================================================================
+// API contract: buildAnalysisEnvelope（指示書 §6 共通エンベロープ）
+// =====================================================================
+await test('Envelope: buildAnalysisEnvelope が必須キーを揃える', async () => {
+  const { buildAnalysisEnvelope } = await import('../src/utils/analysis-envelope.js');
+  const env = buildAnalysisEnvelope({ sourceType: 'manual_pdf' });
+  assert.ok(env.analysis_id, 'analysis_id 必須');
+  assert.match(env.analysis_id, /^[0-9a-f-]{36}$/i);
+  assert.equal(env.source_type, 'manual_pdf');
+  assert.equal(env.review_status, 'draft');
+  assert.ok(Array.isArray(env.mapping_warnings));
+});
+
+await test('Envelope: extraWarnings + cposMetadata.warnings が重複排除される', async () => {
+  const { buildAnalysisEnvelope } = await import('../src/utils/analysis-envelope.js');
+  const env = buildAnalysisEnvelope({
+    sourceType: 'cpos_analysis_source',
+    cposMetadata: { warnings: ['A', 'B'], claimSummaryWarnings: ['B', 'C'] },
+    extraWarnings: ['C', 'D'],
+  });
+  assert.deepEqual(env.mapping_warnings, ['A', 'B', 'C', 'D']);
+});
+
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
 if (failed > 0) process.exit(1);

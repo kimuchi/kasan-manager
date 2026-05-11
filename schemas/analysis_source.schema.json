@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "analysis_source",
+  "description": "CPOS /api/kasan/v1/analysis-source レスポンスの正規スキーマ。加算マネージャの UI / analyzer / judge が同一のキーで読めるよう、各サマリの構造を固定する。",
+  "type": "object",
+  "required": ["schemaVersion", "facility", "serviceMonth"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "現状サポートしているのは 1.0 のみ。未知のバージョンは警告ログのうえ best-effort で処理する。"
+    },
+    "organizationId": { "type": "string" },
+    "facility": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "businessNumber": { "type": "string" },
+        "serviceTypeCodes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "CPOS の service_type_code（例: '15'=通所介護、'11'=訪問介護、'13'=訪問看護、'43'=居宅介護支援）。配列の先頭要素を service_key 推定に用いる。"
+        },
+        "facilityCategoryCode": { "type": "string" },
+        "regionClass": { "type": "string" }
+      }
+    },
+    "serviceMonth": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}$",
+      "description": "対象月。YYYY-MM 固定。"
+    },
+    "privacy": {
+      "type": "object",
+      "properties": {
+        "includePii": { "type": "boolean" },
+        "userIdentifierType": {
+          "type": "string",
+          "enum": ["anonymousUserKey", "hashedUserId", "userId"]
+        }
+      }
+    },
+    "userSummary": {
+      "type": "object",
+      "description": "利用者の集計データ。判定には care_level_distribution / care3PlusRatio を主に用いる。",
+      "properties": {
+        "activeUserCount": { "type": "integer", "minimum": 0 },
+        "careLevelDistribution": {
+          "type": "object",
+          "description": "support1/support2/care1..care5 の人数。CPOS キーを transform.js で youshien_*/youkaigo_* に正規化する。",
+          "additionalProperties": { "type": ["integer", "number"], "minimum": 0 }
+        },
+        "care3PlusCount": { "type": "integer", "minimum": 0 },
+        "care3PlusRatio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "newUsersInMonth": { "type": "integer", "minimum": 0 },
+        "endedUsersInMonth": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "staffSummary": {
+      "type": "object",
+      "description": "職員の集計データ。dsl.buildFactsFromStaffData 互換の合成 staff[] を transform.js で生成する。",
+      "properties": {
+        "qualifiedPersonCountByProfession": {
+          "type": "object",
+          "description": "職種別の有資格者数。canonical キー: nurse, assistant_nurse, care_worker, physical_therapist, occupational_therapist, speech_therapist, care_manager, chief_care_manager, registered_dietitian, dietitian, dental_hygienist 等。",
+          "additionalProperties": { "type": ["integer", "number"], "minimum": 0 }
+        },
+        "fteByProfession": {
+          "type": "object",
+          "description": "職種別の常勤換算 (FTE) 合計。",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        },
+        "hasExternalPtOtSt": { "type": "boolean" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "claimSummary": {
+      "type": "object",
+      "description": "請求明細の集計。currentAddOnCounts は CPOS の addOnKey ベース。加算マネージャ kasan_key への変換は cpos_addon_mapping.json で行う。",
+      "properties": {
+        "source": { "type": "string" },
+        "claimStatementsCount": { "type": "integer", "minimum": 0 },
+        "totalUnits": { "type": "number", "minimum": 0 },
+        "currentAddOnCounts": {
+          "type": "object",
+          "additionalProperties": { "type": ["integer", "number"], "minimum": 0 }
+        },
+        "currentAddOnUnits": {
+          "type": "object",
+          "additionalProperties": { "type": ["integer", "number"], "minimum": 0 }
+        },
+        "currentAddOnRatios": {
+          "type": "object",
+          "additionalProperties": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "provisionSummary": {
+      "type": "object",
+      "properties": {
+        "recordsCount": { "type": "integer", "minimum": 0 },
+        "limitUnitsTotal": { "type": "number", "minimum": 0 },
+        "plannedUnitsTotal": { "type": "number", "minimum": 0 },
+        "actualUnitsTotal": { "type": "number", "minimum": 0 },
+        "overLimitUserCount": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recordsSummary": {
+      "type": "object",
+      "properties": {
+        "recordsCount": { "type": "integer", "minimum": 0 },
+        "recordTypeCounts": {
+          "type": "object",
+          "additionalProperties": { "type": ["integer", "number"], "minimum": 0 }
+        },
+        "evidenceSignals": {
+          "type": "object",
+          "additionalProperties": { "type": ["integer", "number"], "minimum": 0 }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "dataCompleteness": {
+      "type": "object",
+      "description": "各データ種別の登録状況。complete=判定可能 / partial=一部欠損 / missing=未登録。inquiry に変換され markdown レポートに表示される。",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["complete", "partial", "missing"]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
