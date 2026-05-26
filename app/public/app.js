@@ -1299,6 +1299,19 @@ async function openAnalysisDetail(id) {
   if (lr.res?.ok && lr.payload?.ok) {
     detailState.learning = lr.payload;
   }
+  // マスタ整合性レビューの per-kasan 推奨判断（解析対象サービス分）
+  detailState.masterReviewByKasan = {};
+  const service = detailState.job?.service;
+  if (service) {
+    const pm = await jsonFetch(
+      `/api/master-review/priority-matrix?service=${encodeURIComponent(service)}`,
+    ).catch(() => ({ res: { ok: false } }));
+    if (pm.res?.ok && pm.payload?.ok) {
+      for (const row of pm.payload.rows || []) {
+        detailState.masterReviewByKasan[row.kasan_key] = row;
+      }
+    }
+  }
 
   renderDetailMeta();
   renderJudgementsList();
@@ -1306,6 +1319,8 @@ async function openAnalysisDetail(id) {
   renderDetailReport();
   // ポートフォリオは別 fetch
   fetchAndRenderPortfolio();
+  // マスタ整合性タブも別 fetch
+  fetchAndRenderMasterReview();
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1358,10 +1373,15 @@ function renderJudgementsList() {
     const lhBadge = lh && lh.tendency && lh.tendency !== 'sample_too_small'
       ? `<span class="learning-badge ${escapeHtml(lh.tendency)}" title="過去の自分の判断">💡 ${escapeHtml(LEARNING_TENDENCY_LABEL[lh.tendency] || lh.tendency)} (✅${lh.approved} / ↩${lh.returned})</span>`
       : '';
+    const mr = detailState.masterReviewByKasan?.[key];
+    const mrBadge = mr
+      ? `<span class="master-review-badge bucket-${escapeHtml(mr.review_bucket)}" title="${escapeHtml(mr.reason_for_priority || '')}">🔍 ${escapeHtml(mr.recommended_initial_decision || mr.review_bucket)}${mr.can_be_first_batch === 'yes' ? ' ★初回' : ''}</span>`
+      : '';
     card.innerHTML = `
       <div class="kasan-card-head">
         <span class="kasan-card-name">${escapeHtml(jud.name || key)}</span>
         <span class="kasan-card-status">${algLabel}</span>
+        ${mrBadge}
         ${lhBadge}
         ${decision ? `<span class="kasan-card-decided">${escapeHtml(decision.decision)}${decision.reviewer_email ? ` by ${escapeHtml(decision.reviewer_email)}` : ''}</span>` : ''}
       </div>
@@ -1369,6 +1389,7 @@ function renderJudgementsList() {
         ${jud.unit_per_day ? `${jud.unit_per_day} 単位/日` : jud.unit_per_month ? `${jud.unit_per_month} 単位/月` : '単位未設定'}
         ${jud.priority_hint ? ` / ${escapeHtml(jud.priority_hint)}` : ''}
       </div>
+      ${mr?.reason_for_priority ? `<div class="kasan-card-mr-reason">🔍 ${escapeHtml(mr.reason_for_priority)}</div>` : ''}
       ${decision?.comment ? `<div class="kasan-card-comment">💬 ${escapeHtml(decision.comment)}</div>` : ''}
       <div class="kasan-card-actions">
         <input type="text" placeholder="コメント（任意）" data-kasan-comment="${escapeHtml(key)}" />
@@ -1463,6 +1484,105 @@ async function fetchAndRenderPortfolio() {
   }
   detailState.portfolio = payload.portfolio;
   renderPortfolio();
+}
+
+// =====================================================================
+// マスタ整合性レビュー（alpha.5.9〜.5.13 packets）
+// =====================================================================
+async function fetchAndRenderMasterReview() {
+  const target = $('#analysis-detail-master-review');
+  if (!target) return;
+  target.textContent = '読み込み中…';
+  const service = detailState.job?.service;
+  if (!service) {
+    target.textContent = '（解析対象サービスが不明なため、マスタ整合性データは表示できません）';
+    return;
+  }
+  try {
+    const [workload, matrix, brief] = await Promise.all([
+      jsonFetch('/api/master-review/workload'),
+      jsonFetch(`/api/master-review/priority-matrix?service=${encodeURIComponent(service)}`),
+      jsonFetch('/api/master-review/brief/cio'),
+    ]);
+    const wl = workload.payload?.summary || [];
+    const rows = matrix.payload?.rows || [];
+    const briefMd = brief.payload?.markdown || null;
+
+    const wlForService = wl.find((s) => s.service === service);
+
+    target.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'portfolio-head';
+    head.innerHTML = `
+      <p>
+        <strong>${escapeHtml(service)}</strong> の加算マスタ整合性レビュー対象:
+        <strong>${rows.length}</strong> 件
+        ${wlForService ? ` / 初回バッチ <strong>${wlForService.first_batch}</strong> 件` : ''}
+      </p>
+      <p class="hint">
+        各加算は alpha.5.13 review workload reducer が自動分類した
+        <code>review_bucket</code> / <code>recommended_initial_decision</code> を持ちます。
+        <strong>★初回</strong> badge が付いた 8 件が初回レビュー対象。詳しくは
+        <a href="/docs/MASTER_REVIEW.md" target="_blank">MASTER_REVIEW.md</a>。
+      </p>
+    `;
+    target.appendChild(head);
+
+    if (!rows.length) {
+      const empty = document.createElement('p');
+      empty.textContent = '（このサービスにはマスタ整合性レビュー対象の加算はありません）';
+      target.appendChild(empty);
+    } else {
+      // バケット別に折りたたみ
+      const bucketOrder = ['needs_master_review', 'divergent', 'needs_legal_review', 'future_candidate_only'];
+      const byBucket = {};
+      for (const r of rows) {
+        (byBucket[r.review_bucket] ||= []).push(r);
+      }
+      const seen = new Set();
+      for (const b of bucketOrder.concat(Object.keys(byBucket))) {
+        if (seen.has(b) || !byBucket[b]) continue;
+        seen.add(b);
+        const det = document.createElement('details');
+        det.className = `mr-bucket bucket-${b}`;
+        det.open = b === 'needs_master_review';
+        const summary = document.createElement('summary');
+        summary.innerHTML = `<strong>${escapeHtml(b)}</strong> <span class="hint">${byBucket[b].length} 件</span>`;
+        det.appendChild(summary);
+        for (const r of byBucket[b]) {
+          const row = document.createElement('div');
+          row.className = 'mr-row';
+          row.innerHTML = `
+            <div class="mr-row-head">
+              <code>${escapeHtml(r.kasan_key)}</code>
+              <span class="mr-decision">${escapeHtml(r.recommended_initial_decision || '-')}</span>
+              ${r.can_be_first_batch === 'yes' ? '<span class="mr-batch-tag">★初回</span>' : ''}
+              <span class="mr-effort">${escapeHtml(r.review_effort || '')}</span>
+              <span class="mr-risk risk-${escapeHtml(r.risk_level)}">${escapeHtml(r.risk_level || '')}</span>
+              <span class="mr-role">${escapeHtml(r.recommended_reviewer_role || '')}</span>
+            </div>
+            <div class="mr-row-name">${escapeHtml(r.display_name || '')}</div>
+            <div class="mr-row-reason">${escapeHtml(r.reason_for_priority || '')}</div>
+            ${r.why_not_first_batch ? `<div class="mr-row-why">⛔ ${escapeHtml(r.why_not_first_batch)}</div>` : ''}
+          `;
+          det.appendChild(row);
+        }
+        target.appendChild(det);
+      }
+    }
+
+    if (briefMd) {
+      const briefBlock = document.createElement('details');
+      briefBlock.className = 'mr-cio-brief';
+      briefBlock.innerHTML = `
+        <summary><strong>📑 CIO 30 分用 brief（全サービス共通）</strong></summary>
+        <pre>${escapeHtml(briefMd)}</pre>
+      `;
+      target.appendChild(briefBlock);
+    }
+  } catch (err) {
+    target.textContent = `読み込み失敗: ${err.message}`;
+  }
 }
 
 function renderPortfolio() {
@@ -1640,8 +1760,4 @@ async function refreshAdminCodes() {
   );
 }
 
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
-  );
-}
+// （escapeHtml は line 689 で定義済み）

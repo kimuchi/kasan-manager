@@ -117,6 +117,7 @@
           <div class="tab-bar">
             <button type="button" class="tab-btn active" data-tab="judgements">加算別 / レビュー</button>
             <button type="button" class="tab-btn" data-tab="portfolio">📊 ポートフォリオ最適化</button>
+            <button type="button" class="tab-btn" data-tab="master-review">🔍 マスタ整合性</button>
             <button type="button" class="tab-btn" data-tab="report">📜 Markdown レポート</button>
             <button type="button" class="tab-btn" data-tab="history">🕘 レビュー履歴</button>
           </div>
@@ -139,6 +140,15 @@
               地域単価・実稼働日数の前提は <a href="/docs/PORTFOLIO.md" target="_blank">PORTFOLIO.md</a> を参照してください。
             </p>
             <div id="analysis-detail-portfolio"></div>
+          </div>
+
+          <div id="tab-master-review" class="tab-panel">
+            <p class="hint">
+              加算マスタの整合性レビュー結果（<a href="/docs/MASTER_REVIEW.md" target="_blank">alpha.5.9〜.5.13 packets</a>）。
+              現在の解析対象サービスを中心に、加算マスタの三層コードモデル
+              （public/official / receipt detection / internal legacy）と推奨初期判断を表示します。
+            </p>
+            <div id="analysis-detail-master-review"></div>
           </div>
 
           <div id="tab-report" class="tab-panel">

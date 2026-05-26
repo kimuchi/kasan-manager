@@ -1084,5 +1084,89 @@ await test('Portfolio: 推奨に target_user_count と target_user_source が乗
   }
 });
 
+// =====================================================================
+// マスタ整合性レビュー（alpha.5.9〜.5.13 packets）
+// =====================================================================
+await test('MasterReview: listPackets が 6 個のパケットを返す', async () => {
+  const { listPackets } = await import('../src/services/master-review.js');
+  const packets = listPackets();
+  assert.ok(packets.length >= 6, `expected >= 6 packets, got ${packets.length}`);
+  const dirs = packets.map((p) => p.dir);
+  assert.ok(dirs.includes('alpha5_9_master_review_packet'));
+  assert.ok(dirs.includes('alpha5_13_review_workload_reducer'));
+});
+
+await test('MasterReview: getPriorityMatrix が 38 件返す', async () => {
+  const { getPriorityMatrix } = await import('../src/services/master-review.js');
+  const rows = getPriorityMatrix();
+  assert.equal(rows.length, 38, `expected 38 rows, got ${rows.length}`);
+  for (const r of rows) {
+    assert.ok(r.service, 'service set');
+    assert.ok(r.kasan_key, 'kasan_key set');
+    assert.ok(r.review_bucket, 'review_bucket set');
+    assert.ok(['yes', 'no'].includes(r.can_be_first_batch));
+  }
+});
+
+await test('MasterReview: getFirstReviewBatch が 8 件返す', async () => {
+  const { getFirstReviewBatch } = await import('../src/services/master-review.js');
+  const rows = getFirstReviewBatch();
+  assert.equal(rows.length, 8, `expected 8 first-batch rows, got ${rows.length}`);
+  for (const r of rows) {
+    assert.equal(r.review_bucket, 'needs_master_review');
+    assert.ok(r.recommended_initial_decision);
+  }
+});
+
+await test('MasterReview: getRecommendedDecisionFor で個別加算を取得', async () => {
+  const { getRecommendedDecisionFor } = await import('../src/services/master-review.js');
+  const r = getRecommendedDecisionFor('tsusho_kaigo', 'chujudosha_care_taisei');
+  assert.ok(r, 'tsusho_kaigo chujudosha_care_taisei should exist');
+  assert.equal(r.recommended_initial_decision, 'add_receipt_alias');
+});
+
+await test('MasterReview: getMasterAuditFor が三層モデルを返す', async () => {
+  const { getMasterAuditFor } = await import('../src/services/master-review.js');
+  const audit = getMasterAuditFor('tsusho_kaigo', 'chujudosha_care_taisei');
+  assert.ok(audit);
+  assert.equal(audit.overall_mapping_status, 'needs_review');
+  assert.ok(audit.service_code_audit);
+  assert.ok(audit.service_code_audit.alpha_5_8_three_layer_model);
+});
+
+await test('MasterReview: summarizePerServiceWorkload', async () => {
+  const { summarizePerServiceWorkload } = await import('../src/services/master-review.js');
+  const summary = summarizePerServiceWorkload();
+  assert.ok(summary.length >= 4, 'all four services represented');
+  // alpha5_13 manifest 上、tsusho_kaigo に 4 件初回バッチ
+  const tsusho = summary.find((s) => s.service === 'tsusho_kaigo');
+  assert.ok(tsusho);
+  assert.equal(tsusho.first_batch, 4);
+});
+
+await test('MasterReview: getCioDecisionBrief / safe-defaults Markdown が取得できる', async () => {
+  const m = await import('../src/services/master-review.js');
+  const cio = m.getCioDecisionBrief();
+  assert.ok(cio && cio.length > 200);
+  const safe = m.getSafeDefaultDecisions();
+  assert.ok(safe && safe.length > 200);
+});
+
+// =====================================================================
+// 強化された master JSON（alpha.5.8 三層モデル）
+// =====================================================================
+await test('Master JSON: 通所介護に service_code_audit / overall_mapping_status が入っている', async () => {
+  const { loadMaster } = await import('../src/services/regulator.js');
+  const m = await loadMaster('tsusho_kaigo');
+  const kasan = m?.master?.kasans?.chujudosha_care_taisei || m?.kasans?.chujudosha_care_taisei;
+  assert.ok(kasan, 'chujudosha_care_taisei should exist');
+  assert.ok(kasan.service_code_audit, 'service_code_audit set');
+  assert.ok(kasan.overall_mapping_status, 'overall_mapping_status set');
+  assert.ok(
+    kasan.service_code_audit.alpha_5_8_three_layer_model,
+    'three layer model exists',
+  );
+});
+
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
 if (failed > 0) process.exit(1);

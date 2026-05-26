@@ -1,0 +1,104 @@
+{
+  "_meta": {
+    "schema": "evidence",
+    "schema_version": "1.2",
+    "office_code": "DEMO-0007",
+    "tenant_id": "demo-tenant",
+    "updated": "2026-05-06T21:59:24"
+  },
+  "evidence": [
+    {
+      "evidence_id": "receipt_pdf_DEMO-0007_20260506215924",
+      "tenant_id": "demo-tenant",
+      "office_code": "DEMO-0007",
+      "service_key": "houmon_kango_kaigo",
+      "source_type": "receipt_pdf",
+      "source_file_name": "houmon_kango_kaigo_receipt_sample.pdf",
+      "extracted_at": "2026-05-06T21:59:24",
+      "extraction_version": "v2026.05.06-alpha.4.4",
+      "detected_claim_status": "detected_in_receipt_pdf",
+      "detection_scope": "aggregated_claim_items_only",
+      "not_detected_policy": "PDF未検出は未算定を意味しない。サービスコード未収載・帳票形式違い・OCR不可等の要因がある。",
+      "requirement_policy": "PDF検出は算定中の推定であり、要件充足確認は別途必要。",
+      "pii_policy": {
+        "保存しない項目": [
+          "被保険者番号",
+          "氏名",
+          "カナ氏名",
+          "住所",
+          "電話番号",
+          "生年月日"
+        ],
+        "保存する項目": [
+          "要介護度分布(集計値)",
+          "算定中加算の件数(集計値)",
+          "サービスコード"
+        ],
+        "policy_note": "個人を特定できる情報は意図的に抽出・保存しない設計。集計値・統計値のみを残す。"
+      },
+      "total_pages": 7,
+      "total_users_estimated": 7,
+      "care_level_distribution": {
+        "要介護2": 2,
+        "要介護3": 1,
+        "要介護1": 1,
+        "要介護4": 1,
+        "要介護5": 2
+      },
+      "yokaigo_3plus_ratio": 0.5714,
+      "current_kasan_counts": {
+        "kinkyu_houmon_kango_kasan_II": 7,
+        "tokubetsu_kanri_kasan_II": 2,
+        "shougu_kaizen_kasan_2026_06": 7,
+        "taiin_kyoudou_shidou_kasan": 1,
+        "shokai_kasan_I": 1,
+        "tokubetsu_kanri_kasan_I": 1,
+        "terminal_care_kasan": 1,
+        "kango_taisei_kyouka_kasan_II": 1,
+        "service_taisei_kyouka_kasan_II": 1,
+        "koukuu_renkei_kyouka_kasan": 1,
+        "kagakuteki_kaigo_suishin_kasan": 1,
+        "kango_kaigo_renkei_kyouka_kasan": 1,
+        "shokai_kasan_II": 1
+      },
+      "current_kasan_ratios": {
+        "kinkyu_houmon_kango_kasan_II": 1.0,
+        "tokubetsu_kanri_kasan_II": 0.2857,
+        "shougu_kaizen_kasan_2026_06": 1.0,
+        "taiin_kyoudou_shidou_kasan": 0.1429,
+        "shokai_kasan_I": 0.1429,
+        "tokubetsu_kanri_kasan_I": 0.1429,
+        "terminal_care_kasan": 0.1429,
+        "kango_taisei_kyouka_kasan_II": 0.1429,
+        "service_taisei_kyouka_kasan_II": 0.1429,
+        "koukuu_renkei_kyouka_kasan": 0.1429,
+        "kagakuteki_kaigo_suishin_kasan": 0.1429,
+        "kango_kaigo_renkei_kyouka_kasan": 0.1429,
+        "shokai_kasan_II": 0.1429
+      },
+      "detected_service_codes": [
+        "131000",
+        "131001",
+        "136101",
+        "136200",
+        "136201",
+        "136300",
+        "136401",
+        "136501",
+        "136600",
+        "136700",
+        "136800",
+        "136900"
+      ],
+      "service_category_counts": {},
+      "time_band_counts": {},
+      "unknown_service_codes": [],
+      "raw_yokaigo_3plus_ratio": 0.5714,
+      "warnings": [],
+      "extraction_confidence": "high",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_mapping_source": "社内資料 skills/regulatory/HOUMON_KANGO.md + 加算マスタ houmon_kango_kaigo.json + DEMO fixture",
+      "pattern_confidence_note": "訪問看護（介護保険）のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。介護保険版のみ対応・医療保険版（訪問看護療養費）は別管理。帳票形式により抽出精度が変動する。"
+    }
+  ]
+}

@@ -78,6 +78,18 @@ import {
   summarizePastDecisionsForUser,
   attachLearningHints,
 } from './services/review-learning.js';
+import {
+  listPackets as listMasterReviewPackets,
+  getPriorityMatrix as getMasterPriorityMatrix,
+  getFirstReviewBatch as getMasterFirstBatch,
+  getSafeDefaultDecisions as getMasterSafeDefaults,
+  getCioDecisionBrief as getMasterCioBrief,
+  getDeferredItems as getMasterDeferredItems,
+  getReviewWorkloadByRole as getMasterReviewWorkloadByRole,
+  getRecommendedDecisionFor as getMasterRecommendedDecisionFor,
+  summarizePerServiceWorkload as summarizeMasterWorkload,
+  getMasterAuditFor,
+} from './services/master-review.js';
 
 // 起動前に Secret Manager から hydrate（失敗しても env だけで動く）
 await hydrateSecretsFromManager().catch((err) => {
@@ -425,6 +437,66 @@ app.get('/api/me/review-learning', requireAuth, async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// ============================================================
+// マスタ整合性レビュー（alpha.5.9 〜 alpha.5.13 packets）
+// ============================================================
+// 公開:
+//   - GET /api/master-review/packets            … パケット一覧（メタのみ）
+//   - GET /api/master-review/priority-matrix    … 全 38 件の REVIEW_PRIORITY_MATRIX
+//   - GET /api/master-review/first-batch        … 初回バッチ 8 件
+//   - GET /api/master-review/workload           … サービス × ロール × バケットの集計
+//   - GET /api/master-review/decision/:service/:kasan
+//                                                … 加算 1 件の推奨判断 + master audit
+//   - GET /api/master-review/brief/cio          … CIO 30 分用 brief（Markdown）
+//   - GET /api/master-review/safe-defaults      … safe default decisions（Markdown）
+//   - GET /api/master-review/deferred           … 後送り項目（Markdown）
+//   - GET /api/master-review/workload-by-role   … ロール別 workload（Markdown）
+//
+// すべて読み取り専用。public release pack には影響しない。
+app.get('/api/master-review/packets', (_req, res) => {
+  res.json({ ok: true, packets: listMasterReviewPackets() });
+});
+
+app.get('/api/master-review/priority-matrix', (req, res) => {
+  let rows = getMasterPriorityMatrix();
+  const service = req.query?.service ? String(req.query.service) : null;
+  const bucket = req.query?.bucket ? String(req.query.bucket) : null;
+  const firstBatchOnly = req.query?.first_batch_only === '1';
+  if (service) rows = rows.filter((r) => r.service === service);
+  if (bucket) rows = rows.filter((r) => r.review_bucket === bucket);
+  if (firstBatchOnly) rows = rows.filter((r) => r.can_be_first_batch === 'yes');
+  res.json({ ok: true, count: rows.length, rows });
+});
+
+app.get('/api/master-review/first-batch', (_req, res) => {
+  res.json({ ok: true, rows: getMasterFirstBatch() });
+});
+
+app.get('/api/master-review/workload', (_req, res) => {
+  res.json({ ok: true, summary: summarizeMasterWorkload() });
+});
+
+app.get('/api/master-review/decision/:service/:kasan', (req, res) => {
+  const decision = getMasterRecommendedDecisionFor(req.params.service, req.params.kasan);
+  const audit = getMasterAuditFor(req.params.service, req.params.kasan);
+  if (!decision && !audit) return res.status(404).json({ ok: false, error: 'not_found' });
+  res.json({ ok: true, decision, audit });
+});
+
+const MASTER_REVIEW_MARKDOWN = {
+  'brief/cio': getMasterCioBrief,
+  'safe-defaults': getMasterSafeDefaults,
+  deferred: getMasterDeferredItems,
+  'workload-by-role': getMasterReviewWorkloadByRole,
+};
+for (const [name, fn] of Object.entries(MASTER_REVIEW_MARKDOWN)) {
+  app.get(`/api/master-review/${name}`, (_req, res) => {
+    const md = fn();
+    if (!md) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.json({ ok: true, markdown: md });
+  });
+}
 
 // ============================================================
 // CPOS PAT セッション管理（指示書 §4.1〜4.4）

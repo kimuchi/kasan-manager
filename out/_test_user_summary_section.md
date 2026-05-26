@@ -1,0 +1,166 @@
+# CareLinker 加算チェッカー 判定レポート
+
+> **通所介護** | 事業所コード `DEMO-0004` | 生成日時 `2026-05-26T07:01:26`
+> マスタ版 `2026.4` / 改定タグ `R6_2024_04` / 適用開始 `2024-04-01`
+
+> **🧪 公開デモ用の架空サンプル**: 本レポートは公開デモ用の架空事業所コード・架空職員サマリ・架空証跡データを使用しています。実事業所のデータではありません。
+
+> **⚠️ 重要なお断り**: 本レポートは加算算定可否を**法的に保証するものではありません**。
+> 取得候補・確認待ち項目・必要書類・増収目安を提示する**支援ツール**です。
+> 実際の届出・算定は各自治体の指導課・監査担当および顧問の社労士等に確認してください。
+
+## 📌 結論サマリ
+
+**全13加算中、取得可能性が高い加算は 0 件**
+
+| 状態 | 件数 | 意味 |
+|---|---:|---|
+| ✅ 取得済/要件クリア | 0 | 既に要件を満たしている／届出済 |
+| ⏸ 確認待ち | 0 | 一部の確認・書類整備で取得可能 |
+| ❌ 対象外/不可 | 0 | 地域要件等で対象外 |
+| ❔ 情報不足 | 13 | 職員/利用者データ取込・追加実装で判定可 |
+
+## 🎯 すぐ確認すべき項目 TOP5
+
+（事業所ステータスを `tenant_data/status/<office>.json` に登録すると、確認すべき項目が表示されます）
+
+## 🗓️ 今月やること
+
+- `tenant_data/status/<office_code>.json` を作成し、職員情報・利用者構成・確認進捗を登録
+- 請求明細書PDF（直近3か月）を取り込み、現状算定中の加算を抽出
+
+---
+
+## 1. 取得可能性が高い加算（waiting + clear）
+
+（該当なし）
+## 2. 対象外・取得不可の加算
+
+（該当なし）
+
+## 3. 確認待ち項目（テナント側）
+
+（事業所ステータス未読込）
+
+## 4. ❔ 情報不足の内訳（5分類）
+
+| 分類 | 件数 | 説明 |
+|---|---:|---|
+| `tenant_status_missing` | 50 | 事業所ステータスファイル未登録（tenant_data/status/<office>.jsonを作成すれば判定可） |
+| `data_missing` | 0 | 職員情報・利用者情報が未入力（staff/user データ取込で解決） |
+| `source_required` | 0 | 公式根拠の確認待ち（マスタ要件側に確定値が未投入） |
+| `logic_not_implemented` | 0 | 判定ロジック未実装（OR/AND等のネスト評価が今後の対応事項） |
+| `not_applicable_unknown` | 0 | 対象外の可能性があるが未確認（地域要件等） |
+
+### tenant_status_missing
+
+- `chujudosha_care_taisei.user_ratio` ← no tenant_status_key bound
+- `chujudosha_care_taisei.staff_add` ← no tenant_status_key bound
+- `chujudosha_care_taisei.staff_continuous` ← no tenant_status_key bound
+- `kobetsu_kinou_I_i.staff` ← no tenant_status_key bound
+- `kobetsu_kinou_I_i.plan` ← None
+- `kobetsu_kinou_I_i.home_visit_initial` ← None
+- `kobetsu_kinou_I_i.home_visit_review` ← None
+- `kobetsu_kinou_I_i.frequency` ← None
+- `kobetsu_kinou_I_i.record` ← None
+- `kobetsu_kinou_I_ro.staff` ← no tenant_status_key bound
+- ... 他 40 件
+
+## 5. 必要書類チェックリスト（waiting加算分）
+
+（取得対象加算なし、または書類リスト未定義）
+
+## 6. 追加確認すべき職員情報
+
+（該当なし）
+
+## 7. 追加確認すべき利用者情報
+
+（該当なし）
+
+## 8. 増収見込み（waiting/clear加算）
+
+| 加算 | 状態 | 単位/レート | 年間増収目安 |
+|---|---|---|---|
+
+> 増収目安は40名想定の超概算（単価10円・地域単価補正なし）。実際は要介護度構成・地域単価・実利用者数で変動します。
+
+## 9. 根拠マスタのバージョン
+
+- service_key: `tsusho_kaigo`
+- version: `2026.4`
+- revision_tag: `R6_2024_04`
+- effective_from: `2024-04-01`
+- source_status: `implemented`
+- 法令出典: 指定居宅サービス等の事業の人員・設備・運営基準(H11厚令37) / 指定居宅サービスに要する費用の額の算定に関する基準(H12厚告19) / 大臣基準告示 / 老企第25号 / 老企第36号
+- generated_at: `2026-05-26T07:01:26`
+
+**サービスコード照合監査（alpha.5.8.1）:**
+
+- audit_version: `alpha.5.8.1`
+- audit_date: `2026-05-10`
+- checked: 6 件
+- pattern_based_unverified: 7 件
+- not_applicable: 0 件
+- note: tsusho_kaigo: alpha.5.7 で R7.4確定版（current_definitive）と照合実施。コード・単位整合は exact_match のみ checked、それ以外は社内マスタ訂正候補として pattern_based_unverified 維持。詳細は service_code_audit 参照。
+
+## 🧠 要件ロジック評価（alpha）
+
+> 公式根拠確認済みの要件のみ、登録済みevidenceに基づいて機械的に評価しています。
+> 本結果は算定可否を法的に保証するものではありません。算定可否の最終確認は事業所資料・届出状況・自治体確認が必要です。
+
+| 加算 | PDF検出 | 要件評価 | mapping | 達成ルート | 不足証跡 | 注意 |
+|---|---|---|---|---|---|---|
+| 中重度者ケア体制加算 | 未検出 | 🟡 partially_clear | ℹ️ 帳票パターン | 利用者集計: 要介護3以上が30%以上 | staff_summary.kango_kaigo_total_fte, tenant_status.kango_jikantai_haichi.status, tenant_status.kango_kaigo_2nin_kahai.status | ℹ️ pattern_based_unverified |
+
+> 「不足証跡あり」と表示された加算は、職員情報・利用者状態・書類整備状況等の追加確認が必要です。
+
+## 🧑‍🤝‍🧑 利用者データ連携（DEMO alpha）
+
+> DEMO用の架空利用者集計データから組み立てた利用者サマリです。
+> 個別利用者の氏名・被保険者番号・住所・電話番号・生年月日・家族情報・医療機関名・具体的病名は表示しません（集計値のみ）。
+> 本セクションの値は **要件確認補助** であり、算定可否を保証するものではありません。
+
+| 集計項目 | 値 |
+|---|---|
+| data_source_type | demo_aggregate |
+| source_status | demo_aggregate_unverified |
+| target_period_start | 2026-04-01 |
+| target_period_end | 2026-04-30 |
+| users_total | 40 |
+| care_level_3_or_higher_count | 27 |
+| care_level_3_or_higher_ratio | 0.675 |
+| care_level_4_or_higher_count | 15 |
+| care_level_4_or_higher_ratio | 0.375 |
+| severe_user_count | 18 |
+| severe_user_ratio | 0.450 |
+| dementia_related_count | 14 |
+| medical_dependency_count | 5 |
+| terminal_care_related_count | 0 |
+| discharge_support_related_count | 0 |
+| emergency_response_related_count | 2 |
+| care_level_distribution | youshien_1: 0 / youshien_2: 0 / youkaigo_1: 5 / youkaigo_2: 8 / youkaigo_3: 12 / youkaigo_4: 10 / youkaigo_5: 5 |
+| dementia_care_level_distribution | I: 5 / IIa: 4 / IIb: 5 / IIIa: 6 / IIIb: 5 / IV: 3 / M: 0 |
+
+> 上記サマリは要件DSLでも参照されます（user_summary.* facts）。
+> source_status は `demo_aggregate_unverified` であり、本番運用前に集計根拠の確認が必要です。
+
+## 🧾 不足証跡チェックリスト（alpha）
+
+> 要件ロジック評価で不足している証跡を、確認作業用に整理したものです。
+> 本チェックリストは算定可否を法的に保証するものではありません。
+> DEMO用の架空利用者集計（user_summary）も参照しています（要件確認補助・算定可否は保証しません）。
+
+| 加算 | 不足証跡 | 推奨確認資料 | 優先度 | 次アクション |
+|---|---|---|---|---|
+| 中重度者ケア体制加算 | 看護・介護職員の常勤換算合計（職員データ集計） | 勤務表・雇用契約書 | 高 | 看護・介護職員の常勤換算を更新する |
+| 中重度者ケア体制加算 | 看護職員の時間帯配置 | 勤務表・看護職員配置表 | 高 | 看護職員の時間帯配置を確認する |
+| 中重度者ケア体制加算 | 看護・介護職員の常勤換算2名以上加配 | 勤務表・資格証・配置表 | 高 | 看護・介護職員の常勤換算を集計する |
+
+---
+
+> **⚠️ 重要なお断り**: 本レポートは加算算定可否を**法的に保証するものではありません**。
+> 取得候補・確認待ち項目・必要書類・増収目安を提示する**支援ツール**です。
+> 実際の届出・算定は各自治体の指導課・監査担当および顧問の社労士等に確認してください。
+
+_Generated by CareLinker 加算チェッカー / judge_kasan.py / v2026.05.06-alpha.5.8.1_

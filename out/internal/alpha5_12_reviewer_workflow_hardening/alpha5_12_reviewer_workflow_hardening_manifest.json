@@ -1,0 +1,94 @@
+{
+  "version": "alpha.5.12",
+  "base_commit": "a3af77843f01653f1e7e10c99ece00b98faa2aba",
+  "input_packet_version": "alpha.5.11",
+  "input_gate_version": "alpha.5.10",
+  "generated_at": "2026-05-10",
+  "generator_script": "scripts/generate_alpha5_12_reviewer_workflow_hardening.py",
+  "scope": "internal_only",
+  "purpose": "alpha.5.11 reviewer workbook を運用面で強化（legal_review_clearance / 拡張 export / sample fixture / 高リスク decision 受け入れ）",
+  "public_release": false,
+  "checked_promotion": false,
+  "master_auto_update": false,
+  "r8_provisional_used_for_checked": false,
+  "release_pack_modified": false,
+  "alpha_5_11_workbook_modified": false,
+  "alpha_5_10_gate_files_modified": false,
+  "alpha_5_9_packet_files_modified": false,
+  "extended_workbook_columns": [
+    "service",
+    "kasan_key",
+    "reviewer_decision",
+    "reason",
+    "required_evidence",
+    "reviewer_name",
+    "reviewed_at",
+    "final_approved_by",
+    "implementation_allowed",
+    "reviewer_role",
+    "review_note",
+    "legal_review_clearance",
+    "legal_review_reference",
+    "legal_review_note",
+    "implementation_priority",
+    "implementation_risk_acknowledged"
+  ],
+  "valid_legal_review_clearance": [
+    "cleared",
+    "not_cleared",
+    "pending",
+    "not_required"
+  ],
+  "valid_reviewer_role": [
+    "business_reviewer",
+    "legal_reviewer",
+    "final_approver"
+  ],
+  "valid_implementation_priority": [
+    "high",
+    "medium",
+    "low",
+    "defer"
+  ],
+  "valid_implementation_risk_acknowledged": [
+    "yes",
+    "no",
+    "pending"
+  ],
+  "high_risk_decisions": [
+    "correct_internal_legacy_code"
+  ],
+  "sample_reviewed_decision_count": 12,
+  "sample_gate_result": {
+    "approved_count": 3,
+    "blocked_count": 4,
+    "pending_count": 3,
+    "legal_review_required_count": 2,
+    "future_candidate_count": 2,
+    "input_csv_schema": "extended"
+  },
+  "files": [
+    "README.md",
+    "alpha5_12_reviewer_decision_workbook.xlsx",
+    "sample_reviewed_decisions.csv",
+    "sample_reviewed_decision_validation_report.md",
+    "sample_approved_changes_preview.csv",
+    "sample_blocked_or_incomplete_decisions.csv",
+    "sample_pending_decisions.csv",
+    "sample_legal_review_required.csv",
+    "legal_clearance_rules.md",
+    "alpha5_12_reviewer_workflow_hardening_manifest.json"
+  ],
+  "invariants": [
+    "master JSON 自動修正なし",
+    "新規 checked 昇格なし",
+    "R8.6 案資料を checked 昇格に使わない",
+    "public release pack 未変更",
+    "alpha.5.9 packet / alpha.5.10 gate / alpha.5.11 workbook 未破壊",
+    "checked 20件 維持",
+    "reviewer 入力ファイルを public に出さない",
+    "後方互換: legacy 9列CSV も従来どおり読める",
+    "future_candidate_only は legal clearance があっても approved にしない",
+    "high risk decision は implementation_risk_acknowledged=yes が必須（拡張列ある場合）"
+  ]
+}

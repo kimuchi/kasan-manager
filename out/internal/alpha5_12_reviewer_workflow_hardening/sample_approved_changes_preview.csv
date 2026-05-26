@@ -1,0 +1,11 @@
+﻿service,kasan_key,reviewer_decision,implementation_allowed,final_approved_by,reviewed_at,proposed_change_type,current_overall_mapping_status,proposed_next_status,official_service_code,receipt_detection_code,internal_legacy_code,required_evidence,implementation_risk,implementation_note
+tsusho_kaigo,chujudosha_care_taisei,add_receipt_alias,yes,sample_最終承認者X,2026-05-15,add_receipt_alias_to_master,needs_review,checked (after alias verification),155306,156271,156271,WAM_R7_8_DEFINITIVE_2025_03_28 PDF p131 で確認,medium (alias mapping must be consistent in receipt_detection_pattern),master JSON 修正は alpha.5.11+ で別途実施。本パケットは候補提示のみ。
+tsusho_kaigo,nyuyoku_II,approve_official_code_addition,yes,sample_最終承認者X,2026-05-15,add_official_code_to_master,needs_review,checked (after reviewer + tests),155303,155302,155302,WAM_R7_8_DEFINITIVE PDF p131,low (additive change to official_code_model),master JSON 修正は alpha.5.11+ で別途実施。本パケットは候補提示のみ。
+houmon_kango_kaigo,fukusu_mei_houmon_kango_kasan_II_under30,approve_official_code_addition,yes,sample_最終承認者X,2026-05-15,add_official_code_to_master,needs_review,checked (after reviewer + tests),,,,令和8年法令解釈通知 (sample reference) を法令確認者が確認,low (additive change to official_code_model),master JSON 修正は alpha.5.11+ で別途実施。本パケットは候補提示のみ。
+
+# alpha.5.10 reviewer decision gate generated at 2026-05-10
+# base_commit: d0c911db9b28f561f0e40859a4c40e863982d7f6 (alpha.5.9)
+# input: out/internal/alpha5_12_reviewer_workflow_hardening/sample_reviewed_decisions.csv
+# 本ゲートは master JSON を改変しない。承認候補 (approved_changes_preview) はあくまで実装候補。
+# 実装は alpha.5.11+ で段階的 PR にて実施。一括反映禁止。
+# implementation_risk=high の行は PDF検出回帰テスト必須。

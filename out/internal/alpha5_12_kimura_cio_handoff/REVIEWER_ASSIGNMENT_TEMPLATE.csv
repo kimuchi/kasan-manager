@@ -1,0 +1,14 @@
+role,reviewer_name,target_sheet,target_count,due_date,responsibility,note
+business_reviewer,(CIO 任命),Needs_Master_Review,28,2026-05-31,社内 service_codes と公式コードの照合・社内マスタ訂正可否の判断,通所4 / 訪問介護7 / 居宅介護支援16 / 訪問看護1 の合計28件。alpha.5.13+ で master JSON 反映の対象候補
+business_reviewer,(CIO 任命),Decision_Input_All の divergent 3行,3,2026-05-31,proposed_action と overall_mapping_status の divergent 加算3件のレビュー,通所/adl_iji・通所/ninchi_kasan・訪看/shougu_kaizen_kasan_2026_06。alpha.5.8.1 で audit_note 化済
+legal_reviewer,(CIO 任命・外部弁護士/社労士想定),Needs_Legal_Review,5,2026-06-30,複数名訪問看護加算4件 + 長時間訪問看護加算1件の構造解釈,基本サービスコードへの付加加算構造の可能性。介護報酬告示・大臣基準告示・老企第36号 解釈通知を参照。clearance=cleared 付与の責任者
+final_approver,木村CIO,Decision_Input_All 全38行,38,2026-07-15,implementation_allowed=yes の最終ハンコ,final_approved_by 列に氏名・役職を記入。高リスク decision (correct_internal_legacy_code) は risk_ack=yes 確認必須
+final_approver,渡辺執行役員,Decision_Input_All 全38行,38,2026-07-15,共同最終承認者,木村CIO と二者承認体制。意見が割れた場合の判定
+developer,(CIO 任命),approved_changes_preview の master JSON 反映,可変,alpha.5.13+,reviewer 完了後の段階反映,個別 PR で 4サービスPDF回帰 + 5パターン回帰 + checked 20件維持確認 必須。一括反映禁止
+deferred,(担当不要),Future_Candidate,2,R8.6.1 確定版公開後,R8.6 処遇改善加算 訪問介護/居宅介護支援2件,defer_until_r8_definitive のまま。確定版公開後に alpha.5.16+ で再評価
+# ---
+# alpha.5.12 reviewer assignment template (CIO に渡すための雛形)
+# 各 (CIO 任命) は木村CIO が氏名を埋めてから配布
+# 期限はあくまで目安。reviewer の通常業務とのバランスを見て CIO が調整
+# total_review_rows: 38 (28 + 5 + 3 + 2)
+# CIO ハンドオフ commit: db031d49134fe6d89bceba5931c8a0569857c6f7

@@ -118,6 +118,7 @@ const TOC_LINKS = [
   { href: '/docs/AUTH_AND_PLANS.md', label: 'ログイン / プラン' },
   { href: '/docs/REVIEWER_GUIDE.md', label: 'レビュアー' },
   { href: '/docs/PORTFOLIO.md', label: 'ポートフォリオ最適化' },
+  { href: '/docs/MASTER_REVIEW.md', label: 'マスタ整合性レビュー' },
   { href: '/docs/CPOS_TOKEN.md', label: 'CPOS 連携 (PAT)' },
   { href: '/docs/json/', label: 'JSON 形式' },
   { href: '/docs/DATA_SAFETY.md', label: 'データ取扱方針' },

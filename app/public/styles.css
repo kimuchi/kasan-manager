@@ -1278,3 +1278,93 @@ main {
   color: #6a4d00;
 }
 
+/* ===== マスタ整合性レビュー ===== */
+.master-review-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f4f8ff;
+  color: #1d4072;
+  border: 1px solid #c3d6f0;
+  white-space: nowrap;
+}
+.master-review-badge.bucket-needs_master_review { background: #fef4d6; color: #6a4d00; border-color: #f0d674; }
+.master-review-badge.bucket-divergent { background: #fee2e2; color: #8a1818; border-color: #f0aaaa; }
+.master-review-badge.bucket-needs_legal_review { background: #ebd6ff; color: #4d1278; border-color: #cba5e8; }
+.master-review-badge.bucket-future_candidate_only { background: #d6f0e0; color: #1e6b2a; border-color: #9bd9a8; }
+.kasan-card-mr-reason {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f4f8ff;
+  border-left: 3px solid #4a6fa0;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+.mr-bucket {
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: #fff;
+}
+.mr-bucket > summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.mr-bucket.bucket-needs_master_review { border-left: 4px solid #f0a800; }
+.mr-bucket.bucket-divergent { border-left: 4px solid #c0392b; }
+.mr-bucket.bucket-needs_legal_review { border-left: 4px solid #884cba; }
+.mr-bucket.bucket-future_candidate_only { border-left: 4px solid #229a3c; }
+.mr-row {
+  border-top: 1px solid var(--border);
+  padding: 8px 4px;
+  font-size: 13px;
+}
+.mr-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.mr-decision { font-weight: 700; color: var(--accent-strong); }
+.mr-batch-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff3a8;
+  color: #4d3500;
+  font-weight: 700;
+}
+.mr-effort, .mr-role { font-size: 11px; color: var(--ink-mute); }
+.mr-risk {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eee;
+}
+.mr-risk.risk-low { background: #d6f0e0; color: #1e6b2a; }
+.mr-risk.risk-medium { background: #fef4d6; color: #6a4d00; }
+.mr-risk.risk-high { background: #fee2e2; color: #8a1818; }
+.mr-row-name { font-weight: 600; }
+.mr-row-reason { color: var(--ink-mute); font-size: 12px; }
+.mr-row-why { font-size: 12px; color: #8a1818; margin-top: 4px; }
+.mr-cio-brief {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #f4f8ff;
+  border: 1px solid #c3d6f0;
+}
+.mr-cio-brief > summary { cursor: pointer; }
+.mr-cio-brief pre {
+  white-space: pre-wrap;
+  font: 12px/1.5 ui-monospace, Menlo, monospace;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 50vh;
+  overflow: auto;
+}
