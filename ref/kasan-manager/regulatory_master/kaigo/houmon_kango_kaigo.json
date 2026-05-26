@@ -16,86 +16,9 @@
       "skills/regulatory/HOUMON_KANGO.md",
       "skills/regulatory/KASAN_YOKEN_DAITAI.md",
       "skills/regulatory/KAISHAKU_TSUUCHI.md"
-    ],
-    "service_code_mapping_audit": {
-      "audit_version": "alpha.5.8.1",
-      "audit_date": "2026-05-10",
-      "audit_source_document": "WAM NET 介護給付費単位数等サービスコード表（令和6年4月施行・2024-03-18版）p67-69 訪問看護",
-      "audit_source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-      "checked_count": 14,
-      "inconsistent_count": 5,
-      "not_applicable_count": 1,
-      "unverified_count": 8,
-      "note": "alpha.5.5 では 案版 (provisional) 資料を根拠にしたため、5加算を不整合と判定していた。alpha.5.6 で確定版（definitive・令和6.6.1/8月施行版）と再照合し、社内マスタが正しいことを確認・全件 checked 化。",
-      "definitive_source": {
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)"
-      },
-      "alpha_5_5_provisional_source_used": {
-        "source_kind": "provisional",
-        "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-        "document_version": "2024-03-18版（案）",
-        "page_or_section": "p67-69 訪問看護サービスコード表"
-      },
-      "pattern_based_unverified_count": 7,
-      "alpha_5_5_revalidation_summary": {
-        "kept_checked": 8,
-        "promoted_from_pattern_unverified": 5,
-        "newly_checked_in_alpha_5_6": 1
-      },
-      "alpha_5_7_r7_4_reconfirm": {
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "result": "no_diff_from_r6_6_8",
-        "note": "R6.6/8 と R7.4 で訪問看護加算は同一コード・単位（21コード）。alpha.5.6 の14件 checked を R7.4 でも維持。",
-        "alpha_5_7_1_source_anchor_corrected": true
-      },
-      "sources_consulted": [
-        "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "WAM_R7_8_DEFINITIVE_2025_03_28"
-      ],
-      "alpha_5_7_2_effective_period_correction": {
-        "r7_4_revision_status": "historical_definitive (was: current_definitive in alpha.5.7.1)",
-        "r7_8_revision_status": "current_definitive (newly assigned)",
-        "as_of_date": "2026-05-10",
-        "checked_items_reconfirmed_count": 14,
-        "diff_from_r7_4": "no_diff",
-        "note": "2026-05時点で R7.8 が current_definitive。R7.4 は historical_definitive。checked件数は維持。"
-      },
-      "alpha_5_8_three_layer_model_introduced": {
-        "schema_version": "alpha.5.8",
-        "schema_path": "regulatory_master/sources/code_model_schema.json",
-        "overall_mapping_status_breakdown": {
-          "checked": 14,
-          "needs_review": 7,
-          "pattern_based_unverified": 0,
-          "not_applicable": 1,
-          "provisional_future": 0
-        },
-        "proposed_action_breakdown": {
-          "keep_checked": 14,
-          "needs_master_review": 1,
-          "keep_pattern_based_unverified": 1,
-          "needs_legal_review": 5,
-          "not_applicable_confirmed": 1
-        },
-        "note": "三層モデル(official / receipt_detection / internal_legacy)導入。一括置換せず、各加算で公式コード・PDF検出・社内legacyを分離管理。"
-      },
-      "alpha_5_8_1_audit_metadata_hotfix": {
-        "applied_at": "2026-05-10",
-        "scope": "audit metadata only — three-layer model business data unchanged",
-        "reason": "alpha.5.8 audit report の narrative不整合 (needs_master_review breakdown 6+13+16=35 vs machine-counted 28) を修正、R8.6「その3」source URL null / content未検証を解消",
-        "master_data_changes": "none (kasan業務データ・proposed_action・overall_mapping_status は alpha.5.8 の機械集計値を保持)"
-      }
-    }
+    ]
   },
+
   "kihon_houshu": {
     "_note": "看護師・准看護師による訪問。准看護師は90%で算定（10%減算）。",
     "kango_shi": {
@@ -125,35 +48,22 @@
       }
     }
   },
+
   "kasans": {
     "kinkyu_houmon_kango_kasan_I": {
       "name": "緊急時訪問看護加算(I)",
       "short_name": "緊急時Ⅰ",
       "unit_per_month": 600,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136100"
-      ],
+      "service_codes": ["136100"],
       "category": "体制加算",
       "applied_from": "2024-06",
       "priority_hint": "★最重要・体制加算の中核・R6改定で新設",
       "requirements": {
-        "todoke": {
-          "description": "事前に届出が必要",
-          "tenant_status_key": "kinkyu_houmon_todoke"
-        },
-        "joji_taiou": {
-          "description": "利用者・家族から電話等による看護相談に常時対応できる体制",
-          "tenant_status_key": "joji_taiou_taisei"
-        },
-        "ninni_kango_shitei": {
-          "description": "緊急時訪問を行う看護師を指定し、利用者に文書で説明・同意",
-          "tenant_status_key": "kinkyu_kango_setsumei_doui"
-        },
-        "yakan_taiou_keigen": {
-          "description": "夜間対応した翌日の勤務間隔確保等、看護師の負担軽減のための業務管理体制（6項目から複数の取組）",
-          "tenant_status_key": "yakan_taiou_keigen_taisei"
-        }
+        "todoke": {"description": "事前に届出が必要", "tenant_status_key": "kinkyu_houmon_todoke"},
+        "joji_taiou": {"description": "利用者・家族から電話等による看護相談に常時対応できる体制", "tenant_status_key": "joji_taiou_taisei"},
+        "ninni_kango_shitei": {"description": "緊急時訪問を行う看護師を指定し、利用者に文書で説明・同意", "tenant_status_key": "kinkyu_kango_setsumei_doui"},
+        "yakan_taiou_keigen": {"description": "夜間対応した翌日の勤務間隔確保等、看護師の負担軽減のための業務管理体制（6項目から複数の取組）", "tenant_status_key": "yakan_taiou_keigen_taisei"}
       },
       "documents_required": [
         "緊急時訪問看護加算届出書",
@@ -162,11 +72,7 @@
         "夜間対応者の勤務間隔記録",
         "夜間対応負担軽減取組記録"
       ],
-      "interaction": {
-        "exclusive_with": [
-          "kinkyu_houmon_kango_kasan_II"
-        ]
-      },
+      "interaction": {"exclusive_with": ["kinkyu_houmon_kango_kasan_II"]},
       "roi_estimation": {
         "revenue_per_user_per_month": 600,
         "note": "600単位 × 10円 × 利用者数/月 × 12ヶ月（地域単価補正前）",
@@ -176,107 +82,21 @@
       "tips": [
         "R6改定でⅠが新設。夜間対応看護師の負担軽減取組が必須",
         "実際の緊急訪問がなくても体制があれば算定可（月1回）"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "133001",
-        "official_unit": 600,
-        "master_unit": 600,
-        "match_type": "exact_match",
-        "audit_note": "alpha.5.5案版では Ⅰ/Ⅱ × 1/2 の四区分が未確定だったが、確定版（令和6.6.1施行）で構造が確定し、社内マスタの解釈と整合（指定訪問看護ステーション・600単位）。alpha.5.5 promotion was correct after revalidation.",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "alpha_5_5_status": "promoted_from_pattern_based_unverified",
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "133001",
-            "official_name": "緊急時訪問看護加算(I)",
-            "official_unit": 600,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136100",
-            "receipt_detection_name": "緊急時訪問看護加算(I)",
-            "receipt_detection_pattern": "緊急時Ⅰ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136100",
-            "internal_legacy_name": "緊急時訪問看護加算(I)",
-            "internal_legacy_unit": 600,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "alpha.5.5案版では Ⅰ/Ⅱ × 1/2 の四区分が未確定だったが、確定版（令和6.6.1施行）で構造が確定し、社内マスタの解釈と整合（指定訪問看護ステーション・600単位）。alpha.5.5 promotion was correct after revalidation.",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      ]
     },
+
     "kinkyu_houmon_kango_kasan_II": {
       "name": "緊急時訪問看護加算(II)",
       "short_name": "緊急時Ⅱ",
       "unit_per_month": 574,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136101"
-      ],
+      "service_codes": ["136101"],
       "category": "体制加算",
       "priority_hint": "Ⅰの夜間負担軽減要件なし版・取得しやすい",
       "requirements": {
-        "todoke": {
-          "description": "事前に届出が必要",
-          "tenant_status_key": "kinkyu_houmon_todoke"
-        },
-        "joji_taiou": {
-          "description": "利用者・家族から電話等による看護相談に常時対応できる体制",
-          "tenant_status_key": "joji_taiou_taisei"
-        },
-        "ninni_kango_shitei": {
-          "description": "緊急時訪問を行う看護師を指定し、利用者に文書で説明・同意",
-          "tenant_status_key": "kinkyu_kango_setsumei_doui"
-        }
+        "todoke": {"description": "事前に届出が必要", "tenant_status_key": "kinkyu_houmon_todoke"},
+        "joji_taiou": {"description": "利用者・家族から電話等による看護相談に常時対応できる体制", "tenant_status_key": "joji_taiou_taisei"},
+        "ninni_kango_shitei": {"description": "緊急時訪問を行う看護師を指定し、利用者に文書で説明・同意", "tenant_status_key": "kinkyu_kango_setsumei_doui"}
       },
       "requirement_logic": {
         "logic_status": "checked",
@@ -284,27 +104,15 @@
         "description": "緊急時訪問看護加算(Ⅱ)の要件: 届出済 AND 24時間連絡体制 AND 担当看護師指定・同意",
         "operator": "all",
         "children": [
-          {
-            "type": "condition",
-            "fact": "tenant_status.kinkyu_houmon_todoke.status",
-            "op": "==",
-            "value": "clear",
-            "label": "緊急時訪問看護加算の届出が完了している"
-          },
-          {
-            "type": "condition",
-            "fact": "tenant_status.joji_taiou_taisei.status",
-            "op": "==",
-            "value": "clear",
-            "label": "24時間連絡体制が整備されている"
-          },
-          {
-            "type": "condition",
-            "fact": "tenant_status.kinkyu_kango_setsumei_doui.status",
-            "op": "==",
-            "value": "clear",
-            "label": "担当看護師指定・利用者への文書説明・同意取得済"
-          }
+          {"type": "condition", "fact": "tenant_status.kinkyu_houmon_todoke.status",
+           "op": "==", "value": "clear",
+           "label": "緊急時訪問看護加算の届出が完了している"},
+          {"type": "condition", "fact": "tenant_status.joji_taiou_taisei.status",
+           "op": "==", "value": "clear",
+           "label": "24時間連絡体制が整備されている"},
+          {"type": "condition", "fact": "tenant_status.kinkyu_kango_setsumei_doui.status",
+           "op": "==", "value": "clear",
+           "label": "担当看護師指定・利用者への文書説明・同意取得済"}
         ]
       },
       "documents_required": [
@@ -312,101 +120,20 @@
         "オンコール体制マニュアル",
         "緊急時連絡先・担当看護師明示書（利用者同意付）"
       ],
-      "interaction": {
-        "exclusive_with": [
-          "kinkyu_houmon_kango_kasan_I"
-        ]
-      },
+      "interaction": {"exclusive_with": ["kinkyu_houmon_kango_kasan_I"]},
       "roi_estimation": {
         "revenue_per_user_per_month": 574,
         "example_30_users": "574 × 10 × 30 × 12 = 約206,640円/年（30名想定）"
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "133100",
-        "official_unit": 574,
-        "master_unit": 574,
-        "match_type": "exact_match",
-        "audit_note": "確定版（令和6.6.1）で 13 3100 緊急時訪問看護加算Ⅱ１ 574単位 と整合。社内マスタは指定訪問看護ステーション・574単位を指す（医療機関版13 3200 315単位は別コード）。",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "alpha_5_5_status": "promoted_from_pattern_based_unverified",
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "133100",
-            "official_name": "緊急時訪問看護加算(II)",
-            "official_unit": 574,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136101",
-            "receipt_detection_name": "緊急時訪問看護加算(II)",
-            "receipt_detection_pattern": "緊急時Ⅱ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136101",
-            "internal_legacy_name": "緊急時訪問看護加算(II)",
-            "internal_legacy_unit": 574,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版（令和6.6.1）で 13 3100 緊急時訪問看護加算Ⅱ１ 574単位 と整合。社内マスタは指定訪問看護ステーション・574単位を指す（医療機関版13 3200 315単位は別コード）。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
+
     "tokubetsu_kanri_kasan_I": {
       "name": "特別管理加算(I)",
       "short_name": "特別管理Ⅰ",
       "unit_per_month": 500,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136200"
-      ],
+      "service_codes": ["136200"],
       "category": "個別加算",
       "priority_hint": "対象者がいれば確実に算定すべき",
       "requirements": {
@@ -415,101 +142,17 @@
           "tenant_status_key": "tokubetsu_kanri_I_taisho_user"
         }
       },
-      "documents_required": [
-        "対象者の状態を示す診療情報",
-        "訪問看護計画書（特別管理の内容明記）"
-      ],
-      "interaction": {
-        "exclusive_with": [
-          "tokubetsu_kanri_kasan_II"
-        ],
-        "note": "ⅠとⅡは同時算定不可。複数該当時は単位数の高いⅠで算定"
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134000",
-        "official_unit": 500,
-        "master_unit": 500,
-        "match_type": "exact_match",
-        "audit_note": "確定版で完全整合（コード・名称・単位）",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134000",
-            "official_name": "特別管理加算(I)",
-            "official_unit": 500,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136200",
-            "receipt_detection_name": "特別管理加算(I)",
-            "receipt_detection_pattern": "特別管理Ⅰ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136200",
-            "internal_legacy_name": "特別管理加算(I)",
-            "internal_legacy_unit": 500,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で完全整合（コード・名称・単位）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "documents_required": ["対象者の状態を示す診療情報", "訪問看護計画書（特別管理の内容明記）"],
+      "interaction": {"exclusive_with": ["tokubetsu_kanri_kasan_II"], "note": "ⅠとⅡは同時算定不可。複数該当時は単位数の高いⅠで算定"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
+
     "tokubetsu_kanri_kasan_II": {
       "name": "特別管理加算(II)",
       "short_name": "特別管理Ⅱ",
       "unit_per_month": 250,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136201"
-      ],
+      "service_codes": ["136201"],
       "category": "個別加算",
       "requirements": {
         "user_jokyo": {
@@ -517,116 +160,24 @@
           "tenant_status_key": "tokubetsu_kanri_II_taisho_user"
         }
       },
-      "documents_required": [
-        "対象者の状態を示す診療情報",
-        "訪問看護計画書（特別管理の内容明記）"
-      ],
-      "interaction": {
-        "exclusive_with": [
-          "tokubetsu_kanri_kasan_I"
-        ]
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134001",
-        "official_unit": 250,
-        "master_unit": 250,
-        "match_type": "exact_match",
-        "audit_note": "確定版で完全整合",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134001",
-            "official_name": "特別管理加算(II)",
-            "official_unit": 250,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136201",
-            "receipt_detection_name": "特別管理加算(II)",
-            "receipt_detection_pattern": "特別管理Ⅱ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136201",
-            "internal_legacy_name": "特別管理加算(II)",
-            "internal_legacy_unit": 250,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で完全整合",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "documents_required": ["対象者の状態を示す診療情報", "訪問看護計画書（特別管理の内容明記）"],
+      "interaction": {"exclusive_with": ["tokubetsu_kanri_kasan_I"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
+
     "terminal_care_kasan": {
       "name": "ターミナルケア加算",
       "short_name": "ターミナル",
       "unit_per_visit": 2500,
       "unit_type": "回/利用者死亡日",
-      "service_codes": [
-        "136300"
-      ],
+      "service_codes": ["136300"],
       "category": "個別加算",
       "applied_from": "2024-06",
       "priority_hint": "看取り対応を行うステーションには重要。看護体制強化加算Ⅰの算定要件にも該当",
       "requirements": {
-        "shibou_zen_taiou": {
-          "description": "死亡日および死亡日前14日以内に2回以上のターミナルケアを実施",
-          "tenant_status_key": "terminal_taiou_jisseki"
-        },
-        "keikaku": {
-          "description": "ターミナルケア計画を作成し、利用者・家族に説明・同意",
-          "tenant_status_key": "terminal_keikaku"
-        },
-        "kiroku": {
-          "description": "終末期の身体症状の変化、看護の内容を記録",
-          "tenant_status_key": "terminal_kiroku"
-        }
+        "shibou_zen_taiou": {"description": "死亡日および死亡日前14日以内に2回以上のターミナルケアを実施", "tenant_status_key": "terminal_taiou_jisseki"},
+        "keikaku": {"description": "ターミナルケア計画を作成し、利用者・家族に説明・同意", "tenant_status_key": "terminal_keikaku"},
+        "kiroku": {"description": "終末期の身体症状の変化、看護の内容を記録", "tenant_status_key": "terminal_kiroku"}
       },
       "documents_required": [
         "ターミナルケア計画書",
@@ -639,111 +190,22 @@
         "在宅で死亡した場合（特養等入所後24時間以内の死亡を含む）に算定",
         "看取り期は訪問頻度を意識的に上げる",
         "看護体制強化加算Ⅰの「前年度1名以上」要件にも連動"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "137000",
-        "official_unit": 2500,
-        "master_unit": 2500,
-        "match_type": "exact_match",
-        "audit_note": "確定版でターミナルケア加算は 2,500単位（死亡月）に増額確定。alpha.5.5案版の 2,000単位は古い情報だった。社内マスタの 2,500単位 が正。",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "alpha_5_5_status": "promoted_from_pattern_based_unverified",
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "137000",
-            "official_name": "ターミナルケア加算",
-            "official_unit": 2500,
-            "official_calc_unit": "回/利用者死亡日",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136300",
-            "receipt_detection_name": "ターミナルケア加算",
-            "receipt_detection_pattern": "ターミナル",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136300",
-            "internal_legacy_name": "ターミナルケア加算",
-            "internal_legacy_unit": 2500,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版でターミナルケア加算は 2,500単位（死亡月）に増額確定。alpha.5.5案版の 2,000単位は古い情報だった。社内マスタの 2,500単位 が正。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      ]
     },
+
     "kango_taisei_kyouka_kasan_I": {
       "name": "看護体制強化加算(I)",
       "short_name": "看護体制Ⅰ",
       "unit_per_month": 550,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136400"
-      ],
+      "service_codes": ["136400"],
       "category": "体制加算",
       "priority_hint": "実績ベース要件のため新規ステーションは2年目以降に検討",
       "requirements": {
-        "terminal_jisseki": {
-          "description": "ターミナルケア加算を算定した利用者が前年度に1名以上",
-          "tenant_status_key": "terminal_kasan_zen_nendo_jisseki"
-        },
-        "tokubetsu_kanri_ratio": {
-          "description": "特別管理加算を算定した利用者が全体の20%以上",
-          "tenant_status_key": "tokubetsu_kanri_ratio"
-        },
-        "joukin_kango_ratio": {
-          "description": "看護職員の6割以上が常勤",
-          "tenant_status_key": "joukin_kango_ratio"
-        },
-        "taiou_24h": {
-          "description": "24時間対応体制（緊急時訪問看護加算届出済）",
-          "tenant_status_key": "taiou_24h"
-        }
+        "terminal_jisseki": {"description": "ターミナルケア加算を算定した利用者が前年度に1名以上", "tenant_status_key": "terminal_kasan_zen_nendo_jisseki"},
+        "tokubetsu_kanri_ratio": {"description": "特別管理加算を算定した利用者が全体の20%以上", "tenant_status_key": "tokubetsu_kanri_ratio"},
+        "joukin_kango_ratio": {"description": "看護職員の6割以上が常勤", "tenant_status_key": "joukin_kango_ratio"},
+        "taiou_24h": {"description": "24時間対応体制（緊急時訪問看護加算届出済）", "tenant_status_key": "taiou_24h"}
       },
       "documents_required": [
         "ターミナルケア加算 前年度算定実績",
@@ -751,626 +213,107 @@
         "看護職員 常勤・非常勤区分",
         "24時間対応体制マニュアル"
       ],
-      "interaction": {
-        "exclusive_with": [
-          "kango_taisei_kyouka_kasan_II"
-        ]
-      },
+      "interaction": {"exclusive_with": ["kango_taisei_kyouka_kasan_II"]},
       "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定でターミナルケア実績要件明確化",
       "tips": [
         "新規開設ステーションは前年度実績ゼロのため初年度算定不可",
         "ターミナルケア加算と連動した実績作りが重要"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134010",
-        "official_unit": 550,
-        "master_unit": 550,
-        "match_type": "exact_match",
-        "audit_note": "確定版で完全整合",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134010",
-            "official_name": "看護体制強化加算(I)",
-            "official_unit": 550,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136400",
-            "receipt_detection_name": "看護体制強化加算(I)",
-            "receipt_detection_pattern": "看護体制Ⅰ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136400",
-            "internal_legacy_name": "看護体制強化加算(I)",
-            "internal_legacy_unit": 550,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で完全整合",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      ]
     },
+
     "kango_taisei_kyouka_kasan_II": {
       "name": "看護体制強化加算(II)",
       "short_name": "看護体制Ⅱ",
       "unit_per_month": 200,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136401"
-      ],
+      "service_codes": ["136401"],
       "category": "体制加算",
       "requirements": {
-        "tokubetsu_kanri_ratio": {
-          "description": "特別管理加算を算定した利用者が全体の20%以上",
-          "tenant_status_key": "tokubetsu_kanri_ratio"
-        },
-        "joukin_kango_ratio": {
-          "description": "看護職員の6割以上が常勤",
-          "tenant_status_key": "joukin_kango_ratio"
-        },
-        "taiou_24h": {
-          "description": "24時間対応体制",
-          "tenant_status_key": "taiou_24h"
-        }
+        "tokubetsu_kanri_ratio": {"description": "特別管理加算を算定した利用者が全体の20%以上", "tenant_status_key": "tokubetsu_kanri_ratio"},
+        "joukin_kango_ratio": {"description": "看護職員の6割以上が常勤", "tenant_status_key": "joukin_kango_ratio"},
+        "taiou_24h": {"description": "24時間対応体制", "tenant_status_key": "taiou_24h"}
       },
-      "interaction": {
-        "exclusive_with": [
-          "kango_taisei_kyouka_kasan_I"
-        ]
-      },
+      "interaction": {"exclusive_with": ["kango_taisei_kyouka_kasan_I"]},
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": [
-        "Ⅰとの差分=ターミナルケア実績要件なし"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134005",
-        "official_unit": 200,
-        "master_unit": 200,
-        "match_type": "exact_match",
-        "audit_note": "確定版で完全整合",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134005",
-            "official_name": "看護体制強化加算(II)",
-            "official_unit": 200,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136401",
-            "receipt_detection_name": "看護体制強化加算(II)",
-            "receipt_detection_pattern": "看護体制Ⅱ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136401",
-            "internal_legacy_name": "看護体制強化加算(II)",
-            "internal_legacy_unit": 200,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で完全整合",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "tips": ["Ⅰとの差分=ターミナルケア実績要件なし"]
     },
+
     "service_taisei_kyouka_kasan_I": {
       "name": "サービス提供体制強化加算(I)",
       "short_name": "サ提体制Ⅰ",
       "unit_per_visit": 6,
       "unit_type": "回/訪問",
-      "service_codes": [
-        "136500"
-      ],
+      "service_codes": ["136500"],
       "category": "体制加算",
       "requirements": {
-        "kinzoku_7nen_ratio": {
-          "description": "勤続7年以上の看護師が30%以上",
-          "tenant_status_key": "kinzoku_7nen_kango_ratio"
-        }
+        "kinzoku_7nen_ratio": {"description": "勤続7年以上の看護師が30%以上", "tenant_status_key": "kinzoku_7nen_kango_ratio"}
       },
-      "interaction": {
-        "exclusive_with": [
-          "service_taisei_kyouka_kasan_II"
-        ]
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "136103",
-        "official_unit": 6,
-        "master_unit": 6,
-        "match_type": "exact_match",
-        "audit_note": "確定版で1回算定（イ及びロ）。1月算定（ハ）は136104=50単位として別コード",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "136103",
-            "official_name": "サービス提供体制強化加算(I)",
-            "official_unit": 6,
-            "official_calc_unit": "回/訪問",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136500",
-            "receipt_detection_name": "サービス提供体制強化加算(I)",
-            "receipt_detection_pattern": "サ提体制Ⅰ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136500",
-            "internal_legacy_name": "サービス提供体制強化加算(I)",
-            "internal_legacy_unit": 6,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で1回算定（イ及びロ）。1月算定（ハ）は136104=50単位として別コード",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "interaction": {"exclusive_with": ["service_taisei_kyouka_kasan_II"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
+
     "service_taisei_kyouka_kasan_II": {
       "name": "サービス提供体制強化加算(II)",
       "short_name": "サ提体制Ⅱ",
       "unit_per_visit": 3,
       "unit_type": "回/訪問",
-      "service_codes": [
-        "136501"
-      ],
+      "service_codes": ["136501"],
       "category": "体制加算",
       "requirements": {
-        "kinzoku_3nen_ratio": {
-          "description": "勤続3年以上の看護師が30%以上",
-          "tenant_status_key": "kinzoku_3nen_kango_ratio"
-        }
+        "kinzoku_3nen_ratio": {"description": "勤続3年以上の看護師が30%以上", "tenant_status_key": "kinzoku_3nen_kango_ratio"}
       },
-      "interaction": {
-        "exclusive_with": [
-          "service_taisei_kyouka_kasan_I"
-        ]
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "136101",
-        "official_unit": 3,
-        "master_unit": 3,
-        "match_type": "exact_match",
-        "audit_note": "確定版で1回算定（イ及びロ）。1月算定（ハ）は136102=25単位として別コード",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "136101",
-            "official_name": "サービス提供体制強化加算(II)",
-            "official_unit": 3,
-            "official_calc_unit": "回/訪問",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136501",
-            "receipt_detection_name": "サービス提供体制強化加算(II)",
-            "receipt_detection_pattern": "サ提体制Ⅱ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136501",
-            "internal_legacy_name": "サービス提供体制強化加算(II)",
-            "internal_legacy_unit": 3,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で1回算定（イ及びロ）。1月算定（ハ）は136102=25単位として別コード",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "interaction": {"exclusive_with": ["service_taisei_kyouka_kasan_I"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
+
     "taiin_kyoudou_shidou_kasan": {
       "name": "退院時共同指導加算",
       "short_name": "退院時共同",
       "unit_per_visit": 600,
       "unit_type": "回/退院時",
-      "service_codes": [
-        "136600"
-      ],
+      "service_codes": ["136600"],
       "category": "個別加算",
       "requirements": {
-        "kyoudou_shidou": {
-          "description": "病院・診療所に入院中の利用者について、退院前に主治医等と共同で指導",
-          "tenant_status_key": "taiin_kyoudou_jisseki"
-        },
-        "kaisuu_seigen": {
-          "description": "原則1回。特別管理加算の対象者は2回まで算定可",
-          "tenant_status_key": "taiin_taisho_user_type"
-        }
+        "kyoudou_shidou": {"description": "病院・診療所に入院中の利用者について、退院前に主治医等と共同で指導", "tenant_status_key": "taiin_kyoudou_jisseki"},
+        "kaisuu_seigen": {"description": "原則1回。特別管理加算の対象者は2回まで算定可", "tenant_status_key": "taiin_taisho_user_type"}
       },
-      "documents_required": [
-        "退院前カンファレンス記録",
-        "主治医・MSW等との共同指導記録",
-        "ICT参加の場合は使用ツール記録"
-      ],
+      "documents_required": ["退院前カンファレンス記録", "主治医・MSW等との共同指導記録", "ICT参加の場合は使用ツール記録"],
       "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定でICT参加恒久化",
       "tips": [
         "テレビ電話等（ICT）による参加も可（R6改定で明確化）",
         "入院中3回までカンファレンス参加可能"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134003",
-        "official_unit": 600,
-        "master_unit": 600,
-        "match_type": "exact_match",
-        "audit_note": "確定版で完全整合",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134003",
-            "official_name": "退院時共同指導加算",
-            "official_unit": 600,
-            "official_calc_unit": "回/退院時",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136600",
-            "receipt_detection_name": "退院時共同指導加算",
-            "receipt_detection_pattern": "退院時共同",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136600",
-            "internal_legacy_name": "退院時共同指導加算",
-            "internal_legacy_unit": 600,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で完全整合",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      ]
     },
+
     "kango_kaigo_renkei_kyouka_kasan": {
       "name": "看護・介護職員連携強化加算",
       "short_name": "看介連携",
       "unit_per_month": 250,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136700"
-      ],
+      "service_codes": ["136700"],
       "category": "個別加算",
       "requirements": {
-        "tankyu_shidou": {
-          "description": "訪問介護事業所のヘルパーに対し、たんの吸引等の指導・助言を行う",
-          "tenant_status_key": "tankyu_shidou_jisseki"
-        },
-        "jisshi_kakunin": {
-          "description": "喀痰吸引等の業務の実施状況を確認し、必要な指導を行う",
-          "tenant_status_key": "kakutan_jisshi_kakunin"
-        }
+        "tankyu_shidou": {"description": "訪問介護事業所のヘルパーに対し、たんの吸引等の指導・助言を行う", "tenant_status_key": "tankyu_shidou_jisseki"},
+        "jisshi_kakunin": {"description": "喀痰吸引等の業務の実施状況を確認し、必要な指導を行う", "tenant_status_key": "kakutan_jisshi_kakunin"}
       },
-      "documents_required": [
-        "訪問介護事業所への指導記録",
-        "実施状況確認記録"
-      ],
+      "documents_required": ["訪問介護事業所への指導記録", "実施状況確認記録"],
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": [
-        "利用者1人につき月1回まで"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134004",
-        "official_unit": 250,
-        "master_unit": 250,
-        "match_type": "exact_match",
-        "audit_note": "確定版で完全整合",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134004",
-            "official_name": "看護・介護職員連携強化加算",
-            "official_unit": 250,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136700",
-            "receipt_detection_name": "看護・介護職員連携強化加算",
-            "receipt_detection_pattern": "看介連携",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136700",
-            "internal_legacy_name": "看護・介護職員連携強化加算",
-            "internal_legacy_unit": 250,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で完全整合",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "tips": ["利用者1人につき月1回まで"]
     },
+
     "koukuu_renkei_kyouka_kasan": {
       "name": "口腔連携強化加算",
       "short_name": "口腔連携",
       "unit_per_visit": 50,
       "monthly_limit": 1,
       "unit_type": "回/月1回まで",
-      "service_codes": [
-        "136800"
-      ],
+      "service_codes": ["136800"],
       "category": "個別加算",
       "applied_from": "2024-04",
       "requirements": {
-        "screening": {
-          "description": "口腔の状態を評価し、口腔スクリーニング（口腔衛生・口腔機能）を実施",
-          "tenant_status_key": "koukuu_screening_jisshi"
-        },
-        "shika_renkei": {
-          "description": "情報提供先の歯科医療機関と連携体制を構築",
-          "tenant_status_key": "shika_renkei_taisei"
-        },
-        "info_provision": {
-          "description": "歯科医師・歯科衛生士に評価結果を情報提供",
-          "tenant_status_key": "shika_jouhou_teikyou"
-        }
+        "screening": {"description": "口腔の状態を評価し、口腔スクリーニング（口腔衛生・口腔機能）を実施", "tenant_status_key": "koukuu_screening_jisshi"},
+        "shika_renkei": {"description": "情報提供先の歯科医療機関と連携体制を構築", "tenant_status_key": "shika_renkei_taisei"},
+        "info_provision": {"description": "歯科医師・歯科衛生士に評価結果を情報提供", "tenant_status_key": "shika_jouhou_teikyou"}
       },
       "documents_required": [
         "口腔スクリーニング実施記録",
@@ -1381,164 +324,25 @@
       "tips": [
         "R6改定の新加算・先行取得で差別化",
         "歯科医師会との連携協定があると算定しやすい"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "136192",
-        "official_unit": 50,
-        "master_unit": 50,
-        "match_type": "exact_match",
-        "audit_note": "確定版で 13 6192 訪問看護口腔連携強化加算 50単位 月1回限度 と社内マスタが整合。",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "alpha_5_5_status": "newly_checked_in_alpha_5_6",
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "136192",
-            "official_name": "口腔連携強化加算",
-            "official_unit": 50,
-            "official_calc_unit": "回/月1回まで",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136800",
-            "receipt_detection_name": "口腔連携強化加算",
-            "receipt_detection_pattern": "口腔連携",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136800",
-            "internal_legacy_name": "口腔連携強化加算",
-            "internal_legacy_unit": 50,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で 13 6192 訪問看護口腔連携強化加算 50単位 月1回限度 と社内マスタが整合。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      ]
     },
+
     "kagakuteki_kaigo_suishin_kasan": {
       "name": "科学的介護推進体制加算",
       "short_name": "LIFE",
       "unit_per_month": 40,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "136900"
-      ],
+      "service_codes": ["136900"],
       "category": "LIFE加算",
       "requirements": {
-        "life_submission": {
-          "description": "LIFEへのデータ提出（ADL、栄養状態、口腔機能等）",
-          "tenant_status_key": "life_submission"
-        },
-        "pdca": {
-          "description": "フィードバックデータを活用したケアの質の向上",
-          "tenant_status_key": "life_pdca"
-        },
-        "coverage": {
-          "description": "概ね6ヶ月ごとにデータ更新",
-          "tenant_status_key": "life_update_freq"
-        }
+        "life_submission": {"description": "LIFEへのデータ提出（ADL、栄養状態、口腔機能等）", "tenant_status_key": "life_submission"},
+        "pdca": {"description": "フィードバックデータを活用したケアの質の向上", "tenant_status_key": "life_pdca"},
+        "coverage": {"description": "概ね6ヶ月ごとにデータ更新", "tenant_status_key": "life_update_freq"}
       },
-      "documents_required": [
-        "LIFE提出記録",
-        "PDCA実施記録"
-      ],
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "not_found_in_definitive_source",
-        "audit_note": "確定版訪問看護コード表 (p65-74) には科学的介護推進体制加算の独立コード見当たらず。要追加調査。pattern_based_unverified 維持。",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "科学的介護推進体制加算",
-            "official_unit": null,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "not_found_in_definitive_source",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "136900",
-            "receipt_detection_name": "科学的介護推進体制加算",
-            "receipt_detection_pattern": "LIFE",
-            "receipt_detection_source": "legacy_code",
-            "receipt_detection_status": "legacy_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "136900",
-            "internal_legacy_name": "科学的介護推進体制加算",
-            "internal_legacy_unit": 40,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": true,
-            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_master_review",
-          "audit_note": "確定版訪問看護コード表 (p65-74) には科学的介護推進体制加算の独立コード見当たらず。要追加調査。pattern_based_unverified 維持。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "documents_required": ["LIFE提出記録", "PDCA実施記録"],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
+
     "shougu_kaizen_kasan_2026_06": {
       "name": "介護職員等処遇改善加算（2026年6月臨時改定・訪問看護新規対象）",
       "short_name": "処遇改善",
@@ -1548,26 +352,11 @@
       "applied_from": "2026-06",
       "priority_hint": "★必ず取得すべき・届出期限2026-06-15",
       "requirements": {
-        "chingin_kaizen_keikaku": {
-          "description": "処遇改善計画書の作成（賃金改善の見込額・改善方法）",
-          "tenant_status_key": "chingin_kaizen_keikaku"
-        },
-        "shugyou_kisoku": {
-          "description": "就業規則・賃金規程の改定（賃金改善が確認できる内容）",
-          "tenant_status_key": "shugyou_kisoku_kaitei"
-        },
-        "shokuin_shuuchi": {
-          "description": "職員への周知（計画書の概要を全職員に説明）",
-          "tenant_status_key": "shokuin_shuuchi"
-        },
-        "career_path": {
-          "description": "キャリアパス要件（任用要件・賃金体系の整備、研修実施、昇給の仕組み）",
-          "tenant_status_key": "career_path_youken"
-        },
-        "shokuba_kankyou": {
-          "description": "職場環境等要件（ICT活用、業務改善等から選択）",
-          "tenant_status_key": "shokuba_kankyou_youken"
-        }
+        "chingin_kaizen_keikaku": {"description": "処遇改善計画書の作成（賃金改善の見込額・改善方法）", "tenant_status_key": "chingin_kaizen_keikaku"},
+        "shugyou_kisoku": {"description": "就業規則・賃金規程の改定（賃金改善が確認できる内容）", "tenant_status_key": "shugyou_kisoku_kaitei"},
+        "shokuin_shuuchi": {"description": "職員への周知（計画書の概要を全職員に説明）", "tenant_status_key": "shokuin_shuuchi"},
+        "career_path": {"description": "キャリアパス要件（任用要件・賃金体系の整備、研修実施、昇給の仕組み）", "tenant_status_key": "career_path_youken"},
+        "shokuba_kankyou": {"description": "職場環境等要件（ICT活用、業務改善等から選択）", "tenant_status_key": "shokuba_kankyou_youken"}
       },
       "documents_required": [
         "処遇改善計画書",
@@ -1589,76 +378,15 @@
         "formula": "訪問看護費の総単位数 × 0.018",
         "note": "売上規模により年間約80〜100万円程度の収入増が見込める"
       },
-      "hourei_konkyo": "令和8年6月臨時改定告示（訪問看護を処遇改善加算の新規対象に追加・加算率1.8%）",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "out_of_definitive_scope",
-        "audit_note": "令和8年6月臨時改定（処遇改善加算 訪問看護新規対象・1.8%）。確定版PDF（令和6.6.1/8月施行版）の対象期間外。R8.6改定の公式資料を別途取得して照合必要。",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "介護職員等処遇改善加算（2026年6月臨時改定・訪問看護新規対象）",
-            "official_unit": null,
-            "official_calc_unit": "%/訪問看護費の総単位数",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "out_of_definitive_scope",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "介護職員等処遇改善加算（2026年6月臨時改定・訪問看護新規対象）",
-            "receipt_detection_pattern": "処遇改善",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "介護職員等処遇改善加算（2026年6月臨時改定・訪問看護新規対象）",
-            "internal_legacy_unit": 0.018,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "keep_pattern_based_unverified",
-          "audit_note": "令和8年6月臨時改定（処遇改善加算 訪問看護新規対象・1.8%）。確定版PDF（令和6.6.1/8月施行版）の対象期間外。R8.6改定の公式資料を別途取得して照合必要。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10",
-          "alpha_5_8_1_proposed_overall_divergence_note": {
-            "overall_mapping_status": "needs_review",
-            "proposed_action": "keep_pattern_based_unverified",
-            "reason": "official_match_type=out_of_definitive_scope (R7.8確定版に未収録) のため official_code_status=needs_review。一方、service_codes が空なので proposed_action 判定では keep_pattern_based_unverified（needs_master_review は internal_codes 非空が条件）に流れる。R8.6.1案は確定版ではないため checked 昇格には使わない。",
-            "overall_status_basis": "official_code_status (=needs_review)",
-            "proposed_action_basis": "internal_codes is empty → keep_pattern_based_unverified",
-            "recorded_at": "2026-05-10",
-            "recorded_by": "alpha.5.8.1 source_metadata_hotfix (CareLinker)"
-          }
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "hourei_konkyo": "令和8年6月臨時改定告示（訪問看護を処遇改善加算の新規対象に追加・加算率1.8%）"
     },
+
     "shokai_kasan_I": {
       "name": "初回加算(Ⅰ)",
       "short_name": "初回Ⅰ",
       "unit_per_month": 350,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "131000"
-      ],
+      "service_codes": ["131000"],
       "category": "個別加算",
       "source_status": "checked",
       "applied_from": "2024-06",
@@ -1679,102 +407,18 @@
         "訪問看護計画書",
         "退院時共同指導加算との連携確認"
       ],
-      "interaction": {
-        "exclusive_with": [
-          "shokai_kasan_II"
-        ]
-      },
+      "interaction": {"exclusive_with": ["shokai_kasan_II"]},
       "hourei_konkyo": "令和6年度介護報酬改定（令6厚告86号等）/ 大臣基準告示 / 老企第36号",
       "source_reference": "令和6年度介護報酬改定資料に基づきalpha.3.1で昇格",
-      "tips": [
-        "Ⅰ・Ⅱは併算定不可",
-        "退院時共同指導加算と組み合わせると退院連携の評価がより高い"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134023",
-        "official_unit": 350,
-        "master_unit": 350,
-        "match_type": "exact_match",
-        "audit_note": "確定版で初回加算Ⅰ/Ⅱ区分が新設。13 4023 初回加算Ⅰ 350単位 で社内マスタと整合。",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "alpha_5_5_status": "promoted_from_pattern_based_unverified",
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134023",
-            "official_name": "初回加算(Ⅰ)",
-            "official_unit": 350,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "131000",
-            "receipt_detection_name": "初回加算(Ⅰ)",
-            "receipt_detection_pattern": "初回Ⅰ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "131000",
-            "internal_legacy_name": "初回加算(Ⅰ)",
-            "internal_legacy_unit": 350,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で初回加算Ⅰ/Ⅱ区分が新設。13 4023 初回加算Ⅰ 350単位 で社内マスタと整合。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "tips": ["Ⅰ・Ⅱは併算定不可", "退院時共同指導加算と組み合わせると退院連携の評価がより高い"]
     },
+
     "shokai_kasan_II": {
       "name": "初回加算(Ⅱ)",
       "short_name": "初回Ⅱ",
       "unit_per_month": 300,
       "unit_type": "月/利用者",
-      "service_codes": [
-        "131001"
-      ],
+      "service_codes": ["131001"],
       "category": "個別加算",
       "source_status": "checked",
       "applied_from": "2024-06",
@@ -1794,93 +438,12 @@
         "初回訪問の訪問看護記録",
         "訪問看護計画書"
       ],
-      "interaction": {
-        "exclusive_with": [
-          "shokai_kasan_I"
-        ]
-      },
+      "interaction": {"exclusive_with": ["shokai_kasan_I"]},
       "hourei_konkyo": "令和6年度介護報酬改定（令6厚告86号等）/ 大臣基準告示 / 老企第36号",
       "source_reference": "令和6年度介護報酬改定資料に基づきalpha.3.1で昇格",
-      "tips": [
-        "Ⅰ・Ⅱは併算定不可"
-      ],
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "official_code": "134002",
-        "official_unit": 300,
-        "master_unit": 300,
-        "match_type": "exact_match",
-        "audit_note": "確定版で初回加算Ⅱ 13 4002 300単位 と社内マスタが整合。",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_5_provisional_source": {
-          "source_kind": "provisional",
-          "source_title": "介護給付費単位数等サービスコード表（案）（令和6年4月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
-          "document_version": "2024-03-18版（案）"
-        },
-        "alpha_5_5_status": "promoted_from_pattern_based_unverified",
-        "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-        "alpha_5_7_r7_4_reconfirm": {
-          "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "match_type": "exact_match",
-          "confirmed_at": "2026-05-10",
-          "note": "R7.4確定版 (2025-02-01) でも同一コード・単位を確認 (R6.6/8 と R7.4 で訪問看護加算は変更なし)",
-          "alpha_5_7_1_source_anchor_corrected": true
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "134002",
-            "official_name": "初回加算(Ⅱ)",
-            "official_unit": 300,
-            "official_calc_unit": "月/利用者",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R6_6_8_DEFINITIVE_2024_05_07",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "131001",
-            "receipt_detection_name": "初回加算(Ⅱ)",
-            "receipt_detection_pattern": "初回Ⅱ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "131001",
-            "internal_legacy_name": "初回加算(Ⅱ)",
-            "internal_legacy_unit": 300,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "確定版で初回加算Ⅱ 13 4002 300単位 と社内マスタが整合。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "tips": ["Ⅰ・Ⅱは併算定不可"]
     },
+
     "fukusu_mei_houmon_kango_kasan_I_under30": {
       "name": "複数名訪問看護加算(Ⅰ)・30分未満",
       "short_name": "複数名Ⅰ・<30",
@@ -1894,78 +457,18 @@
       "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
       "source_checked_date": "2026-05-06",
       "requirements": {
-        "saseki_taiou_youken": {
-          "description": "別に厚生労働大臣が定める者（同時に複数の看護師等による訪問看護が必要な利用者）"
-        },
-        "kango_complement": {
-          "description": "保健師・助産師・看護師・准看護師の複数名（看護補助者ではなく看護師等）"
-        },
-        "service_time_kubun": {
-          "description": "30分未満の訪問看護に係る加算"
-        }
+        "saseki_taiou_youken": {"description": "別に厚生労働大臣が定める者（同時に複数の看護師等による訪問看護が必要な利用者）"},
+        "kango_complement": {"description": "保健師・助産師・看護師・准看護師の複数名（看護補助者ではなく看護師等）"},
+        "service_time_kubun": {"description": "30分未満の訪問看護に係る加算"}
       },
       "interaction": {
-        "exclusive_with": [
-          "fukusu_mei_houmon_kango_kasan_II_under30"
-        ],
+        "exclusive_with": ["fukusu_mei_houmon_kango_kasan_II_under30"],
         "applies_to_base_houmon_kango": true
       },
       "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定（令6厚告86号）",
-      "tips": [
-        "20分未満の訪問看護には『複１１』のみ適用可（30分以上区分なし）"
-      ],
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "structural_mismatch",
-        "audit_note": "確定版で複数名訪問看護加算は基本サービスコード（13 1017〜等）に組み込まれた構造。独立コードではないため、社内マスタの kasan_key 単位での mapping_status は確定不可。alpha.4.5 で kasan-level 単位確認済。",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "複数名訪問看護加算(Ⅰ)・30分未満",
-            "official_unit": null,
-            "official_calc_unit": "単位/回（基本報酬への加算）",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "structural_mismatch",
-            "official_code_status": "structural_mismatch"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "複数名訪問看護加算(Ⅰ)・30分未満",
-            "receipt_detection_pattern": "複数名Ⅰ・<30",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "複数名訪問看護加算(Ⅰ)・30分未満",
-            "internal_legacy_unit": 254,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_legal_review",
-          "audit_note": "確定版で複数名訪問看護加算は基本サービスコード（13 1017〜等）に組み込まれた構造。独立コードではないため、社内マスタの kasan_key 単位での mapping_status は確定不可。alpha.4.5 で kasan-level 単位確認済。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "tips": ["20分未満の訪問看護には『複１１』のみ適用可（30分以上区分なし）"]
     },
+
     "fukusu_mei_houmon_kango_kasan_I_over30": {
       "name": "複数名訪問看護加算(Ⅰ)・30分以上",
       "short_name": "複数名Ⅰ・≧30",
@@ -1979,71 +482,13 @@
       "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
       "source_checked_date": "2026-05-06",
       "requirements": {
-        "kango_complement": {
-          "description": "保健師・助産師・看護師・准看護師の複数名"
-        },
-        "service_time_kubun": {
-          "description": "30分以上の訪問看護に係る加算"
-        }
+        "kango_complement": {"description": "保健師・助産師・看護師・准看護師の複数名"},
+        "service_time_kubun": {"description": "30分以上の訪問看護に係る加算"}
       },
-      "interaction": {
-        "exclusive_with": [
-          "fukusu_mei_houmon_kango_kasan_II_over30"
-        ]
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "structural_mismatch",
-        "audit_note": "同上",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "複数名訪問看護加算(Ⅰ)・30分以上",
-            "official_unit": null,
-            "official_calc_unit": "単位/回（基本報酬への加算）",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "structural_mismatch",
-            "official_code_status": "structural_mismatch"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "複数名訪問看護加算(Ⅰ)・30分以上",
-            "receipt_detection_pattern": "複数名Ⅰ・≧30",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "複数名訪問看護加算(Ⅰ)・30分以上",
-            "internal_legacy_unit": 402,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_legal_review",
-          "audit_note": "同上",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "interaction": {"exclusive_with": ["fukusu_mei_houmon_kango_kasan_II_over30"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定"
     },
+
     "fukusu_mei_houmon_kango_kasan_II_under30": {
       "name": "複数名訪問看護加算(Ⅱ)・30分未満",
       "short_name": "複数名Ⅱ・<30",
@@ -2057,71 +502,13 @@
       "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
       "source_checked_date": "2026-05-06",
       "requirements": {
-        "kango_hojo_complement": {
-          "description": "看護師等＋看護補助者の組み合わせ"
-        },
-        "service_time_kubun": {
-          "description": "30分未満の訪問看護に係る加算"
-        }
+        "kango_hojo_complement": {"description": "看護師等＋看護補助者の組み合わせ"},
+        "service_time_kubun": {"description": "30分未満の訪問看護に係る加算"}
       },
-      "interaction": {
-        "exclusive_with": [
-          "fukusu_mei_houmon_kango_kasan_I_under30"
-        ]
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "structural_mismatch",
-        "audit_note": "同上",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "複数名訪問看護加算(Ⅱ)・30分未満",
-            "official_unit": null,
-            "official_calc_unit": "単位/回（基本報酬への加算）",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "structural_mismatch",
-            "official_code_status": "structural_mismatch"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "複数名訪問看護加算(Ⅱ)・30分未満",
-            "receipt_detection_pattern": "複数名Ⅱ・<30",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "複数名訪問看護加算(Ⅱ)・30分未満",
-            "internal_legacy_unit": 201,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_legal_review",
-          "audit_note": "同上",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "interaction": {"exclusive_with": ["fukusu_mei_houmon_kango_kasan_I_under30"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定"
     },
+
     "fukusu_mei_houmon_kango_kasan_II_over30": {
       "name": "複数名訪問看護加算(Ⅱ)・30分以上",
       "short_name": "複数名Ⅱ・≧30",
@@ -2135,71 +522,13 @@
       "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
       "source_checked_date": "2026-05-06",
       "requirements": {
-        "kango_hojo_complement": {
-          "description": "看護師等＋看護補助者の組み合わせ"
-        },
-        "service_time_kubun": {
-          "description": "30分以上の訪問看護に係る加算"
-        }
+        "kango_hojo_complement": {"description": "看護師等＋看護補助者の組み合わせ"},
+        "service_time_kubun": {"description": "30分以上の訪問看護に係る加算"}
       },
-      "interaction": {
-        "exclusive_with": [
-          "fukusu_mei_houmon_kango_kasan_I_over30"
-        ]
-      },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "structural_mismatch",
-        "audit_note": "同上",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "複数名訪問看護加算(Ⅱ)・30分以上",
-            "official_unit": null,
-            "official_calc_unit": "単位/回（基本報酬への加算）",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "structural_mismatch",
-            "official_code_status": "structural_mismatch"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "複数名訪問看護加算(Ⅱ)・30分以上",
-            "receipt_detection_pattern": "複数名Ⅱ・≧30",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "複数名訪問看護加算(Ⅱ)・30分以上",
-            "internal_legacy_unit": 317,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_legal_review",
-          "audit_note": "同上",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "interaction": {"exclusive_with": ["fukusu_mei_houmon_kango_kasan_I_over30"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定"
     },
+
     "chouji_kan_houmon_kango_kasan": {
       "name": "長時間訪問看護加算",
       "short_name": "長時間",
@@ -2213,69 +542,13 @@
       "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
       "source_checked_date": "2026-05-06",
       "requirements": {
-        "service_time_youken": {
-          "description": "1時間30分以上の訪問看護を行う場合"
-        },
-        "applies_to_base": {
-          "description": "訪看Ⅰ4 / 訪看Ⅱ4（1時間以上1時間30分未満）の基本報酬を算定する利用者が対象"
-        }
+        "service_time_youken": {"description": "1時間30分以上の訪問看護を行う場合"},
+        "applies_to_base": {"description": "訪看Ⅰ4 / 訪看Ⅱ4（1時間以上1時間30分未満）の基本報酬を算定する利用者が対象"}
       },
       "hourei_konkyo": "大臣基準告示 / 老企第36号 / R6改定",
-      "tips": [
-        "+300単位は基本報酬コードのサフィックス『・長』として織り込まれる"
-      ],
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "structural_mismatch",
-        "audit_note": "確定版で長時間訪問看護加算は基本サービスコードへの追加加算として組み込まれた構造。alpha.4.5 で kasan-level 確認済だが service_code 単独 mapping は確定不可。",
-        "definitive_source_consulted": {
-          "source_kind": "definitive",
-          "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-          "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-          "document_version": "2024-05-07版",
-          "effective_date": "2024-06-01 / 2024-08-01",
-          "page_or_section": "p65-74 訪問看護サービスコード表",
-          "confirmed_at": "2026-05-09",
-          "confirmed_by": "alpha.5.6 audit (CareLinker)"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "長時間訪問看護加算",
-            "official_unit": null,
-            "official_calc_unit": "単位/回（基本報酬への加算）",
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "structural_mismatch",
-            "official_code_status": "structural_mismatch"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "長時間訪問看護加算",
-            "receipt_detection_pattern": "長時間",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "長時間訪問看護加算",
-            "internal_legacy_unit": 300,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_legal_review",
-          "audit_note": "確定版で長時間訪問看護加算は基本サービスコードへの追加加算として組み込まれた構造。alpha.4.5 で kasan-level 確認済だが service_code 単独 mapping は確定不可。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "tips": ["+300単位は基本報酬コードのサフィックス『・長』として織り込まれる"]
     },
+
     "ninchi_senmon_care_kasan": {
       "name": "認知症専門ケア加算（訪問看護では算定対象外）",
       "short_name": "認知症専門・対象外",
@@ -2288,60 +561,10 @@
       "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0314163446376/20240318_006.pdf",
       "source_checked_date": "2026-05-06",
       "requirements": {},
-      "tips": [
-        "訪問看護では算定不可。同名加算は訪問介護等の他サービスで適用される"
-      ],
-      "service_code_mapping_status": "not_applicable",
-      "service_code_audit": {
-        "match_type": "not_applicable",
-        "audit_note": "確定版（プレフィックス13・訪問看護）にも該当コードなし。訪問看護では算定対象外（alpha.4.5確認・alpha.5.6で確定版でも再確認）。",
-        "source_kind": "definitive",
-        "source_title": "介護給付費単位数等サービスコード表（令和6年6月・8月施行版）",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "document_version": "2024-05-07版",
-        "effective_date": "2024-06-01 / 2024-08-01",
-        "page_or_section": "p65-74 訪問看護サービスコード表",
-        "confirmed_at": "2026-05-09",
-        "confirmed_by": "alpha.5.6 audit (CareLinker)",
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "認知症専門ケア加算（訪問看護では算定対象外）",
-            "official_unit": null,
-            "official_calc_unit": null,
-            "official_service_type": "houmon_kango_kaigo",
-            "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "not_applicable",
-            "official_code_status": "not_applicable"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "認知症専門ケア加算（訪問看護では算定対象外）",
-            "receipt_detection_pattern": "認知症専門・対象外",
-            "receipt_detection_source": "unknown",
-            "receipt_detection_status": "unknown"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "認知症専門ケア加算（訪問看護では算定対象外）",
-            "internal_legacy_unit": null,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "対象外加算 — legacy code は維持"
-          },
-          "overall_mapping_status": "not_applicable",
-          "proposed_action": "not_applicable_confirmed",
-          "audit_note": "確定版（プレフィックス13・訪問看護）にも該当コードなし。訪問看護では算定対象外（alpha.4.5確認・alpha.5.6で確定版でも再確認）。",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "not_applicable"
+      "tips": ["訪問看護では算定不可。同名加算は訪問介護等の他サービスで適用される"]
     }
   },
+
   "gensan": {
     "rihabili_8tan_genzan": {
       "name": "PT・OT・ST減算（8単位）",
@@ -2362,12 +585,14 @@
       "hourei_konkyo": "R6改定"
     }
   },
+
   "_relationships": {
     "kinkyu_houmon_kango_combinations": "Ⅰ・Ⅱは排他（いずれか1つ）",
     "tokubetsu_kanri_combinations": "Ⅰ・Ⅱは排他（複数該当時は単位数の高いⅠで算定）",
     "kango_taisei_kyouka_combinations": "Ⅰ・Ⅱは排他",
     "service_taisei_kyouka_combinations": "Ⅰ・Ⅱは排他"
   },
+
   "_year_schedule": {
     "april": "介護報酬改定確認・体制届出（改定年度）",
     "may": "処遇改善加算計画書作成（2026年6月新規対象）",

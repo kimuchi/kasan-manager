@@ -307,18 +307,12 @@ def run(service: str, office: str | None = None, domain: str | None = None,
 
     dsl_results = {}
     for kasan_key, kasan_def in kasans.items():
-        # alpha.5.5: per-kasan service_code_mapping_status を item_meta に渡す
-        mapping_status = kasan_def.get("service_code_mapping_status", "pattern_based_unverified")
         if kasan_def.get("applicability") == "not_applicable":
             item_meta = {"source_status": kasan_def.get("source_status"),
                          "applicability": "not_applicable",
-                         "applicability_reason": kasan_def.get("applicability_reason"),
-                         "service_code_mapping_status": mapping_status,
-                         "service_code_audit": kasan_def.get("service_code_audit", {})}
+                         "applicability_reason": kasan_def.get("applicability_reason")}
         else:
-            item_meta = {"source_status": kasan_def.get("source_status", "checked"),
-                         "service_code_mapping_status": mapping_status,
-                         "service_code_audit": kasan_def.get("service_code_audit", {})}
+            item_meta = {"source_status": kasan_def.get("source_status", "checked")}
         logic = kasan_def.get("requirement_logic")
         dsl_results[kasan_key] = evaluate_requirement_logic(logic, facts, item_meta)
 
@@ -346,8 +340,6 @@ def run(service: str, office: str | None = None, domain: str | None = None,
         "staff_summary_display": staff_summary_display,
         "user_summary_loaded": user_summary_path is not None,
         "user_summary_display": user_summary_display,
-        # alpha.5.5: kasans_def を含めて render_markdown で per-kasan mapping_status を表示できるように
-        "kasans_def": kasans,
         "executed_at": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -770,38 +762,6 @@ def render_markdown(result: dict) -> str:
     L.append(f"- source_status: `{mm.get('source_status')}`")
     L.append(f"- 法令出典: {mm.get('source')}")
     L.append(f"- generated_at: `{result['executed_at']}`")
-    # alpha.5.5/5.6: mapping audit 表示
-    audit = mm.get("service_code_mapping_audit") or {}
-    if audit:
-        L.append("")
-        L.append(f"**サービスコード照合監査（{audit.get('audit_version', 'alpha')}）:**")
-        L.append("")
-        L.append(f"- audit_version: `{audit.get('audit_version', '-')}`")
-        L.append(f"- audit_date: `{audit.get('audit_date', '-')}`")
-        # alpha.5.6: source_kind を含む definitive_source 構造に対応
-        defin_src = audit.get("definitive_source") or audit.get("definitive_source_planned") or {}
-        if defin_src:
-            sk = defin_src.get("source_kind", "-")
-            st = defin_src.get("source_title", "-")
-            sd = defin_src.get("document_version", "-")
-            ed = defin_src.get("effective_date", "-")
-            L.append(f"- 照合元 source_kind: `{sk}`")
-            L.append(f"- 照合元タイトル: {st}")
-            L.append(f"- document_version: `{sd}` / effective_date: `{ed}`")
-            if defin_src.get("page_or_section"):
-                L.append(f"- 該当範囲: {defin_src['page_or_section']}")
-        elif audit.get('audit_source_document'):
-            L.append(f"- 照合元: {audit['audit_source_document']}")
-        L.append(f"- checked: {audit.get('checked_count', 0)} 件")
-        unverified_cnt = audit.get('pattern_based_unverified_count',
-                                   audit.get('inconsistent_count', 0) + audit.get('unverified_count', 0))
-        L.append(f"- pattern_based_unverified: {unverified_cnt} 件")
-        L.append(f"- not_applicable: {audit.get('not_applicable_count', 0)} 件")
-        # alpha.5.6: 案版を使った場合は注記
-        if audit.get('alpha_5_5_provisional_source_used'):
-            L.append(f"- 注記: alpha.5.5 では「案」資料 (provisional) を根拠としていた。alpha.5.6 で確定版 (definitive) と再照合した。")
-        if audit.get('note'):
-            L.append(f"- note: {audit['note']}")
     L.append("")
 
     # alpha.5: 要件ロジック評価セクション
@@ -817,9 +777,8 @@ def render_markdown(result: dict) -> str:
         L.append("> 公式根拠確認済みの要件のみ、登録済みevidenceに基づいて機械的に評価しています。")
         L.append("> 本結果は算定可否を法的に保証するものではありません。算定可否の最終確認は事業所資料・届出状況・自治体確認が必要です。")
         L.append("")
-        L.append("| 加算 | PDF検出 | 要件評価 | mapping | 達成ルート | 不足証跡 | 注意 |")
-        L.append("|---|---|---|---|---|---|---|")
-        kasans_def = result.get("kasans_def") or {}
+        L.append("| 加算 | PDF検出 | 要件評価 | 達成ルート | 不足証跡 | 注意 |")
+        L.append("|---|---|---|---|---|---|")
         for kasan_key, dsl in show.items():
             j = result["judgements"].get(kasan_key, {})
             kasan_name = j.get("name", kasan_key)
@@ -840,20 +799,10 @@ def render_markdown(result: dict) -> str:
             route = " / ".join(dsl.get("satisfied_route") or []) or "-"
             missing = ", ".join(dsl.get("missing_evidence") or []) or "-"
             held = dsl.get("mapping_held_conditions") or []
-            # alpha.5.5: mapping_status カラム
-            kdef = kasans_def.get(kasan_key, {})
-            mapping_st = kdef.get("service_code_mapping_status", "pattern_based_unverified")
-            mapping_cell = {
-                "checked": "✅ 公式照合済",
-                "pattern_based_unverified": "ℹ️ 帳票パターン",
-                "not_applicable": "🚫 対象外",
-                "source_required": "⏳ 根拠未確認",
-                "unknown": "❔ unknown",
-            }.get(mapping_st, mapping_st)
             note_cell = "🔒 mapping保留" if held else (
                 "ℹ️ pattern_based_unverified" if any("pattern_based_unverified" in n for n in (dsl.get("notes") or [])) else "-"
             )
-            L.append(f"| {kasan_name} | {pdf_state} | {dsl_label} | {mapping_cell} | {route} | {missing} | {note_cell} |")
+            L.append(f"| {kasan_name} | {pdf_state} | {dsl_label} | {route} | {missing} | {note_cell} |")
         L.append("")
         L.append("> 「不足証跡あり」と表示された加算は、職員情報・利用者状態・書類整備状況等の追加確認が必要です。")
         L.append("")
@@ -970,7 +919,7 @@ def render_markdown(result: dict) -> str:
     L.append("")
     L.append(DISCLAIMER)
     L.append("")
-    L.append(f"_Generated by CareLinker 加算チェッカー / judge_kasan.py / v2026.05.06-alpha.5.8.1_")
+    L.append(f"_Generated by CareLinker 加算チェッカー / judge_kasan.py / v2026.05.06-alpha.5.4_")
     return "\n".join(L)
 
 

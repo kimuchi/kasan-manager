@@ -32,56 +32,30 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 EXTRACTION_VERSION = "v2026.05.06-alpha.4.4"
 
-# サービスコードマッピングの根拠管理（service-level・サマリ用）
-# - checked: 公式サービスコード表で全加算確認済
-# - partial_checked: 一部加算のみ公式確認済・残りは pattern_based_unverified
-# - pattern_based_unverified: パターンベース推定。公式根拠未確認
+# サービスコードマッピングの根拠管理
+# - checked: 公式サービスコード表で確認済
+# - pattern_based_unverified: パターンベース推定（DEMO fixture等から導出）。公式根拠未確認
 # - source_required: 公式根拠未確認のため使用前確認必須
-# alpha.5.5: per-kasan の mapping_status は regulatory_master の各kasan.service_code_mapping_status を正本とする
 SERVICE_CODE_MAPPING_STATUS = {
     "tsusho_kaigo": {
-        "status": "partial_checked",
-        "source": "WAM NET 介護給付費単位数等サービスコード表（R7.8.1）（令和7年8月施行版・確定版）+ 社内マスタ tsusho_kaigo.json",
-        "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2025/0325232829413/20250328_006.pdf",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "alpha_5_7_2_note": "2026-05時点で R7.8.1 (effective 2025-08-01〜2026-05-31) が current_definitive。R7.4 は historical_definitive。R7.4 と R7.8 で通所介護29コード・訪問看護21コードとも内容同一を確認済。",
-        "source_checked_date": "2026-05-10",
-        "alpha_5_7_1_hotfix_note": "alpha.5.7 で誤って 2025-02-01版（親ページが「その2」案）を current_definitive 扱いしていた。alpha.5.7.1 で 2025-03-28 確定版（親ページ「確定版」）に source anchor を訂正。PDF内容は同一のため checked 件数は維持。",
-        "note": "alpha.5.7.1 で R7.4 確定版（current_definitive）と再照合。13加算中6加算 exact_match→checked、6加算 code_mismatch（社内コード体系不整合）、1加算 not_found。詳細は per-kasan service_code_audit 参照。",
+        "status": "pattern_based_unverified",
+        "source": "社内資料 skills/regulatory/TSUSHO_KAIGO.md + DEMO fixture",
+        "note": "通所介護のサービスコードは社内資料・大臣基準告示に基づくが、公式サービスコード表との完全一致は未検証。帳票形式により抽出精度が変動する。",
     },
     "houmon_kaigo": {
         "status": "pattern_based_unverified",
-        "source": "WAM NET 介護給付費単位数等サービスコード表（R7.8.1）（令和7年8月施行版・確定版）+ 社内マスタ houmon_kaigo.json",
-        "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2025/0325232829413/20250328_006.pdf",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "alpha_5_7_2_note": "2026-05時点で R7.8.1 が current_definitive。",
-        "source_checked_date": "2026-05-10",
-        "alpha_5_7_1_hotfix_note": "source anchor 修正（2025-02-01案→2025-03-28確定版）。",
-        "note": "alpha.5.7.1 で R7.4 確定版と再照合。13加算中 exact_match=0、code_mismatch=7、not_found=6。社内コード体系（116XXX）と公式コード体系（114XXX/116192等）が大きく異なるため checked 化は次バッチで社内マスタ訂正後に再評価。pattern_based_unverified 維持。",
+        "source": "社内資料 skills/regulatory/HOUMON_KAIGO.md + DEMO fixture",
+        "note": "訪問介護のサービスコードは社内資料に基づくが、公式サービスコード表との完全一致は未検証。帳票形式により抽出精度が変動する。",
     },
     "kyotaku_shien": {
         "status": "pattern_based_unverified",
-        "source": "WAM NET 介護給付費単位数等サービスコード表（R7.8.1）（令和7年8月施行版・確定版）+ 社内マスタ kyotaku_shien.json",
-        "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2025/0325232829413/20250328_006.pdf",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "alpha_5_7_2_note": "2026-05時点で R7.8.1 が current_definitive。",
-        "source_checked_date": "2026-05-10",
-        "alpha_5_7_1_hotfix_note": "source anchor 修正（2025-02-01案→2025-03-28確定版）。",
-        "note": "alpha.5.7.1 で R7.4 確定版と再照合。18加算中 exact_match=0、code_mismatch=16、not_found=2。社内コード体系（438XXX）と公式コード体系（434XXX/436XXX）が大きく異なるため checked 化は次バッチで社内マスタ訂正後に再評価。特定事業所加算(I)の40%要件は地域包括紹介除外などPDFのみでは確定できない。",
+        "source": "社内資料 skills/regulatory/KYOTAKU_SHIEN.md + 加算マスタ kyotaku_shien.json + DEMO fixture",
+        "note": "居宅介護支援のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。特定事業所加算(I)の40%要件は地域包括紹介除外などPDFのみでは確定できない。帳票形式により抽出精度が変動する。",
     },
     "houmon_kango_kaigo": {
-        "status": "partial_checked",
-        "source": "WAM NET 介護給付費単位数等サービスコード表（令和6年6月・8月施行版・2024-05-07版）p65-74 訪問看護 + 社内マスタ houmon_kango_kaigo.json",
-        "source_url": "https://www.wam.go.jp/gyoseiShiryou-files/documents/2024/0506103517756/20240507_006.pdf",
-        "source_kind": "definitive",
-        "source_checked_date": "2026-05-09",
-        "note": "alpha.5.6 で確定版（definitive・「案」表示なし・令和6.6.1/8月施行版）と再照合実施。22加算中14加算 checked化（alpha.5.5 8件維持 + 5件昇格 + 1件新規）、1加算 not_applicable（認知症専門ケア・訪看では対象外）、7加算 pattern_based_unverified（科学的介護推進・R8.6処遇改善・複数名×4・長時間 — 構造差/対象期間外）。alpha.5.5 で根拠とした 2024-03-18 PDF はタイトルに「（案）」表示があり source_kind=provisional。各加算の per-kasan mapping_status とソースはマスタ参照。",
+        "status": "pattern_based_unverified",
+        "source": "社内資料 skills/regulatory/HOUMON_KANGO.md + 加算マスタ houmon_kango_kaigo.json + DEMO fixture",
+        "note": "訪問看護（介護保険）のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。介護保険版のみ対応・医療保険版（訪問看護療養費）は別管理。帳票形式により抽出精度が変動する。",
     },
 }
 
@@ -398,149 +372,9 @@ def build_evidence(office: str, service: str, tenant: str | None,
             "extraction_confidence": calculate_confidence(extracted),
             "service_code_mapping_status": mapping["status"],
             "service_code_mapping_source": mapping["source"],
-            "service_code_mapping_source_url": mapping.get("source_url"),
-            "service_code_mapping_source_checked_date": mapping.get("source_checked_date"),
             "pattern_confidence_note": mapping["note"],
-            # alpha.5.5: per-kasan mapping_status をマスタから取り込む
-            "per_kasan_mapping_status": load_per_kasan_mapping_status(service),
-            "per_kasan_mapping_status_summary": summarize_mapping_status_breakdown(
-                load_per_kasan_mapping_status(service)
-            ),
         }]
     }
-
-
-def load_source_registry() -> dict:
-    """alpha.5.7: regulatory_master/sources/kaigo_service_code_sources.json を読み込む。"""
-    import json
-    from pathlib import Path
-    path = Path(__file__).resolve().parent.parent / "regulatory_master" / "sources" / "kaigo_service_code_sources.json"
-    if not path.exists():
-        return {"sources": {}, "service_to_authoritative_source": {}}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def get_authoritative_source(service_key: str) -> dict | None:
-    """指定サービスの authoritative source（current_definitive 優先）を返す。"""
-    registry = load_source_registry()
-    service_map = registry.get("service_to_authoritative_source", {}).get(service_key, [])
-    if not service_map:
-        return None
-    sources = registry.get("sources", {})
-    # current_definitive を優先
-    for entry in service_map:
-        sid = entry.get("source_id")
-        if sid in sources and sources[sid].get("revision_status") == "current_definitive":
-            return sources[sid]
-    # それ以外（historical_definitive 等）
-    for entry in service_map:
-        sid = entry.get("source_id")
-        if sid in sources:
-            return sources[sid]
-    return None
-
-
-def resolve_current_source_for_date(service_key: str, target_date: str) -> dict | None:
-    """alpha.5.7.2 / alpha.5.8.1: 対象年月（YYYY-MM-DD 形式）から current source を返す。
-
-    判定ルール:
-    - source の effective_from <= target_date <= effective_to かつ source_kind=definitive のものを優先
-    - 該当が複数ある場合は revision_status=current_definitive が最優先
-    - target_date が provisional_future の effective_from 以降の場合は None を返す
-      （案資料を current として扱わない）
-    - alpha.5.8.1: source.checked_promotion_allowed=false の場合も current として返さない（二重防御）
-    """
-    registry = load_source_registry()
-    sources = registry.get("sources", {})
-    service_map = registry.get("service_to_authoritative_source", {}).get(service_key, [])
-    if not service_map:
-        return None
-
-    candidates = []
-    for entry in service_map:
-        sid = entry.get("source_id")
-        s = sources.get(sid)
-        if not s: continue
-        if s.get("source_kind") != "definitive": continue
-        # alpha.5.8.1: checked_promotion_allowed=False は明示除外
-        if s.get("checked_promotion_allowed") is False: continue
-        eff_from = s.get("effective_from") or ""
-        eff_to = s.get("effective_to") or "9999-12-31"
-        if eff_from <= target_date <= eff_to:
-            candidates.append((s, sid))
-    if not candidates:
-        return None
-    # current_definitive を最優先
-    for s, sid in candidates:
-        if s.get("revision_status") == "current_definitive":
-            return s
-    # それ以外は最初の definitive を返す
-    return candidates[0][0]
-
-
-def get_definitive_sources_for_period(service_key: str, start_date: str, end_date: str) -> list:
-    """指定期間に effective な definitive sources を全て返す（連続的に R7.4 → R7.8 のように切り替わる場合に使用）。
-    alpha.5.8.1: checked_promotion_allowed=false の source は除外。"""
-    registry = load_source_registry()
-    sources = registry.get("sources", {})
-    service_map = registry.get("service_to_authoritative_source", {}).get(service_key, [])
-    out = []
-    for entry in service_map:
-        sid = entry.get("source_id")
-        s = sources.get(sid)
-        if not s: continue
-        if s.get("source_kind") != "definitive": continue
-        # alpha.5.8.1: checked_promotion_allowed=False は明示除外
-        if s.get("checked_promotion_allowed") is False: continue
-        eff_from = s.get("effective_from") or ""
-        eff_to = s.get("effective_to") or "9999-12-31"
-        # 期間が重なる
-        if eff_from <= end_date and start_date <= eff_to:
-            out.append(s)
-    return out
-
-
-def load_per_kasan_mapping_status(service_key: str) -> dict:
-    """alpha.5.5: regulatory_master の各加算から service_code_mapping_status を抽出。
-    返り値: {kasan_key: {"status": ..., "audit": ...}}"""
-    import json
-    from pathlib import Path
-    # service_key → master file path
-    candidates = [
-        Path(__file__).resolve().parent.parent / "regulatory_master" / "kaigo" / f"{service_key}.json",
-        Path(__file__).resolve().parent.parent / "regulatory_master" / "medical" / f"{service_key}.json",
-        Path(__file__).resolve().parent.parent / "regulatory_master" / "disability" / f"{service_key}.json",
-    ]
-    out: dict = {}
-    for path in candidates:
-        if not path.exists():
-            continue
-        try:
-            d = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        for kasan_key, kasan_def in (d.get("kasans") or {}).items():
-            status = kasan_def.get("service_code_mapping_status", "pattern_based_unverified")
-            audit = kasan_def.get("service_code_audit", {})
-            out[kasan_key] = {
-                "status": status,
-                "audit": audit,
-            }
-        break
-    return out
-
-
-def summarize_mapping_status_breakdown(per_kasan_mapping: dict) -> dict:
-    """各加算 mapping_status のカウント集計。"""
-    summary = {"checked": 0, "pattern_based_unverified": 0, "not_applicable": 0,
-               "source_required": 0, "unknown": 0}
-    for k, v in per_kasan_mapping.items():
-        st = v.get("status", "pattern_based_unverified")
-        if st in summary:
-            summary[st] += 1
-        else:
-            summary["unknown"] += 1
-    return summary
 
 
 def extract_from_pdf(pdf_path: str) -> str:

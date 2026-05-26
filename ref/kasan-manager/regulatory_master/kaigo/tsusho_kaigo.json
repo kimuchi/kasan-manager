@@ -15,60 +15,7 @@
       "skills/regulatory/KASAN_YOKEN_DAITAI.md",
       "skills/regulatory/KAISHAKU_TSUUCHI.md"
     ],
-    "source_status": "implemented",
-    "service_code_mapping_audit": {
-      "audit_version": "alpha.5.8.1",
-      "audit_date": "2026-05-10",
-      "primary_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-      "primary_source_kind": "definitive",
-      "primary_source_revision_status": "current_definitive",
-      "match_type_breakdown": {
-        "exact_match": 6,
-        "code_mismatch": 6,
-        "unit_mismatch": 0,
-        "code_and_unit_mismatch": 0,
-        "not_found": 1
-      },
-      "checked_count": 6,
-      "pattern_based_unverified_count": 7,
-      "not_applicable_count": 0,
-      "note": "tsusho_kaigo: alpha.5.7 で R7.4確定版（current_definitive）と照合実施。コード・単位整合は exact_match のみ checked、それ以外は社内マスタ訂正候補として pattern_based_unverified 維持。詳細は service_code_audit 参照。",
-      "alpha_5_7_1_hotfix": "source_anchor_corrected_to_r7_4_definitive_2025_03_28",
-      "alpha_5_7_2_effective_period_correction": {
-        "r7_4_revision_status": "historical_definitive (was: current_definitive in alpha.5.7.1)",
-        "r7_8_revision_status": "current_definitive (newly assigned)",
-        "as_of_date": "2026-05-10",
-        "checked_items_reconfirmed_count": 6,
-        "diff_from_r7_4": "no_diff",
-        "note": "2026-05時点で R7.8 が current_definitive。R7.4 は historical_definitive。checked件数は維持。"
-      },
-      "sources_consulted": [
-        "WAM_R7_8_DEFINITIVE_2025_03_28"
-      ],
-      "alpha_5_8_three_layer_model_introduced": {
-        "schema_version": "alpha.5.8",
-        "schema_path": "regulatory_master/sources/code_model_schema.json",
-        "overall_mapping_status_breakdown": {
-          "checked": 6,
-          "needs_review": 6,
-          "pattern_based_unverified": 1,
-          "not_applicable": 0,
-          "provisional_future": 0
-        },
-        "proposed_action_breakdown": {
-          "needs_master_review": 4,
-          "keep_checked": 6,
-          "keep_pattern_based_unverified": 3
-        },
-        "note": "三層モデル(official / receipt_detection / internal_legacy)導入。一括置換せず、各加算で公式コード・PDF検出・社内legacyを分離管理。"
-      },
-      "alpha_5_8_1_audit_metadata_hotfix": {
-        "applied_at": "2026-05-10",
-        "scope": "audit metadata only — three-layer model business data unchanged",
-        "reason": "alpha.5.8 audit report の narrative不整合 (needs_master_review breakdown 6+13+16=35 vs machine-counted 28) を修正、R8.6「その3」source URL null / content未検証を解消",
-        "master_data_changes": "none (kasan業務データ・proposed_action・overall_mapping_status は alpha.5.8 の機械集計値を保持)"
-      }
-    }
+    "source_status": "implemented"
   },
   "kasans": {
     "chujudosha_care_taisei": {
@@ -76,44 +23,26 @@
       "short_name": "中重度加算",
       "unit_per_day": 45,
       "unit_type": "日/算定対象者全員",
-      "service_codes": [
-        "156271"
-      ],
+      "service_codes": ["156271"],
       "category": "体制加算",
       "priority_hint": "取得価値大・要件ボーダー注意",
       "requirements": {
         "user_ratio": {
           "type": "要介護3以上の割合",
-          "threshold": 0.3,
+          "threshold": 0.30,
           "period_options": [
-            {
-              "key": "A",
-              "name": "前年度方式",
-              "period": "前年度(4月〜翌2月の11か月)",
-              "note": "3月は除外"
-            },
-            {
-              "key": "B",
-              "name": "前3か月方式",
-              "period": "届出月の前3か月",
-              "note": "新規事業所・再開事業所も可"
-            }
+            {"key": "A", "name": "前年度方式", "period": "前年度(4月〜翌2月の11か月)", "note": "3月は除外"},
+            {"key": "B", "name": "前3か月方式", "period": "届出月の前3か月", "note": "新規事業所・再開事業所も可"}
           ],
           "denominator": "延人員数",
-          "exclude_from_denominator": [
-            "予防給付",
-            "総合事業"
-          ],
+          "exclude_from_denominator": ["予防給付", "総合事業"],
           "rule": "(A)(B)のいずれか有利な方で30%以上。両方下回ったら翌月から算定不可"
         },
         "staff_add": {
           "type": "常勤換算加配",
           "base": "指定基準に定める看護職員・介護職員の員数",
           "additional": 2,
-          "eligible_types": [
-            "看護職員",
-            "介護職員"
-          ],
+          "eligible_types": ["看護職員", "介護職員"],
           "note": "同一法人の訪問看護ステーションからの兼務可"
         },
         "staff_continuous": {
@@ -148,130 +77,38 @@
         "description": "中重度者ケア体制加算: 要介護3以上30%以上 AND 看護介護職員2名以上加配 AND 看護職員時間帯配置（alpha.5.3 staff_summary / alpha.5.4 user_summary 代替ルート追加）",
         "operator": "all",
         "children": [
-          {
-            "operator": "any",
-            "label": "要介護3以上30%以上",
-            "children": [
-              {
-                "type": "condition",
-                "fact": "receipt_pdf.yokaigo_3plus_ratio",
-                "op": ">=",
-                "value": 0.3,
-                "depends_on_service_code_mapping": false,
-                "label": "PDF evidence上、要介護3以上が30%以上"
-              },
-              {
-                "type": "condition",
-                "fact": "user_summary.care_level_3_or_higher_ratio",
-                "op": ">=",
-                "value": 0.3,
-                "depends_on_service_code_mapping": false,
-                "label": "利用者集計: 要介護3以上が30%以上"
-              }
-            ]
-          },
-          {
-            "operator": "any",
-            "label": "看護・介護職員を常勤換算2名以上加配",
-            "children": [
-              {
-                "type": "condition",
-                "fact": "tenant_status.kango_kaigo_2nin_kahai.status",
-                "op": "==",
-                "value": "clear",
-                "depends_on_service_code_mapping": false,
-                "label": "tenant_status: 看護・介護職員2名以上加配"
-              },
-              {
-                "type": "condition",
-                "fact": "staff_summary.kango_kaigo_total_fte",
-                "op": ">=",
-                "value": 2,
-                "depends_on_service_code_mapping": false,
-                "label": "職員データ集計: 看護・介護職員常勤換算2.0以上"
-              }
-            ]
-          },
-          {
-            "type": "condition",
-            "fact": "tenant_status.kango_jikantai_haichi.status",
-            "op": "==",
-            "value": "clear",
-            "depends_on_service_code_mapping": false,
-            "label": "サービス提供時間帯を通じて専従看護職員1名以上配置"
-          }
+          {"operator": "any", "label": "要介護3以上30%以上", "children": [
+            {"type": "condition", "fact": "receipt_pdf.yokaigo_3plus_ratio",
+             "op": ">=", "value": 0.30,
+             "depends_on_service_code_mapping": false,
+             "label": "PDF evidence上、要介護3以上が30%以上"},
+            {"type": "condition", "fact": "user_summary.care_level_3_or_higher_ratio",
+             "op": ">=", "value": 0.30,
+             "depends_on_service_code_mapping": false,
+             "label": "利用者集計: 要介護3以上が30%以上"}
+          ]},
+          {"operator": "any", "label": "看護・介護職員を常勤換算2名以上加配", "children": [
+            {"type": "condition", "fact": "tenant_status.kango_kaigo_2nin_kahai.status",
+             "op": "==", "value": "clear",
+             "depends_on_service_code_mapping": false,
+             "label": "tenant_status: 看護・介護職員2名以上加配"},
+            {"type": "condition", "fact": "staff_summary.kango_kaigo_total_fte",
+             "op": ">=", "value": 2,
+             "depends_on_service_code_mapping": false,
+             "label": "職員データ集計: 看護・介護職員常勤換算2.0以上"}
+          ]},
+          {"type": "condition", "fact": "tenant_status.kango_jikantai_haichi.status",
+           "op": "==", "value": "clear",
+           "depends_on_service_code_mapping": false,
+           "label": "サービス提供時間帯を通じて専従看護職員1名以上配置"}
         ]
-      },
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "code_mismatch",
-        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-        "internal_service_codes": [
-          "156271"
-        ],
-        "internal_unit": 45,
-        "official_code": "155306",
-        "official_unit": 45,
-        "official_name": "中重度者ケア体制加算",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155306",
-            "official_name": "中重度者ケア体制加算",
-            "official_unit": 45,
-            "official_calc_unit": "日/算定対象者全員",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "code_mismatch",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "156271",
-            "receipt_detection_name": "中重度者ケア体制加算",
-            "receipt_detection_pattern": "中重度加算",
-            "receipt_detection_source": "legacy_code",
-            "receipt_detection_status": "legacy_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "156271",
-            "internal_legacy_name": "中重度者ケア体制加算",
-            "internal_legacy_unit": 45,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": true,
-            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_master_review",
-          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      }
     },
     "kobetsu_kinou_I_i": {
       "name": "個別機能訓練加算Ⅰ(イ)",
       "short_name": "機能訓練Ⅰイ",
       "unit_per_day": 56,
-      "service_codes": [
-        "155051"
-      ],
+      "service_codes": ["155051"],
       "category": "加算",
       "requirements": {
         "staff": {
@@ -300,86 +137,13 @@
         "居宅訪問記録",
         "機能訓練実施記録"
       ],
-      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(10)",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "match_type": "exact_match",
-        "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-        "internal_service_codes": [
-          "155051"
-        ],
-        "internal_unit": 56,
-        "official_code": "155051",
-        "official_unit": 56,
-        "official_name": "個別機能訓練加算（Ⅰ）イ",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155051",
-            "official_name": "個別機能訓練加算（Ⅰ）イ",
-            "official_unit": 56,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155051",
-            "receipt_detection_name": "個別機能訓練加算Ⅰ(イ)",
-            "receipt_detection_pattern": "機能訓練Ⅰイ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155051",
-            "internal_legacy_name": "個別機能訓練加算Ⅰ(イ)",
-            "internal_legacy_unit": 56,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(10)"
     },
     "kobetsu_kinou_I_ro": {
       "name": "個別機能訓練加算Ⅰ(ロ)",
       "short_name": "機能訓練Ⅰロ",
       "unit_per_day": 76,
-      "service_codes": [
-        "155053"
-      ],
+      "service_codes": ["155053"],
       "category": "加算",
       "requirements": {
         "staff": {
@@ -402,86 +166,13 @@
         "機能訓練実施記録",
         "機能訓練指導員2名の勤務表"
       ],
-      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(10)",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "match_type": "exact_match",
-        "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-        "internal_service_codes": [
-          "155053"
-        ],
-        "internal_unit": 76,
-        "official_code": "155053",
-        "official_unit": 76,
-        "official_name": "個別機能訓練加算（Ⅰ）ロ",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155053",
-            "official_name": "個別機能訓練加算（Ⅰ）ロ",
-            "official_unit": 76,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155053",
-            "receipt_detection_name": "個別機能訓練加算Ⅰ(ロ)",
-            "receipt_detection_pattern": "機能訓練Ⅰロ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155053",
-            "internal_legacy_name": "個別機能訓練加算Ⅰ(ロ)",
-            "internal_legacy_unit": 76,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(10)"
     },
     "kobetsu_kinou_II_life": {
       "name": "個別機能訓練加算Ⅱ",
       "short_name": "機能訓練Ⅱ(LIFE)",
       "unit_per_month": 20,
-      "service_codes": [
-        "155052"
-      ],
+      "service_codes": ["155052"],
       "category": "LIFE加算",
       "requirements": {
         "base": "個別機能訓練加算Ⅰ(イ)または(ロ)を算定",
@@ -493,257 +184,38 @@
         "LIFE提出記録",
         "PDCA実施記録"
       ],
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "match_type": "exact_match",
-        "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-        "internal_service_codes": [
-          "155052"
-        ],
-        "internal_unit": 20,
-        "official_code": "155052",
-        "official_unit": 20,
-        "official_name": "個別機能訓練加算（Ⅱ）",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155052",
-            "official_name": "個別機能訓練加算（Ⅱ）",
-            "official_unit": 20,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155052",
-            "receipt_detection_name": "個別機能訓練加算Ⅱ",
-            "receipt_detection_pattern": "機能訓練Ⅱ(LIFE)",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155052",
-            "internal_legacy_name": "個別機能訓練加算Ⅱ",
-            "internal_legacy_unit": 20,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
     "kagakuteki_kaigo": {
       "name": "科学的介護推進体制加算",
       "short_name": "LIFE加算",
       "unit_per_month": 40,
-      "service_codes": [
-        "156361"
-      ],
+      "service_codes": ["156361"],
       "category": "LIFE加算",
       "requirements": {
         "life_submission": "利用者ごとの心身の状況等をLIFEに提出(6か月に1回以上)",
         "pdca": "LIFEフィードバック活用",
         "coverage": "算定対象者全員分"
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "match_type": "exact_match",
-        "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-        "internal_service_codes": [
-          "156361"
-        ],
-        "internal_unit": 40,
-        "official_code": "156361",
-        "official_unit": 40,
-        "official_name": "科学的介護推進体制加算",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "156361",
-            "official_name": "科学的介護推進体制加算",
-            "official_unit": 40,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "156361",
-            "receipt_detection_name": "科学的介護推進体制加算",
-            "receipt_detection_pattern": "LIFE加算",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "156361",
-            "internal_legacy_name": "科学的介護推進体制加算",
-            "internal_legacy_unit": 40,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
     "nyuyoku_I": {
       "name": "入浴介助加算Ⅰ",
       "short_name": "入浴Ⅰ",
       "unit_per_day": 40,
-      "service_codes": [
-        "155301"
-      ],
+      "service_codes": ["155301"],
       "category": "加算",
       "requirements": {
         "implementation": "入浴介助を適切に行える人員配置及び設備により実施",
         "training": "入浴介助に関する研修実施"
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "match_type": "exact_match",
-        "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-        "internal_service_codes": [
-          "155301"
-        ],
-        "internal_unit": 40,
-        "official_code": "155301",
-        "official_unit": 40,
-        "official_name": "入浴介助加算（Ⅰ）",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155301",
-            "official_name": "入浴介助加算（Ⅰ）",
-            "official_unit": 40,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155301",
-            "receipt_detection_name": "入浴介助加算Ⅰ",
-            "receipt_detection_pattern": "入浴Ⅰ",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155301",
-            "internal_legacy_name": "入浴介助加算Ⅰ",
-            "internal_legacy_unit": 40,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
     "nyuyoku_II": {
       "name": "入浴介助加算Ⅱ",
       "short_name": "入浴Ⅱ",
       "unit_per_day": 55,
-      "service_codes": [
-        "155302"
-      ],
+      "service_codes": ["155302"],
       "category": "加算",
       "requirements": {
         "base": "入浴介助加算Ⅰの要件を満たす",
@@ -760,86 +232,18 @@
       "tips": [
         "Ⅰ→Ⅱの差分は+15単位/日",
         "居宅訪問は個別機能訓練加算の居宅訪問と同時実施で効率化可能"
-      ],
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "code_mismatch",
-        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-        "internal_service_codes": [
-          "155302"
-        ],
-        "internal_unit": 55,
-        "official_code": "155303",
-        "official_unit": 55,
-        "official_name": "入浴介助加算（Ⅱ）",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155303",
-            "official_name": "入浴介助加算（Ⅱ）",
-            "official_unit": 55,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "code_mismatch",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155302",
-            "receipt_detection_name": "入浴介助加算Ⅱ",
-            "receipt_detection_pattern": "入浴Ⅱ",
-            "receipt_detection_source": "legacy_code",
-            "receipt_detection_status": "legacy_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155302",
-            "internal_legacy_name": "入浴介助加算Ⅱ",
-            "internal_legacy_unit": 55,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": true,
-            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_master_review",
-          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      ]
     },
     "koukuu_kinou_I": {
       "name": "口腔機能向上加算Ⅰ",
       "short_name": "口腔Ⅰ",
       "unit_per_visit": 150,
       "monthly_limit": 2,
-      "service_codes": [
-        "155501"
-      ],
+      "service_codes": ["155501"],
       "category": "加算",
       "requirements": {
         "staff": {
-          "eligible_qualifications": [
-            "言語聴覚士",
-            "歯科衛生士",
-            "看護職員"
-          ],
+          "eligible_qualifications": ["言語聴覚士", "歯科衛生士", "看護職員"],
           "note": "いずれか1名。歯科衛生士は外部委嘱可"
         },
         "screening": "口腔機能スクリーニング実施",
@@ -853,250 +257,46 @@
         "実施記録(月2回まで)"
       ],
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": [
-        "看護職員で実施可能。歯科衛生士が必須という誤解が多い"
-      ],
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "code_mismatch",
-        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-        "internal_service_codes": [
-          "155501"
-        ],
-        "internal_unit": 150,
-        "official_code": "155606",
-        "official_unit": 150,
-        "official_name": "口腔機能向上加算（Ⅰ）",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155606",
-            "official_name": "口腔機能向上加算（Ⅰ）",
-            "official_unit": 150,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "code_mismatch",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155501",
-            "receipt_detection_name": "口腔機能向上加算Ⅰ",
-            "receipt_detection_pattern": "口腔Ⅰ",
-            "receipt_detection_source": "legacy_code",
-            "receipt_detection_status": "legacy_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155501",
-            "internal_legacy_name": "口腔機能向上加算Ⅰ",
-            "internal_legacy_unit": 150,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": true,
-            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_master_review",
-          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "tips": ["看護職員で実施可能。歯科衛生士が必須という誤解が多い"]
     },
     "koukuu_kinou_II_life": {
       "name": "口腔機能向上加算Ⅱ",
       "short_name": "口腔Ⅱ(LIFE)",
       "unit_per_visit": 160,
       "monthly_limit": 2,
-      "service_codes": [
-        "155502"
-      ],
+      "service_codes": ["155502"],
       "category": "LIFE加算",
       "requirements": {
         "base": "口腔機能向上加算Ⅰの要件",
         "life_submission": "LIFEに情報提出"
-      },
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "not_found",
-        "audit_note": "R7.4確定版に対応コードを抽出できなかった（alpha.5.7時点で要追加調査）",
-        "internal_service_codes": [
-          "155502"
-        ],
-        "internal_unit": 160,
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": null,
-            "official_name": "口腔機能向上加算Ⅱ",
-            "official_unit": null,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "not_found",
-            "official_code_status": "not_found"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "155502",
-            "receipt_detection_name": "口腔機能向上加算Ⅱ",
-            "receipt_detection_pattern": "口腔Ⅱ(LIFE)",
-            "receipt_detection_source": "legacy_code",
-            "receipt_detection_status": "legacy_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "155502",
-            "internal_legacy_name": "口腔機能向上加算Ⅱ",
-            "internal_legacy_unit": 160,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": true,
-            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
-          },
-          "overall_mapping_status": "pattern_based_unverified",
-          "proposed_action": "keep_pattern_based_unverified",
-          "audit_note": "R7.4確定版に対応コードを抽出できなかった（alpha.5.7時点で要追加調査）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "pattern_based_unverified"
+      }
     },
     "eiyou_assessment": {
       "name": "栄養アセスメント加算",
       "short_name": "栄養アセス",
       "unit_per_month": 50,
-      "service_codes": [
-        "156116"
-      ],
+      "service_codes": ["156116"],
       "category": "加算",
       "requirements": {
         "staff": {
-          "eligible_qualifications": [
-            "管理栄養士"
-          ],
+          "eligible_qualifications": ["管理栄養士"],
           "note": "外部連携可(栄養ケア・ステーション等)"
         },
         "assessment": "栄養状態のアセスメント実施",
         "life_submission": "LIFE提出"
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "checked",
-      "service_code_audit": {
-        "match_type": "exact_match",
-        "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-        "internal_service_codes": [
-          "156116"
-        ],
-        "internal_unit": 50,
-        "official_code": "156116",
-        "official_unit": 50,
-        "official_name": "栄養アセスメント加算",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_7_2_r7_8_current_definitive_reconfirmed": {
-          "source_id": "WAM_R7_8_DEFINITIVE_2025_03_28",
-          "revision_status": "current_definitive",
-          "match_type": "exact_match",
-          "diff_from_r7_4": "no_diff (R7.4-R7.8 byte-equivalent for this kasan)",
-          "confirmed_at": "2026-05-10",
-          "confirmed_by": "alpha.5.7.2 audit (CareLinker)",
-          "audit_note": "alpha_5_7_2_r7_8_current_definitive_reconfirmed: 2026-05時点で R7.8 が current_definitive。R7.4 (historical_definitive) と内容同一を pdfplumber で確認済。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "156116",
-            "official_name": "栄養アセスメント加算",
-            "official_unit": 50,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "exact_match",
-            "official_code_status": "checked"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "156116",
-            "receipt_detection_name": "栄養アセスメント加算",
-            "receipt_detection_pattern": "栄養アセス",
-            "receipt_detection_source": "pdf_text",
-            "receipt_detection_status": "exact_official_code"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "156116",
-            "internal_legacy_name": "栄養アセスメント加算",
-            "internal_legacy_unit": 50,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "checked 化済 — legacy code は公式と一致"
-          },
-          "overall_mapping_status": "checked",
-          "proposed_action": "keep_checked",
-          "audit_note": "R7.4確定版で完全整合（コード・単位とも一致）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "checked"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
     "eiyou_kaizen": {
       "name": "栄養改善加算",
       "short_name": "栄養改善",
       "unit_per_visit": 200,
       "monthly_limit": 2,
-      "service_codes": [
-        "156112"
-      ],
+      "service_codes": ["156112"],
       "category": "加算",
       "requirements": {
         "staff": {
-          "eligible_qualifications": [
-            "管理栄養士"
-          ],
+          "eligible_qualifications": ["管理栄養士"],
           "note": "自事業所または外部連携(栄養ケア・ステーション)"
         },
         "screening": "低栄養状態のスクリーニング",
@@ -1109,69 +309,7 @@
         "栄養ケア計画書",
         "栄養改善サービス実施記録"
       ],
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "code_mismatch",
-        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-        "internal_service_codes": [
-          "156112"
-        ],
-        "internal_unit": 200,
-        "official_code": "155605",
-        "official_unit": 200,
-        "official_name": "栄養改善加算",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155605",
-            "official_name": "栄養改善加算",
-            "official_unit": 200,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "code_mismatch",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": "156112",
-            "receipt_detection_name": "栄養改善加算",
-            "receipt_detection_pattern": "栄養改善",
-            "receipt_detection_source": "legacy_code",
-            "receipt_detection_status": "legacy_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": "156112",
-            "internal_legacy_name": "栄養改善加算",
-            "internal_legacy_unit": 200,
-            "legacy_origin": "社内マスタ起源（公式照合前）",
-            "keep_for_backward_compatibility": true,
-            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "needs_master_review",
-          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
     "adl_iji": {
       "name": "ADL維持等加算",
@@ -1184,76 +322,7 @@
         "adl_gain": "ADL利得の平均値が一定値以上(算定要件の詳細要確認)",
         "life_submission": "LIFEにADL情報を提出"
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "code_mismatch",
-        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-        "internal_service_codes": [],
-        "internal_unit": 30,
-        "official_code": "156338",
-        "official_unit": 30,
-        "official_name": "ADL維持等加算（Ⅰ）",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "156338",
-            "official_name": "ADL維持等加算（Ⅰ）",
-            "official_unit": 30,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "code_mismatch",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "ADL維持等加算",
-            "receipt_detection_pattern": "ADL維持",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "ADL維持等加算",
-            "internal_legacy_unit": 30,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "keep_pattern_based_unverified",
-          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10",
-          "alpha_5_8_1_proposed_overall_divergence_note": {
-            "overall_mapping_status": "needs_review",
-            "proposed_action": "keep_pattern_based_unverified",
-            "reason": "official_code_status=needs_review (公式コード 156338 と社内 service_codes 空のため code_mismatch 相当)。一方 service_codes が空なので proposed_action は needs_master_review ではなく keep_pattern_based_unverified に流れる。社内マスタへのコード追加レビューが先決。",
-            "overall_status_basis": "official_code_status (=needs_review)",
-            "proposed_action_basis": "internal_codes is empty → keep_pattern_based_unverified",
-            "recorded_at": "2026-05-10",
-            "recorded_by": "alpha.5.8.1 source_metadata_hotfix (CareLinker)"
-          }
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     },
     "ninchi_kasan": {
       "name": "認知症加算",
@@ -1263,18 +332,10 @@
       "requirements": {
         "user_ratio": {
           "type": "日常生活自立度Ⅲ以上の割合",
-          "threshold": 0.2,
+          "threshold": 0.20,
           "period_options": [
-            {
-              "key": "A",
-              "name": "前年度方式",
-              "period": "前年度(3月除く11か月)"
-            },
-            {
-              "key": "B",
-              "name": "前3か月方式",
-              "period": "届出月の前3か月"
-            }
+            {"key": "A", "name": "前年度方式", "period": "前年度(3月除く11か月)"},
+            {"key": "B", "name": "前3か月方式", "period": "届出月の前3か月"}
           ]
         },
         "staff_add": {
@@ -1283,76 +344,7 @@
         },
         "staff_continuous": "サービス提供時間帯を通じて配置"
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "service_code_mapping_status": "pattern_based_unverified",
-      "service_code_audit": {
-        "match_type": "code_mismatch",
-        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-        "internal_service_codes": [],
-        "internal_unit": 60,
-        "official_code": "155305",
-        "official_unit": 60,
-        "official_name": "認知症加算",
-        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-        "source_kind": "definitive",
-        "revision_status": "current_definitive",
-        "source_checked_date": "2026-05-10",
-        "audit_version": "alpha.5.7",
-        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
-          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
-          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
-          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-          "corrected_to_revision_status": "current_definitive",
-          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
-          "corrected_at": "2026-05-10",
-          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
-        },
-        "alpha_5_8_three_layer_model": {
-          "official_code_model": {
-            "official_service_code": "155305",
-            "official_name": "認知症加算",
-            "official_unit": 60,
-            "official_calc_unit": "",
-            "official_service_type": "tsusho_kaigo",
-            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
-            "source_kind": "definitive",
-            "revision_status": "current_definitive",
-            "effective_from": "2025-08-01",
-            "effective_to": "2026-05-31",
-            "official_match_type": "code_mismatch",
-            "official_code_status": "needs_review"
-          },
-          "receipt_detection_model": {
-            "receipt_detection_code": null,
-            "receipt_detection_name": "認知症加算",
-            "receipt_detection_pattern": "認知症加算",
-            "receipt_detection_source": "receipt_pattern",
-            "receipt_detection_status": "pattern_detection_only"
-          },
-          "internal_legacy_model": {
-            "internal_legacy_code": null,
-            "internal_legacy_name": "認知症加算",
-            "internal_legacy_unit": 60,
-            "legacy_origin": "社内マスタにコード未登録",
-            "keep_for_backward_compatibility": false,
-            "migration_note": "コード未登録。PDFパターン検出のみで運用"
-          },
-          "overall_mapping_status": "needs_review",
-          "proposed_action": "keep_pattern_based_unverified",
-          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
-          "alpha_5_8_three_layer_introduced_at": "2026-05-10",
-          "alpha_5_8_1_proposed_overall_divergence_note": {
-            "overall_mapping_status": "needs_review",
-            "proposed_action": "keep_pattern_based_unverified",
-            "reason": "official_code_status=needs_review (公式コード 155305 と社内 service_codes 空のため code_mismatch 相当)。service_codes が空なので proposed_action は needs_master_review ではなく keep_pattern_based_unverified に流れる。社内マスタへのコード追加レビューが先決。",
-            "overall_status_basis": "official_code_status (=needs_review)",
-            "proposed_action_basis": "internal_codes is empty → keep_pattern_based_unverified",
-            "recorded_at": "2026-05-10",
-            "recorded_by": "alpha.5.8.1 source_metadata_hotfix (CareLinker)"
-          }
-        }
-      },
-      "overall_mapping_status": "needs_review"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
     }
   }
 }
