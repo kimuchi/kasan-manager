@@ -24,6 +24,18 @@
       .le-muted { color: var(--ink-mute); font-size: 13px; }
       .hidden { display: none; }
       .le-dropped { font-size: 12px; color: var(--ink-mute); }
+      .le-promo { border-left: 4px solid #b8860b; background: #fffdf6; }
+      .le-promo ul { margin: 8px 0 0; padding-left: 1.2em; }
+      .le-promo li { margin: 4px 0; }
+      .le-promo-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+      .le-promo-actions a { text-decoration: none; display: inline-flex; align-items: center; }
+      .le-help > summary { cursor: pointer; font-size: 15px; list-style-position: inside; }
+      .le-help[open] > summary { margin-bottom: 10px; }
+      .le-help ul { margin: 6px 0; padding-left: 1.2em; }
+      .le-help li { margin: 5px 0; font-size: 14px; }
+      .le-help table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin-top: 8px; }
+      .le-help th, .le-help td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+      .le-help th { background: #f4f6fb; white-space: nowrap; }
     </style>
   </head>
   <body>
@@ -37,7 +49,7 @@
       </div>
       <div class="header-right">
         <nav class="docs-nav">
-          <a href="/">← アプリに戻る</a>
+          <a href="/pro">🔓 高精度版（ログイン）</a>
           <a href="/docs/LOCAL_ENGINE.md">仕組み・対応書類</a>
           <a href="/docs/DATA_SAFETY.md">データ取扱方針</a>
         </nav>
@@ -81,6 +93,22 @@
         <p class="hint" id="le-recaptcha-notice" style="display:none;">このサイトは reCAPTCHA で保護されています。</p>
       </div>
 
+      <div class="le-card le-promo">
+        <h2 style="margin-top:0;">🔓 もっと高精度に分析するなら（有料プラン）</h2>
+        <p>このページは <strong>ブラウザ完結・ログイン不要・無料</strong> のローカル版です。集計値だけで主要な加算をセルフチェックできます。</p>
+        <p>有料会員（要ログイン）になると、サーバー側の <strong>高精度エンジン</strong> が使えます：</p>
+        <ul>
+          <li>生成AIによる「取り方」提案と取り漏れの深掘り</li>
+          <li>CPOS 連携で事業所データを直接取り込み</li>
+          <li>判定履歴の保存・加算ごとの承認／差戻しレビュー・ポートフォリオ最適化</li>
+          <li>近日対応: <strong>デスクトップアプリ</strong> からの利用</li>
+        </ul>
+        <div class="le-promo-actions">
+          <a href="/pro" class="primary-btn">ログインして高精度版を使う</a>
+          <a href="https://www.care-planning.co.jp/systems/kasan/" target="_blank" rel="noopener" class="ghost-btn">詳細・お申し込みはこちら →</a>
+        </div>
+      </div>
+
       <div class="le-card hidden" id="le-progress-card">
         <h2 style="margin-top:0;">📄 解析状況</h2>
         <ul class="le-files" id="le-files"></ul>
@@ -103,9 +131,48 @@
         <div class="le-report" id="le-report"></div>
       </div>
 
+      <details class="le-card le-help">
+        <summary><strong>🌐 対応ブラウザと制限事項</strong></summary>
+        <ul>
+          <li><strong>フォルダ選択</strong>は PC 版の Chromium 系ブラウザ（<strong>Google Chrome・Microsoft Edge・Brave・Opera</strong>）でご利用いただけます。</li>
+          <li><strong>Safari・Firefox</strong> はフォルダ選択に未対応のため、自動的に<strong>複数ファイル選択</strong>へ切り替わります（対象ファイルをまとめて選んでください）。</li>
+          <li><strong>スマートフォン・タブレット</strong>（iOS Safari・Android Chrome など）はフォルダ選択に未対応です。PC でのご利用を推奨します。</li>
+          <li>本機能は <strong>HTTPS（暗号化通信）</strong> でのみ動作し、「フォルダを選ぶ」はボタン操作の直後にのみ開きます。</li>
+          <li>大きな PDF や OCR は <strong>端末の性能・メモリに依存</strong> します。ページ数の多いスキャンPDFや高解像度画像は時間がかかり、低スペック端末・モバイルでは途中で停止することがあります。</li>
+          <li>OCR は初回のみ日本語の言語データをダウンロードします。画像は <strong>300dpi 程度・グレースケール・高コントラスト</strong> が読み取りやすくなります。</li>
+        </ul>
+      </details>
+
+      <details class="le-card le-help">
+        <summary><strong>📑 解析しやすい書類のコツ</strong></summary>
+        <ul>
+          <li><strong>PDF は「テキスト付き」が高速・高精度。</strong> 介護ソフトの<strong>帳票出力</strong>や「印刷 → PDF」で作成した PDF は文字情報を持つため、そのまま速く読めます。紙をスキャンした<strong>画像PDF・写真</strong>は文字情報が無く OCR が必要で、低速・精度低下します（OCR を有効にしてください）。</li>
+          <li><strong>CSV の文字コード。</strong> Excel で開く前提なら <strong>UTF-8（BOM付き）</strong> が安全です。介護ソフトは <strong>Shift-JIS（CP932）</strong> で出力することも多く、本ツールは両方の自動判定を試みますが、文字化けする場合は保存し直してください。</li>
+          <li><strong>Excel／CSV は素直な表に。</strong> ①見出しは<strong>1行だけ</strong> ②<strong>セルの結合をしない</strong> ③<strong>1行＝1件</strong>（利用者1名／職員1名） ④小計・合計・注記・空行を表の途中に挟まない。</li>
+          <li><strong>ファイル名。</strong> 対象月（例 <code>202604</code>）やサービス種別を含めると、対象月の自動判定に役立ちます。</li>
+          <li><strong>個人情報は気にせず投入して大丈夫。</strong> 氏名・被保険者番号などの列は読み込み時に破棄し、送信前にも検査します（送信内容はプレビューで全文確認できます）。</li>
+        </ul>
+      </details>
+
+      <details class="le-card le-help">
+        <summary><strong>🏥 主要介護ソフトからのエクスポート方法</strong></summary>
+        <p class="le-muted">国保連請求のデータ（介護給付費明細書／レセプト）は、国のインタフェース仕様に沿った <strong>CSV</strong> で各ソフトが出力できます。多くの製品で「<strong>請求／国保連請求</strong>」に CSV 作成・伝送、「<strong>帳票出力</strong>」に PDF／Excel 出力があり、利用者一覧・勤務形態一覧表も台帳・帳票画面から CSV／Excel で出力できるのが一般的です。</p>
+        <p class="le-muted">※ ボタン名・メニュー階層は製品・バージョンにより異なります。下表は「出力機能のある場所」の目安です。<strong>正確な手順は各ソフトのマニュアルをご確認ください。</strong></p>
+        <table>
+          <tr><th>介護ソフト</th><th>エクスポートの目安</th></tr>
+          <tr><td>ほのぼのNEXT（ND）</td><td>ボタン操作でデータ集約 → CSV 作成。LIFE 提出用 CSV 出力・帳票印刷に対応。</td></tr>
+          <tr><td>カイポケ（SMS）</td><td>「各種情報出力」で登録データを CSV／PDF 出力。画面から国保連へインターネット請求も可能。</td></tr>
+          <tr><td>ワイズマン</td><td>各画面の印刷ボタンで明細書・帳票を Excel 形式出力。CSV データ移行に対応。</td></tr>
+          <tr><td>介舟ファミリー</td><td>「勤務形態一覧表出力」など、帳票を Excel 出力。</td></tr>
+          <tr><td>トリケアトプス</td><td>「帳票出力」→「LIFE CSV 出力」など、利用者を選んで CSV 出力。標準仕様 CSV にも対応。</td></tr>
+          <tr><td>ケアカルテ（CARE KARTE）</td><td>LIFE 取込用データの CSV 出力手順をサポートサイトに掲載。</td></tr>
+          <tr><td>まもる君クラウド</td><td>請求・記録に対応。国保連伝送はオプションでワンクリック伝送。</td></tr>
+          <tr><td>その他（ファーストケア・楽すけ・寿 など）</td><td>「請求／国保連請求」メニューに CSV 出力・伝送、台帳・一覧画面に Excel／CSV・帳票出力があるのが一般的です。詳細は各社マニュアルをご確認ください。</td></tr>
+        </table>
+      </details>
+
       <p class="le-muted">
         対応書類: 介護給付費明細書(PDF) / 利用者一覧・受給者台帳(Excel・CSV) / 勤務形態一覧・職員名簿(Excel・CSV) / 体制等状況一覧。
-        対応ブラウザ: Chrome・Edge（フォルダ選択）、その他は複数ファイル選択にフォールバック。
       </p>
     </main>
 

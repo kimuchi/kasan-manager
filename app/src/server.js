@@ -121,7 +121,8 @@ app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // 静的ファイル（CSS/JS/画像）
-app.use(express.static(path.join(APP_ROOT, 'public'), { maxAge: '5m' }));
+// index:false にして "/" は明示ルート（公開トップ = ローカルエンジン）に委ねる
+app.use(express.static(path.join(APP_ROOT, 'public'), { maxAge: '5m', index: false }));
 
 // /schemas/*.json を読み取り専用で配信（ドキュメントから参照可能にする）
 const PROJECT_ROOT_FOR_SCHEMA = path.resolve(APP_ROOT, '..');
@@ -939,9 +940,17 @@ async function handleLocalAnalyze(req, res) {
 
 app.post('/api/analyze/from-local', heavyLimiter, recaptchaMiddleware('local_analyze'), handleLocalAnalyze);
 
-// ローカル前処理エンジンのページ（静的 /local-import.html へのクリーン URL）
+// 公開トップ = ローカル前処理エンジン（ブラウザ完結・ログイン不要・無料）
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(APP_ROOT, 'public', 'local-import.html'));
+});
+// 旧 URL 互換のエイリアス
 app.get('/local-import', (_req, res) => {
   res.sendFile(path.join(APP_ROOT, 'public', 'local-import.html'));
+});
+// 高精度版（AI 補完 / CPOS 連携 / 判定履歴・レビュー）= 有料・ログイン導線
+app.get('/pro', (_req, res) => {
+  res.sendFile(path.join(APP_ROOT, 'public', 'index.html'));
 });
 
 // ============================================================
