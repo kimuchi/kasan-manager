@@ -36,6 +36,16 @@ import {
 import { validateAnalysisSource, validateBootstrap } from '../src/services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from '../src/services/cpos/errors.js';
 import { defaultBaseUrl } from '../src/services/cpos/client.js';
+import { classifyDocument } from '../public/local/classify.js';
+import { scrubText, isPiiHeader, findPii, assertNoPii } from '../public/local/pii.js';
+import { extractTabular, parseCareLevel, parseProfession } from '../public/local/tabular.js';
+import {
+  detectServiceKeyFromText,
+  aggregateReceiptTexts,
+  mergeUserSummaries,
+  mergeStaffSummaries,
+} from '../public/local/aggregate.js';
+import { buildLocalBundle } from '../public/local/bundle.js';
 import { readFile } from 'node:fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1166,6 +1176,199 @@ await test('Master JSON: 通所介護に service_code_audit / overall_mapping_st
     kasan.service_code_audit.alpha_5_8_three_layer_model,
     'three layer model exists',
   );
+});
+
+// =====================================================================
+// ローカル前処理エンジン（ブラウザ完結・WASM）の純ロジック
+// =====================================================================
+await test('Local/classify: ファイル名 + 本文で書類種別を判定', () => {
+  assert.equal(
+    classifyDocument({ fileName: '介護給付費明細書_202604.pdf', text: 'サービスコード 単位数 請求明細' }).type,
+    'receipt',
+  );
+  assert.equal(
+    classifyDocument({ fileName: '利用者一覧.xlsx', headers: ['利用者番号', '氏名', '要介護度'] }).type,
+    'user_roster',
+  );
+  assert.equal(
+    classifyDocument({ fileName: '勤務形態一覧表.xlsx', headers: ['職員名', '保有資格', '常勤換算数'] }).type,
+    'staff_roster',
+  );
+  assert.equal(
+    classifyDocument({ fileName: '体制等状況一覧.pdf', text: '介護給付費算定に係る体制 届出受理' }).type,
+    'tenant_status',
+  );
+  assert.equal(classifyDocument({ fileName: 'メモ.txt', text: 'ただのメモ' }).type, 'unknown');
+});
+
+await test('Local/pii: scrubText が被保険者番号・電話・メールを伏字化', () => {
+  const scrubbed = scrubText('被保険者番号 1234567890 電話 03-1234-5678 mail a@b.co');
+  assert.ok(!/1234567890/.test(scrubbed), '被保険者番号が残っている');
+  assert.ok(!/03-1234-5678/.test(scrubbed), '電話が残っている');
+  assert.ok(!/a@b\.co/.test(scrubbed), 'メールが残っている');
+});
+
+await test('Local/pii: isPiiHeader が氏名・被保険者番号列を判定', () => {
+  assert.equal(isPiiHeader('氏名'), true);
+  assert.equal(isPiiHeader('被保険者番号'), true);
+  assert.equal(isPiiHeader('フリガナ'), true);
+  assert.equal(isPiiHeader('要介護度'), false);
+  assert.equal(isPiiHeader('保有資格'), false);
+});
+
+await test('Local/pii: assertNoPii は ISO日付/サービスコードで誤検知しない', () => {
+  const clean = { serviceMonth: '2026-04', extracted_at: '2026-05-29T12:34:56', codes: ['155302', '155051'] };
+  assert.equal(assertNoPii(clean), true);
+  assert.throws(() => assertNoPii({ note: '連絡先 test@example.com' }));
+  assert.throws(() => assertNoPii({ leak: '被保険者 1234567890' }));
+});
+
+await test('Local/tabular: user_roster は PII 列を破棄し要介護度を集計', () => {
+  const out = extractTabular({
+    type: 'user_roster',
+    header: ['利用者番号', '氏名', '要介護度', '認知症高齢者の日常生活自立度'],
+    rows: [
+      ['0000000001', '介護 太郎', '要介護3', 'IIa'],
+      ['0000000002', '介護 花子', '要介護4', 'IIIa'],
+      ['0000000003', '支援 一郎', '要支援1', 'I'],
+    ],
+  });
+  assert.equal(out.userSummary.activeUserCount, 3);
+  assert.equal(out.userSummary.careLevelDistribution.youkaigo_3, 1);
+  assert.equal(out.userSummary.careLevelDistribution.youkaigo_4, 1);
+  assert.equal(out.userSummary.careLevelDistribution.youshien_1, 1);
+  assert.equal(out.userSummary.care3PlusCount, 2);
+  // 氏名・被保険者番号列は破棄され、出力に個人値が一切入らない
+  const json = JSON.stringify(out);
+  assert.ok(!json.includes('太郎') && !json.includes('花子'), '氏名が混入');
+  assert.ok(!json.includes('0000000001'), '被保険者番号が混入');
+  const piiDropped = out.droppedColumns.filter((c) => c.pii).map((c) => c.name);
+  assert.ok(piiDropped.includes('氏名'), '氏名がPII破棄列にない');
+});
+
+await test('Local/tabular: staff_roster は職種別人数と常勤換算を集計（氏名は破棄）', () => {
+  const out = extractTabular({
+    type: 'staff_roster',
+    header: ['職員名', '保有資格', '常勤換算数'],
+    rows: [
+      ['山田', '看護師', '1.0'],
+      ['佐藤', '介護福祉士', '0.8'],
+      ['鈴木', '介護福祉士', '1.0'],
+    ],
+  });
+  assert.equal(out.staffSummary.qualifiedPersonCountByProfession.nurse, 1);
+  assert.equal(out.staffSummary.qualifiedPersonCountByProfession.care_worker, 2);
+  assert.equal(out.staffSummary.fteByProfession.care_worker, 1.8);
+  assert.ok(!JSON.stringify(out).includes('山田'), '氏名が混入');
+});
+
+await test('Local/tabular: parseCareLevel / parseProfession の基本', () => {
+  assert.equal(parseCareLevel('要介護５'), 'youkaigo_5');
+  assert.equal(parseCareLevel('要支援2'), 'youshien_2');
+  assert.equal(parseCareLevel('自立'), null);
+  assert.equal(parseProfession('主任介護支援専門員'), 'chief_care_manager');
+  assert.equal(parseProfession('准看護師'), 'assistant_nurse');
+});
+
+await test('Local/aggregate: detectServiceKeyFromText が通所介護を推定', () => {
+  const text = '通所介護Ⅰ31 入浴介助加算Ⅱ 155302 個別機能訓練加算Ⅰ1 155051';
+  assert.equal(detectServiceKeyFromText(text), 'tsusho_kaigo');
+});
+
+await test('Local/aggregate: aggregateReceiptTexts が kasan 件数つき evidence を作る', () => {
+  const pageA = '通所介護Ⅰ31 入浴介助加算Ⅱ 155302';
+  const pageB = '通所介護Ⅰ41 入浴介助加算Ⅱ 155302 個別機能訓練加算Ⅰ1 155051';
+  const { extracted, evidence } = aggregateReceiptTexts([pageA, pageB], {
+    serviceKey: 'tsusho_kaigo',
+    office: 'local',
+  });
+  assert.equal(extracted.current_kasan_counts.nyuyoku_II, 2);
+  assert.equal(extracted.current_kasan_counts.kobetsu_kinou_I_i, 1);
+  assert.equal(evidence.evidence[0].service_key, 'tsusho_kaigo');
+  assert.equal(evidence.evidence[0].source_type, 'receipt_pdf');
+});
+
+await test('Local/aggregate: merge ヘルパが複数集計を加算', () => {
+  const u = mergeUserSummaries([
+    { activeUserCount: 2, careLevelDistribution: { youkaigo_3: 1, youkaigo_2: 1 } },
+    { activeUserCount: 1, careLevelDistribution: { youkaigo_3: 1 } },
+  ]);
+  assert.equal(u.activeUserCount, 3);
+  assert.equal(u.careLevelDistribution.youkaigo_3, 2);
+  assert.equal(u.care3PlusCount, 2);
+  const s = mergeStaffSummaries([
+    { qualifiedPersonCountByProfession: { nurse: 1 }, fteByProfession: { nurse: 1 } },
+    { qualifiedPersonCountByProfession: { nurse: 1, care_worker: 2 }, fteByProfession: { nurse: 0.5 } },
+  ]);
+  assert.equal(s.qualifiedPersonCountByProfession.nurse, 2);
+  assert.equal(s.fteByProfession.nurse, 1.5);
+});
+
+await test('Local/bundle: buildLocalBundle が analysis_source 互換で validateAnalysisSource を通る', () => {
+  const { evidence } = aggregateReceiptTexts(['通所介護Ⅰ31 入浴介助加算Ⅱ 155302'], {
+    serviceKey: 'tsusho_kaigo',
+    office: 'local',
+  });
+  const bundle = buildLocalBundle({
+    serviceKey: 'tsusho_kaigo',
+    serviceMonth: '2026-04',
+    userSummary: {
+      activeUserCount: 10,
+      careLevelDistribution: { youkaigo_2: 4, youkaigo_3: 4, youkaigo_4: 2 },
+      care3PlusCount: 6,
+      care3PlusRatio: 0.6,
+    },
+    staffSummary: { qualifiedPersonCountByProfession: { care_worker: 5, nurse: 1 }, fteByProfession: {} },
+    claimEvidence: evidence,
+    dataCompleteness: { billing: 'partial', staffing: 'missing' },
+    warnings: ['ローカル取込（集計値のみ）'],
+    fileTypeCounts: { receipt: 1, user_roster: 1 },
+  });
+  const ok = validateAnalysisSource(bundle);
+  assert.equal(ok.schemaVersion, '1.0');
+  assert.equal(bundle.privacy.includePii, false);
+  assert.equal(bundle.facility.serviceTypeCodes[0], '15');
+  assert.ok(bundle.claimEvidence.evidence.length >= 1);
+});
+
+await test('Local/bundle: buildLocalBundle は PII 混入時に throw', () => {
+  assert.throws(() =>
+    buildLocalBundle({
+      serviceKey: 'tsusho_kaigo',
+      serviceMonth: '2026-04',
+      warnings: ['担当 090-1234-5678 まで'],
+    }),
+  );
+});
+
+await test('Local/e2e: ローカルバンドル → toEngineInputs → judge.run が通る', async () => {
+  const { evidence } = aggregateReceiptTexts(
+    ['通所介護Ⅰ31 入浴介助加算Ⅱ 155302 個別機能訓練加算Ⅰ1 155051'],
+    { serviceKey: 'tsusho_kaigo', office: 'local' },
+  );
+  const bundle = buildLocalBundle({
+    serviceKey: 'tsusho_kaigo',
+    serviceMonth: '2026-04',
+    userSummary: {
+      activeUserCount: 10,
+      careLevelDistribution: { youkaigo_2: 4, youkaigo_3: 4, youkaigo_4: 2 },
+      care3PlusCount: 6,
+      care3PlusRatio: 0.6,
+    },
+    claimEvidence: evidence,
+  });
+  const inputs = await toCposEngineInputs(bundle);
+  assert.equal(inputs.service_key, 'tsusho_kaigo');
+  assert.equal(inputs.user_summary.care_level_3_or_higher_count, 6);
+  const result = await runJudge({
+    service: inputs.service_key,
+    office: inputs.facility?.id || 'local',
+    applyEvidence: true,
+    inlineEvidence: bundle.claimEvidence,
+  });
+  assert.equal(result.service, 'tsusho_kaigo');
+  const claimedUnknown = (result.summary.claimed_but_requirements_unknown || []).length;
+  assert.ok(claimedUnknown >= 1, `claimed_but_requirements_unknown=${claimedUnknown}`);
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

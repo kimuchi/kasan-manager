@@ -859,6 +859,92 @@ app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analy
 app.post('/api/cpos/facility/analyze', heavyLimiter, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
 
 // ============================================================
+// ローカル前処理エンジン（ブラウザ完結 /local-import）からの集計バンドル受け口
+// ============================================================
+// クライアント（ブラウザ）が OCR/分類/PII除去/集計まで済ませた analysis-source 互換
+// バンドルを受け取り、CPOS と同一の変換・判定経路で加算チェックする。
+// 生ファイルは送られてこない（集計値・フラグのみ）。MVP は無認証（無料枠）。
+async function handleLocalAnalyze(req, res) {
+  try {
+    const bundle = req.body;
+    if (!bundle || typeof bundle !== 'object') {
+      return res.status(400).json({ error: 'バンドル（JSON）が空です。' });
+    }
+    const normalized = normalizeCposAnalysisPayload(bundle);
+    const validated = normalized.schemaVersion ? validateAnalysisSource(normalized) : normalized;
+    const inputs = await toCposEngineInputs(validated);
+    const serviceKey = inputs.service_key;
+
+    // ローカル抽出の claimEvidence（kasan_key ベース）があればそれを優先して inlineEvidence に使う。
+    // 無ければ CPOS 経路と同じく claimSummary 由来の evidence にフォールバック。
+    const localEvidence =
+      bundle.claimEvidence &&
+      Array.isArray(bundle.claimEvidence.evidence) &&
+      bundle.claimEvidence.evidence.length
+        ? bundle.claimEvidence
+        : inputs.claim_evidence;
+
+    // データ系統をローカル由来として明示
+    if (inputs.user_summary) inputs.user_summary.data_source_type = 'local_aggregate';
+
+    const judgeResult = await runJudge({
+      service: serviceKey,
+      office: inputs.facility?.id || 'local',
+      applyEvidence: true,
+      inlineEvidence: localEvidence,
+    });
+    const inlineFiles = {
+      tenant_status_json: [{ buffer: Buffer.from(JSON.stringify(inputs.tenant_status), 'utf-8') }],
+      staff_json: [{ buffer: Buffer.from(JSON.stringify(inputs.staff_data), 'utf-8') }],
+      user_summary_json: [{ buffer: Buffer.from(JSON.stringify(inputs.user_summary), 'utf-8') }],
+    };
+    const enriched = await applyInlineFiles(judgeResult, serviceKey, inlineFiles);
+    enriched.cpos_metadata = {
+      ...inputs.metadata,
+      source: 'local.engine',
+      serviceMonth: validated.serviceMonth,
+    };
+    const completenessWarnings = deriveCompletenessWarnings(validated);
+    const envelope = buildAnalysisEnvelope({
+      sourceType: 'local_engine',
+      cposMetadata: inputs.metadata,
+      extraWarnings: [...completenessWarnings, ...(Array.isArray(bundle.warnings) ? bundle.warnings : [])],
+    });
+    enriched.analysis_id = envelope.analysis_id;
+    enriched.source_type = envelope.source_type;
+    enriched.review_status = envelope.review_status;
+    enriched.mapping_warnings = envelope.mapping_warnings;
+    const reportMarkdown = renderMarkdown(enriched);
+    const persistInfo = await persistAnalysisIfPaid({
+      req,
+      analysisId: envelope.analysis_id,
+      judgeResult: enriched,
+      markdown: reportMarkdown,
+      sourceType: envelope.source_type,
+      extra: { service_key: serviceKey, service_month: validated.serviceMonth },
+    }).catch((err) => ({ persisted: false, reason: err.message }));
+    res.json({
+      ok: true,
+      ...envelope,
+      persisted: persistInfo.persisted,
+      reportMarkdown,
+      resultJson: enriched,
+      local: { serviceKey, serviceMonth: validated.serviceMonth },
+    });
+  } catch (err) {
+    console.error('[local] analyze error:', err);
+    res.status(400).json({ error: err.message || 'ローカルバンドルの解析に失敗しました。' });
+  }
+}
+
+app.post('/api/analyze/from-local', heavyLimiter, recaptchaMiddleware('local_analyze'), handleLocalAnalyze);
+
+// ローカル前処理エンジンのページ（静的 /local-import.html へのクリーン URL）
+app.get('/local-import', (_req, res) => {
+  res.sendFile(path.join(APP_ROOT, 'public', 'local-import.html'));
+});
+
+// ============================================================
 // 既存（手動入力 / PDF）— 互換維持
 // ============================================================
 app.get('/api/services', async (_req, res) => {

@@ -115,6 +115,7 @@ function buildBreadcrumb(relPath) {
 
 const TOC_LINKS = [
   { href: '/docs/USER_GUIDE.md', label: '使い方' },
+  { href: '/docs/LOCAL_ENGINE.md', label: 'ローカル前処理エンジン' },
   { href: '/docs/AUTH_AND_PLANS.md', label: 'ログイン / プラン' },
   { href: '/docs/REVIEWER_GUIDE.md', label: 'レビュアー' },
   { href: '/docs/PORTFOLIO.md', label: 'ポートフォリオ最適化' },

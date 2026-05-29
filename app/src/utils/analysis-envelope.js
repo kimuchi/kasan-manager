@@ -3,7 +3,7 @@
 //
 // - analysis_id: 1 回の解析実行を識別する UUID。今後 Firestore/GCS 永続化や
 //   review_decision を紐付けるためのキーとして使う。
-// - source_type: 'cpos_analysis_source' | 'cpos_kasan_export' | 'manual_pdf' | 'manual_inputs'
+// - source_type: 'cpos_analysis_source' | 'cpos_kasan_export' | 'manual_pdf' | 'manual_inputs' | 'local_engine'
 // - mapping_warnings: cpos_addon_mapping から漏れた addOnKey や
 //   dataCompleteness=missing/partial 由来の警告を集約。
 // - review_status: 'draft' | 'awaiting_review' | 'approved' | 'returned'

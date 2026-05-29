@@ -21,7 +21,7 @@
         },
         "data_source_type": {
           "type": "string",
-          "enum": ["manual", "cpos_aggregate", "demo_aggregate"]
+          "enum": ["manual", "cpos_aggregate", "demo_aggregate", "local_aggregate"]
         }
       }
     },

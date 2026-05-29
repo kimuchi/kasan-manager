@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="ローカル前処理エンジン — フォルダ内の書類をブラウザ内で解析し、集計値だけで加算チェック" />
+    <title>ローカル前処理エンジン｜加算マネージャー</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .le-shell { max-width: 980px; margin: 0 auto; padding: 24px 20px 80px; }
+      .le-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow); margin-bottom: 20px; }
+      .le-safe { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 8px; color: var(--ink-soft); font-size: 14px; }
+      .le-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+      .le-row .field { flex: 1 1 200px; }
+      .le-files { list-style: none; padding: 0; margin: 12px 0 0; font-size: 14px; }
+      .le-files li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+      .le-badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #eef2fa; color: var(--ink-mute); white-space: nowrap; }
+      .le-badge.ok { background: #e6f6ec; color: #1d7a46; }
+      .le-badge.warn { background: #fdf2e2; color: #9a6212; }
+      .le-badge.skip { background: #f1f1f4; color: #888; }
+      .le-pre { background: #0f1430; color: #d7e0ff; padding: 14px; border-radius: 8px; overflow: auto; max-height: 360px; font-size: 12.5px; line-height: 1.5; }
+      .le-report { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+      .le-report h1, .le-report h2, .le-report h3 { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+      .le-muted { color: var(--ink-mute); font-size: 13px; }
+      .hidden { display: none; }
+      .le-dropped { font-size: 12px; color: var(--ink-mute); }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark">局所</span>
+        <div class="brand-text">
+          <h1>ローカル前処理エンジン</h1>
+          <p>フォルダを選ぶだけ。OCR・分類・個人情報除去・集計まで<strong>ブラウザの中だけ</strong>で行い、集計値だけを送ります</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <nav class="docs-nav">
+          <a href="/">← アプリに戻る</a>
+          <a href="/docs/LOCAL_ENGINE.md">仕組み・対応書類</a>
+          <a href="/docs/DATA_SAFETY.md">データ取扱方針</a>
+        </nav>
+        <div class="status-pill" id="status-pill"><span class="dot"></span><span id="status-text">接続確認中…</span></div>
+      </div>
+    </header>
+
+    <main class="le-shell">
+      <div class="le-card">
+        <p class="le-safe">
+          🛡 <strong>生ファイルはこのタブから外に出ません。</strong>
+          PDF・Excel・CSV・画像はすべてブラウザ内で解析し、被保険者番号・氏名・住所などの個人情報は除去します。
+          クラウドへ送るのは「件数・比率・要件フラグ」だけです。送信前に内容を必ずプレビュー表示します。
+        </p>
+        <div class="le-row" style="margin-top:16px;">
+          <div class="field">
+            <label>対象サービス（自動判定・必要なら変更）</label>
+            <select id="le-service">
+              <option value="">— レセプトから自動判定 —</option>
+              <option value="tsusho_kaigo">通所介護</option>
+              <option value="houmon_kaigo">訪問介護</option>
+              <option value="houmon_kango_kaigo">訪問看護（介護保険）</option>
+              <option value="kyotaku_shien">居宅介護支援</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="le-month">対象月（YYYY-MM）</label>
+            <input type="month" id="le-month" />
+          </div>
+          <div class="field" style="flex:0 0 auto;">
+            <label>&nbsp;</label>
+            <div>
+              <button type="button" id="le-pick-dir" class="primary-btn">📁 フォルダを選ぶ</button>
+              <input type="file" id="le-pick-files" webkitdirectory directory multiple class="hidden" />
+            </div>
+          </div>
+        </div>
+        <p class="hint" style="margin-top:10px;">
+          <label><input type="checkbox" id="le-ocr" /> スキャンPDF・画像を OCR で読む（Tesseract.js を初回のみダウンロード・時間がかかります）</label>
+        </p>
+        <p class="hint" id="le-recaptcha-notice" style="display:none;">このサイトは reCAPTCHA で保護されています。</p>
+      </div>
+
+      <div class="le-card hidden" id="le-progress-card">
+        <h2 style="margin-top:0;">📄 解析状況</h2>
+        <ul class="le-files" id="le-files"></ul>
+        <p class="le-muted" id="le-progress-note"></p>
+      </div>
+
+      <div class="le-card hidden" id="le-preview-card">
+        <h2 style="margin-top:0;">🔍 送信されるデータ（ドライラン）</h2>
+        <p class="le-muted">以下の集計値だけがクラウドに送られます。氏名・被保険者番号などが含まれていないことを確認してください。</p>
+        <div id="le-dropped" class="le-dropped"></div>
+        <pre class="le-pre" id="le-preview"></pre>
+        <div style="margin-top:12px;">
+          <button type="button" id="le-send" class="primary-btn">この内容で加算チェックを実行</button>
+          <span class="le-muted" id="le-send-note"></span>
+        </div>
+      </div>
+
+      <div class="le-card hidden" id="le-result-card">
+        <h2 style="margin-top:0;">✅ 加算チェック結果</h2>
+        <div class="le-report" id="le-report"></div>
+      </div>
+
+      <p class="le-muted">
+        対応書類: 介護給付費明細書(PDF) / 利用者一覧・受給者台帳(Excel・CSV) / 勤務形態一覧・職員名簿(Excel・CSV) / 体制等状況一覧。
+        対応ブラウザ: Chrome・Edge（フォルダ選択）、その他は複数ファイル選択にフォールバック。
+      </p>
+    </main>
+
+    <script type="module" src="/local-import.js"></script>
+  </body>
+</html>
