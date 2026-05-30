@@ -108,7 +108,7 @@ Google セッションのみ）。PART B の `GET /api/apps/:appId/connect` /
 
 CPOS を使っていない会社向けに、加算マネージャから CPOS 上に**専用組織**を払い出す。
 
-1. App Token（admin 相当）で `POST /api/platform/organizations`（`type=kasan_app`）→ `organizationId` 取得。
+1. App Token（admin 相当）で `POST /api/platform/organizations`（`type=app`）→ `organizationId` 取得。
 2. `POST /api/platform/organizations/:id/users` で管理ユーザーを作成（メール招待 or 仮パスワード）。
 3. 以後その会社のデータは **この `organizationId` の `app-data:kasan` 名前空間にのみ**保存（CPOS の組織隔離で他組織から不可視）。
 
@@ -158,10 +158,10 @@ Errors: `400 invalid_code` / `401`(App Token 不正) / `409 code_consumed`。
 認可: App Token + scope `organizations:provision`（**新規 scope**）。
 ```json
 // req
-{ "displayName": "デイサービスほっと", "type": "kasan_app",
+{ "displayName": "デイサービスほっと", "type": "app",
   "admin": { "email": "owner@example.com", "name": "山田太郎" }, "locale": "ja-JP" }
 // res 201
-{ "organizationId": "org_kasan_001", "type": "kasan_app",
+{ "organizationId": "org_kasan_001", "type": "app",
   "adminUserId": "user_001", "invite": { "method": "email", "status": "sent" } }
 ```
 Errors: `409 organization_exists` / `403 insufficient_scope`。

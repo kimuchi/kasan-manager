@@ -1639,7 +1639,7 @@ await test('CposStore: 利用状況サマリ（ユーザー数 + 解析集計）
 await test('CposStore: 組織プロビジョニング（B2）と専用組織への保存隔離', async () => {
   const fake = withFakeCpos();
   // 専用組織を払い出し
-  const prov = await fake.createOrganization({ displayName: 'デイほっと', type: 'kasan_app', admin: { email: 'owner@example.com', name: '山田' } });
+  const prov = await fake.createOrganization({ displayName: 'デイほっと', type: 'app', admin: { email: 'owner@example.com', name: '山田' } });
   const newOrg = prov.organizationId;
   // 新組織への解析保存は新組織にしか入らない
   await saveAnalysis({ organizationId: newOrg, createdBy: prov.adminUserId, data: { service: 'tsusho_kaigo', summary_counts: { clear: 0 }, kasan_count: 1 } });
