@@ -6,6 +6,32 @@
     <meta name="description" content="加算マネージャー — 介護保険・障害福祉の加算取得を AI が支援" />
     <title>加算マネージャー｜CareLinker</title>
     <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .pw-drop { border: 2px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; cursor: pointer; transition: background .15s, border-color .15s; }
+      .pw-drop.pw-drop-over { border-color: var(--accent); background: var(--accent-soft); }
+      .pw-files, .pw-list { list-style: none; padding: 0; margin: 10px 0; font-size: 14px; }
+      .pw-files li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+      .pw-list li { padding: 5px 0; border-bottom: 1px dashed var(--border); }
+      .pw-badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #eef2fa; color: var(--ink-mute); white-space: nowrap; }
+      .pw-badge.ok { background: #e6f6ec; color: #1d7a46; }
+      .pw-badge.warn { background: #fdf2e2; color: #9a6212; }
+      .pw-badge.skip { background: #f1f1f4; color: #888; }
+      .pw-roster-rows { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+      .pw-roster-row { display: flex; gap: 8px; align-items: center; }
+      .pw-table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin-top: 8px; }
+      .pw-table th, .pw-table td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+      .pw-table th { background: #f4f6fb; }
+      .pw-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+      .pw-stat { background: #f7f9fd; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+      .pw-stat .pw-stat-label { font-size: 12px; color: var(--ink-mute); }
+      .pw-stat .pw-stat-value { font-size: 22px; font-weight: 700; color: var(--ink); }
+      .pw-stat .pw-stat-sub { font-size: 11.5px; color: var(--ink-mute); }
+      .pw-user-detail { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+      .pw-user-detail-head { display: flex; justify-content: space-between; align-items: center; }
+      .pw-ud-meta { font-size: 13.5px; margin: 4px 0 8px; color: var(--ink); }
+      .pw-ud-meta code { background: #f1f1f4; padding: 1px 5px; border-radius: 3px; }
+      .le-report { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+    </style>
   </head>
   <body>
     <header class="site-header">
@@ -185,6 +211,150 @@
     </details>
 
     <main>
+      <!-- ============================================================
+           Pro ワークスペース: ネイティブログイン + 書類解析 + 名簿流用 + 管理
+           ============================================================ -->
+      <section class="card" id="pw-root">
+        <h2>🔐 ログインして書類から判定（ローカル解析・履歴保存）</h2>
+        <p class="lead">
+          メール/パスワードでログインできます（Google などの OAuth は上部のパネル）。
+          書類は<strong>ブラウザ内で解析</strong>し、<strong>匿名化・要約した集計値だけ</strong>をサーバに保存します（生ファイル・氏名は送りません）。
+        </p>
+
+        <!-- 未ログイン -->
+        <div id="pw-auth-loggedout">
+          <div class="grid">
+            <div class="field">
+              <label for="pw-email">メールアドレス</label>
+              <input type="email" id="pw-email" autocomplete="email" placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label for="pw-password">パスワード（8文字以上・英字と数字）</label>
+              <input type="password" id="pw-password" autocomplete="current-password" />
+            </div>
+            <div class="field">
+              <label for="pw-name">表示名（任意・新規登録時）</label>
+              <input type="text" id="pw-name" placeholder="例: デイほっと" />
+            </div>
+          </div>
+          <div class="cta-buttons">
+            <button type="button" id="pw-login" class="primary-btn">ログイン</button>
+            <button type="button" id="pw-register" class="ghost-btn">新規登録</button>
+          </div>
+        </div>
+
+        <!-- ログイン済 -->
+        <div id="pw-auth-loggedin" class="hidden">
+          <p class="hint">ログイン中: <strong id="pw-whoami">-</strong>
+            <button type="button" id="pw-logout" class="ghost-btn">ログアウト</button>
+          </p>
+        </div>
+        <p class="hint" id="pw-auth-msg"></p>
+
+        <!-- ワークスペース本体（ログイン時のみ） -->
+        <div id="pw-app" class="hidden">
+          <hr />
+          <h3 class="result-h3">① 施設・対象月</h3>
+          <div class="grid">
+            <div class="field">
+              <label for="pw-facility">施設プロフィール（保存して流用）</label>
+              <select id="pw-facility"></select>
+            </div>
+            <div class="field">
+              <label for="pw-service">サービス種別</label>
+              <select id="pw-service"></select>
+            </div>
+            <div class="field">
+              <label for="pw-month">対象月</label>
+              <input type="month" id="pw-month" />
+            </div>
+          </div>
+          <details class="raw-toggle">
+            <summary>＋ 施設プロフィールを新規保存</summary>
+            <div class="grid">
+              <div class="field"><label for="pw-fac-name">事業所名</label><input type="text" id="pw-fac-name" /></div>
+              <div class="field"><label for="pw-fac-office">事業所番号</label><input type="text" id="pw-fac-office" /></div>
+              <div class="field"><label for="pw-fac-grade">地域区分（級地）</label><input type="text" id="pw-fac-grade" placeholder="例: 2" /></div>
+              <div class="field"><label>&nbsp;</label><button type="button" id="pw-fac-save" class="ghost-btn">施設を保存</button></div>
+            </div>
+            <p class="hint" id="pw-fac-msg"></p>
+          </details>
+
+          <h3 class="result-h3">② 書類を取り込む（フォルダ・ドラッグ&ドロップ・少しずつ追加OK）</h3>
+          <div id="pw-drop" class="pw-drop">
+            <p>📁 ここに <strong>ファイルやフォルダをドラッグ&ドロップ</strong>、またはクリックして選択</p>
+            <p class="hint">PDF / Excel / CSV / 画像。複数回に分けて追加できます。生ファイルは送られません。</p>
+          </div>
+          <div class="cta-buttons" style="margin-top:8px;">
+            <button type="button" id="pw-pick-folder" class="ghost-btn">📁 フォルダを選ぶ</button>
+            <label class="hint"><input type="checkbox" id="pw-ocr" /> スキャンPDF・画像をOCRで読む（低速）</label>
+          </div>
+          <input type="file" id="pw-file-input" multiple class="hidden"
+            accept=".pdf,.xlsx,.xls,.csv,.tsv,.png,.jpg,.jpeg,.tif,.tiff" />
+          <ul id="pw-files" class="pw-files"></ul>
+          <p class="hint" id="pw-collected-note"></p>
+          <div class="cta-buttons">
+            <button type="button" id="pw-add-draft" class="primary-btn">取り込みをドラフトに追加</button>
+            <button type="button" id="pw-new-draft" class="ghost-btn">新しいドラフト</button>
+          </div>
+
+          <h3 class="result-h3">③ 従業員名簿（保存・流用・編集／氏名は保存しません）</h3>
+          <div id="pw-roster-rows" class="pw-roster-rows"></div>
+          <div class="cta-buttons">
+            <button type="button" id="pw-roster-add-row" class="ghost-btn">＋ 職員を追加</button>
+            <input type="text" id="pw-roster-label" placeholder="名簿の名前（例: 本体職員）" />
+            <button type="button" id="pw-roster-save" class="ghost-btn">名簿を保存</button>
+          </div>
+          <p class="hint" id="pw-roster-msg"></p>
+          <ul id="pw-roster-list" class="pw-list"></ul>
+
+          <h3 class="result-h3">④ 解析を実行</h3>
+          <p id="pw-draft-summary" class="hint">ドラフト未作成</p>
+          <button type="button" id="pw-analyze" class="primary-btn" disabled>このドラフトで加算チェック</button>
+          <p class="hint" id="pw-draft-msg"></p>
+          <details class="raw-toggle">
+            <summary>保存済みドラフト（続きから）</summary>
+            <ul id="pw-drafts-list" class="pw-list"></ul>
+          </details>
+          <div id="pw-report" class="le-report" style="margin-top:14px;"></div>
+        </div>
+
+        <!-- 管理者: 有料ユーザー管理 -->
+        <div id="pw-admin" class="hidden">
+          <hr />
+          <h3 class="result-h3">🛠 管理ダッシュボード</h3>
+          <div id="pw-stats" class="pw-stats"></div>
+
+          <h3 class="result-h3">👥 有料ユーザー管理</h3>
+          <table class="pw-table">
+            <thead><tr><th>ユーザー</th><th>方式</th><th>プラン</th><th>解析数</th><th>最終ログイン</th><th>登録日</th><th>操作</th></tr></thead>
+            <tbody id="pw-users"></tbody>
+          </table>
+          <p class="hint" id="pw-admin-msg"></p>
+
+          <!-- ユーザー詳細パネル -->
+          <div id="pw-user-detail" class="pw-user-detail hidden">
+            <div class="pw-user-detail-head">
+              <h3 class="result-h3" id="pw-ud-title">ユーザー詳細</h3>
+              <button type="button" id="pw-ud-close" class="ghost-btn">× 閉じる</button>
+            </div>
+            <div id="pw-ud-meta" class="pw-ud-meta"></div>
+            <div id="pw-ud-counts" class="pw-stats"></div>
+            <h4 class="result-h3">サービス別 解析回数</h4>
+            <ul id="pw-ud-by-service" class="pw-list"></ul>
+            <h4 class="result-h3">直近の解析（最大10件）</h4>
+            <table class="pw-table">
+              <thead><tr><th>日時</th><th>サービス</th><th>由来</th><th>状態</th><th>加算数</th><th>clear/wait/unknown</th></tr></thead>
+              <tbody id="pw-ud-analyses"></tbody>
+            </table>
+            <h4 class="result-h3">アクセスコード履歴</h4>
+            <ul id="pw-ud-codes" class="pw-list"></ul>
+            <h4 class="result-h3">監査ログ（直近）</h4>
+            <ul id="pw-ud-audits" class="pw-list"></ul>
+          </div>
+        </div>
+      </section>
+
       <details id="cpos-section" class="cpos-collapsible hidden">
         <summary class="cpos-summary">
           <span class="cpos-summary-icon">🔐</span>
@@ -468,5 +638,6 @@
     </footer>
 
     <script src="/app.js"></script>
+    <script type="module" src="/pro-workspace.js"></script>
   </body>
 </html>

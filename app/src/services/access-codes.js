@@ -17,7 +17,7 @@
 //   }
 
 import { randomBytes } from 'node:crypto';
-import { getFirestoreClient } from './firebase-admin.js';
+import { getDb } from './firebase-admin.js';
 import { extendPaidPeriod } from './users.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい I/O/0/1 を除外
@@ -36,7 +36,7 @@ function generateCode(parts = 4, segLen = 4) {
 }
 
 export async function issueAccessCode({ durationDays, note, issuedBy, issuedByEmail }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) throw new Error('firestore_unavailable');
   if (!Number.isFinite(durationDays) || durationDays <= 0) throw new Error('invalid_duration');
   // 衝突回避: 最大 5 回 retry
@@ -66,14 +66,14 @@ export async function issueAccessCode({ durationDays, note, issuedBy, issuedByEm
 }
 
 export async function listAccessCodes({ limit = 100 } = {}) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) throw new Error('firestore_unavailable');
   const snap = await db.collection('access_codes').orderBy('issuedAt', 'desc').limit(limit).get();
   return snap.docs.map((d) => serializeCode(d.data()));
 }
 
 export async function revokeAccessCode(code, { revokedBy }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) throw new Error('firestore_unavailable');
   const ref = db.collection('access_codes').doc(code);
   const snap = await ref.get();
@@ -91,7 +91,7 @@ export async function revokeAccessCode(code, { revokedBy }) {
 }
 
 export async function redeemAccessCode(code, { uid, email }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) throw new Error('firestore_unavailable');
   const normalized = String(code || '').trim().toUpperCase();
   if (!normalized) throw new Error('empty_code');

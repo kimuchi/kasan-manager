@@ -8,6 +8,7 @@
 
 import { getAuthClient } from '../services/firebase-admin.js';
 import { ensureUser, getUserSummary, isAdminEmail } from '../services/users.js';
+import { readSession, resolveUserFromSession } from '../services/auth-local.js';
 
 const tokenCache = new Map(); // idTokenHash -> { decoded, expAt }
 const CACHE_TTL_MS = 60 * 1000;
@@ -29,40 +30,72 @@ function cacheKey(token) {
 }
 
 export async function authMiddleware(req, _res, next) {
+  // 1) Firebase ID トークン（Google OAuth / Firebase email-password）
   const token = extractToken(req);
-  if (!token) return next();
-  try {
-    const auth = getAuthClient();
-    if (!auth) return next();
-    const key = cacheKey(token);
-    const cached = tokenCache.get(key);
-    let decoded;
-    if (cached && cached.expAt > Date.now()) {
-      decoded = cached.decoded;
-    } else {
-      decoded = await auth.verifyIdToken(token);
-      tokenCache.set(key, { decoded, expAt: Date.now() + CACHE_TTL_MS });
-    }
-    const uid = decoded.uid;
-    const email = decoded.email || null;
-    const emailVerified = decoded.email_verified === true;
-    await ensureUser({ uid, email, emailVerified, displayName: decoded.name || null });
-    const summary = await getUserSummary(uid);
-    req.user = {
-      uid,
-      email,
-      emailVerified,
-      displayName: decoded.name || null,
-      planTier: summary.planTier,
-      planExpiresAt: summary.planExpiresAt,
-      isAdmin: isAdminEmail(email),
-    };
-  } catch (err) {
-    // 検証失敗時は無視（無料動作にフォールバック）。ログだけ残す。
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn(`[auth] verifyIdToken failed: ${err.message}`);
+  if (token) {
+    try {
+      const auth = getAuthClient();
+      if (auth) {
+        const key = cacheKey(token);
+        const cached = tokenCache.get(key);
+        let decoded;
+        if (cached && cached.expAt > Date.now()) {
+          decoded = cached.decoded;
+        } else {
+          decoded = await auth.verifyIdToken(token);
+          tokenCache.set(key, { decoded, expAt: Date.now() + CACHE_TTL_MS });
+        }
+        const uid = decoded.uid;
+        const email = decoded.email || null;
+        const emailVerified = decoded.email_verified === true;
+        await ensureUser({ uid, email, emailVerified, displayName: decoded.name || null });
+        const summary = await getUserSummary(uid);
+        req.user = {
+          uid,
+          email,
+          emailVerified,
+          displayName: decoded.name || null,
+          planTier: summary.planTier,
+          planExpiresAt: summary.planExpiresAt,
+          isAdmin: isAdminEmail(email),
+          authProvider: 'firebase',
+        };
+      }
+    } catch (err) {
+      // 検証失敗時は無視（無料動作にフォールバック）。ログだけ残す。
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[auth] verifyIdToken failed: ${err.message}`);
+      }
     }
   }
+
+  // 2) ネイティブ（ユーザー名/パスワード）セッション Cookie
+  if (!req.user?.uid) {
+    try {
+      const session = readSession(req);
+      if (session) {
+        const rec = await resolveUserFromSession(session);
+        if (rec) {
+          const summary = await getUserSummary(rec.uid);
+          req.user = {
+            uid: rec.uid,
+            email: rec.email || null,
+            emailVerified: Boolean(rec.emailVerified),
+            displayName: rec.displayName || null,
+            planTier: summary.planTier,
+            planExpiresAt: summary.planExpiresAt,
+            isAdmin: isAdminEmail(rec.email) || rec.isAdmin === true,
+            authProvider: 'local',
+          };
+        }
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[auth] session resolve failed: ${err.message}`);
+      }
+    }
+  }
+
   next();
 }
 

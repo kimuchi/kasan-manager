@@ -19,17 +19,56 @@
 
 **個人情報・解析結果はサーバに保存しません。** PAT は暗号化 cookie のみ。
 
+## ログイン方式（2 通り・併存）
+
+`/pro` ページでは 2 通りのログインが使えます。
+
+1. **OAuth（Firebase）**: Google アカウント等。Firebase を設定している環境で有効。
+   ヘッダ上部のログインパネルから。
+2. **ネイティブ（メール / パスワード）**: Firebase 不要。Pro ワークスペースの
+   ログイン欄から新規登録・ログイン。`KASAN_SESSION_SECRET` が設定されていれば有効。
+
+ネイティブ認証の仕組み:
+
+- パスワードは **scrypt でハッシュ化**して保存（平文は保持しない）
+- ログイン成功で **AES-256-GCM で封入したセッション Cookie**（`kasan_session`, HttpOnly）を発行
+- `/api/auth/register`・`/api/auth/login`・`/api/auth/logout`
+- サーバ側 `authMiddleware` は「Firebase ID トークン → ネイティブセッション Cookie」の順で
+  `req.user` を解決するため、両方式が同じ権限・プラン判定で扱われます
+
 ## ログインしたら何が増える？
 
-Firebase Authentication（Google / メールパスワード）でログインすると、
+ログインすると、
 
 1. プロフィール表示（自分の email）
 2. アクセスコード入力欄
+3. **Pro ワークスペース**: 書類取込（フォルダ / ドラッグ&ドロップ / 少しずつ追加）→ 加算チェック
+4. **施設プロフィール・従業員名簿の保存と流用**（次回以降に再利用・編集）
 
-**ログインしただけでは有料機能は使えません。** プラン = `free` のままなので、
+**ログインしただけでは有料機能（履歴保存・レビュー）は使えません。** プラン = `free` のままなので、
 
-- 解析履歴は引き続き保存されません
+- 解析履歴は保存されません（解析の実行自体はできます）
 - レビュー機能（承認・差戻し）も使えません
+
+## 保存データはサーバ側で匿名化・要約
+
+プロモードで保存されるデータは、**サーバ側でも必ず匿名化・要約**してから永続化します
+（情報漏洩リスク低減・多層防御）。
+
+- 氏名・カナ・被保険者番号・住所・電話・生年月日などを含むキーは**丸ごと破棄**
+- 文字列値は被保険者番号 / 電話 / メール等を**伏字化**（`anonymize.js`）
+- **従業員名簿は氏名を保存しません**。職種別人数・常勤換算へ要約し、行は「職種#連番」ラベルで保持
+- 解析結果も保存前に匿名化し、最終チェック（`assertStorageSafe`）で PII 残存があれば保存中止
+- 「少しずつ取込」のドラフトに保存されるのも匿名集計値のみ
+
+## 施設・従業員名簿の保存／ドラフト（少しずつ取込）
+
+ログインユーザーごとに以下を保存・流用・編集できます（`/api/profiles/*`, `/api/drafts/*`）。
+
+- **施設プロフィール**: 事業所名・事業所番号・サービス種別・地域区分。次回の解析で選ぶだけ
+- **従業員名簿**: 匿名化された職種別集計として保存。一覧から流用・編集
+- **解析ドラフト**: 1 度に全書類が揃わなくても、匿名集計を複数回に分けて合算（merge）し、
+  後から続きを実行できる
 
 ## アクセスコードで「有料プラン」に切り替える
 
@@ -68,17 +107,44 @@ curl -X POST https://<your-app>/api/admin/access-codes \
 
 返ってきた `code` を相手に配布。
 
+## 管理者: 有料ユーザー管理
+
+`KASAN_ADMIN_EMAILS` の管理者は、Pro ワークスペース下部の「有料ユーザー管理」UI から、
+ユーザー一覧の確認とプランの手動付与・取消ができます。
+
+API:
+- `GET /api/admin/users` → ユーザー一覧（email / 認証方式 / プラン / 登録日）
+- `POST /api/admin/users/:uid/plan { action, days }`
+  - `action: "grant"`（または `"extend"`）— `days` 日付与（既存期限が未来なら延長）
+  - `action: "revoke"` — 即時 `free` に戻す
+
+アクセスコード方式（ユーザー自身が入力）と、この直接付与方式（管理者が操作）は併用できます。
+
 ## 設定が必要な環境変数
 
 `.env.example` の「Firebase Authentication」セクションを参照。
 
 主なもの:
 
-- `FIREBASE_WEB_API_KEY` / `FIREBASE_AUTH_DOMAIN` / `FIREBASE_PROJECT_ID` / `FIREBASE_APP_ID` — クライアント Firebase SDK 用（public 値）
+- `FIREBASE_WEB_API_KEY` / `FIREBASE_AUTH_DOMAIN` / `FIREBASE_PROJECT_ID` / `FIREBASE_APP_ID` — クライアント Firebase SDK 用（public 値・OAuth ログイン用）
 - `GCP_PROJECT_ID` — Firestore のプロジェクト ID
-- `KASAN_GCS_BUCKET` — レポートを置く GCS バケット（任意。未設定なら Firestore のみ）
+- `KASAN_GCS_BUCKET` — レポートを置く GCS バケット（任意。未設定なら Firestore + ローカルストアに保存）
 - `KASAN_ADMIN_EMAILS` — 管理者 email のカンマ区切り
 - `FIREBASE_SERVICE_ACCOUNT_JSON` — Cloud Run 上は ADC で OK、ローカルは JSON 文字列
+- `KASAN_SESSION_SECRET` — **ネイティブ（メール/パスワード）ログインに必須**（32 文字以上）。
+  セッション Cookie・CPOS Cookie の暗号鍵に使用
+- `KASAN_LOCAL_STORE_DIR` — Firestore 未設定環境での保存先ディレクトリ（既定 `app/.localstore`）。
+  `:memory:` でプロセス内のみ（テスト）、`off` でローカル保存を無効化
+
+### Firebase なしでも動く（ローカルストア・フォールバック）
+
+Firebase / Firestore を設定していない環境（ローカル開発・自前ホスティング・CI）では、
+`getDb()` が **Firestore 互換のローカルストア**（`KASAN_LOCAL_STORE_DIR`）に自動フォールバックします。
+ネイティブ認証・プロフィール・ドラフト・履歴保存はローカルストアだけで一通り動作します。
+
+- `KASAN_SESSION_SECRET` を設定すればネイティブログインが有効
+- `/api/health` の `persistence.backend` が `firestore` / `local_store` / `none` を返します
+- 単一プロセス前提の簡易実装です。複数インスタンスでスケールする本番では Firestore を設定してください
 
 ## Cloud Run でのセットアップ手順
 

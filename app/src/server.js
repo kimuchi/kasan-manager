@@ -55,9 +55,35 @@ import { isSessionSecretConfigured, redactSecret } from './utils/cookie-seal.js'
 import { buildAnalysisEnvelope } from './utils/analysis-envelope.js';
 import { docsRouter, isDocsAvailable } from './routes/docs.js';
 import { hydrateSecretsFromManager } from './services/secrets.js';
-import { initFirebase, isFirebaseInitialized } from './services/firebase-admin.js';
+import { initFirebase, isFirebaseInitialized, isUsingLocalStore } from './services/firebase-admin.js';
 import { authMiddleware, requireAuth, requirePaid, requireAdmin } from './middleware/auth.js';
-import { getUserFullView } from './services/users.js';
+import { getUserFullView, listUsers, adminSetPlan } from './services/users.js';
+import { getAdminAggregateStats, getUserUsageDetail } from './services/admin-stats.js';
+import {
+  registerLocalUser,
+  loginLocalUser,
+  setSessionCookie,
+  clearSessionCookie,
+  isLocalAuthEnabled,
+} from './services/auth-local.js';
+import {
+  listFacilities,
+  getFacility,
+  saveFacility,
+  deleteFacility,
+  listStaffRosters,
+  getStaffRoster,
+  saveStaffRoster,
+  deleteStaffRoster,
+} from './services/profiles.js';
+import {
+  listDrafts,
+  getDraft,
+  createDraft,
+  mergeIntoDraft,
+  deleteDraft,
+  draftToBundle,
+} from './services/drafts.js';
 import {
   issueAccessCode,
   listAccessCodes,
@@ -194,6 +220,12 @@ app.get('/api/health', (req, res) => {
       // - かつ Firebase Web SDK の public config が env に設定されている
       firebase_enabled: isFirebaseInitialized() && Boolean(buildFirebaseWebConfig()),
       web_config: buildFirebaseWebConfig(),
+      // ネイティブ（ユーザー名/パスワード）ログインが使えるか（KASAN_SESSION_SECRET 設定時）
+      local_enabled: isLocalAuthEnabled(),
+    },
+    persistence: {
+      // 保存バックエンド: 'firestore'（本番） / 'local_store'（自前ホスティング・dev） / 'none'
+      backend: isFirebaseInitialized() ? 'firestore' : isUsingLocalStore() ? 'local_store' : 'none',
     },
   });
 });
@@ -289,6 +321,217 @@ app.delete('/api/admin/access-codes/:code', requireAdmin, async (req, res) => {
       code_not_found: 404,
       already_redeemed: 409,
     };
+    res.status(map[err.message] || 500).json({ ok: false, error: err.message });
+  }
+});
+
+// ============================================================
+// ネイティブ認証（ユーザー名/パスワード）— OAuth(Firebase) と併存
+// ============================================================
+function sendUserSession(res, user, planSummary = null) {
+  res.json({
+    ok: true,
+    authenticated: true,
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName || null,
+    authProvider: user.authProvider || 'local',
+    planTier: planSummary?.planTier || 'free',
+    planExpiresAt: planSummary?.planExpiresAt || null,
+  });
+}
+
+const AUTH_ERR_MAP = {
+  local_auth_disabled: { status: 503, message: 'ネイティブログインは現在無効です（管理者の設定が必要です）。' },
+  invalid_email: { status: 400, message: 'メールアドレスの形式が正しくありません。' },
+  weak_password: { status: 400, message: 'パスワードは8文字以上で、英字と数字を含めてください。' },
+  email_taken: { status: 409, message: 'このメールアドレスは既に登録されています。' },
+  invalid_credentials: { status: 401, message: 'メールアドレスまたはパスワードが正しくありません。' },
+};
+
+app.post('/api/auth/register', heavyLimiter, async (req, res) => {
+  try {
+    const { user, session } = await registerLocalUser({
+      email: String(req.body?.email || '').trim(),
+      password: String(req.body?.password || ''),
+      displayName: req.body?.displayName ? String(req.body.displayName).slice(0, 80) : null,
+    });
+    setSessionCookie(res, session);
+    sendUserSession(res, user);
+  } catch (err) {
+    const m = AUTH_ERR_MAP[err.message] || { status: 500, message: ' 登録に失敗しました。' };
+    res.status(m.status).json({ ok: false, error: err.message, message: m.message });
+  }
+});
+
+app.post('/api/auth/login', heavyLimiter, async (req, res) => {
+  try {
+    const { user, session } = await loginLocalUser({
+      email: String(req.body?.email || '').trim(),
+      password: String(req.body?.password || ''),
+    });
+    setSessionCookie(res, session);
+    const summary = await getUserFullView(user.uid);
+    sendUserSession(res, user, summary);
+  } catch (err) {
+    const m = AUTH_ERR_MAP[err.message] || { status: 500, message: 'ログインに失敗しました。' };
+    res.status(m.status).json({ ok: false, error: err.message, message: m.message });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// プロフィール（施設・従業員名簿）— ログインユーザーごとに保存・流用・編集
+// ============================================================
+app.get('/api/profiles/facilities', requireAuth, async (req, res) => {
+  res.json({ ok: true, facilities: await listFacilities(req.user.uid) });
+});
+app.post('/api/profiles/facilities', requireAuth, async (req, res) => {
+  try {
+    const saved = await saveFacility(req.user.uid, req.body || {});
+    res.json({ ok: true, facility: saved });
+  } catch (err) {
+    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+  }
+});
+app.get('/api/profiles/facilities/:id', requireAuth, async (req, res) => {
+  const f = await getFacility(req.user.uid, req.params.id);
+  if (!f) return res.status(404).json({ ok: false, error: 'not_found' });
+  res.json({ ok: true, facility: f });
+});
+app.put('/api/profiles/facilities/:id', requireAuth, async (req, res) => {
+  try {
+    const saved = await saveFacility(req.user.uid, { ...req.body, id: req.params.id });
+    res.json({ ok: true, facility: saved });
+  } catch (err) {
+    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+  }
+});
+app.delete('/api/profiles/facilities/:id', requireAuth, async (req, res) => {
+  const ok = await deleteFacility(req.user.uid, req.params.id);
+  res.status(ok ? 200 : 404).json({ ok });
+});
+
+app.get('/api/profiles/staff-rosters', requireAuth, async (req, res) => {
+  res.json({ ok: true, rosters: await listStaffRosters(req.user.uid) });
+});
+app.post('/api/profiles/staff-rosters', requireAuth, async (req, res) => {
+  try {
+    const saved = await saveStaffRoster(req.user.uid, req.body || {});
+    res.json({ ok: true, roster: saved });
+  } catch (err) {
+    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+  }
+});
+app.get('/api/profiles/staff-rosters/:id', requireAuth, async (req, res) => {
+  const r = await getStaffRoster(req.user.uid, req.params.id);
+  if (!r) return res.status(404).json({ ok: false, error: 'not_found' });
+  res.json({ ok: true, roster: r });
+});
+app.put('/api/profiles/staff-rosters/:id', requireAuth, async (req, res) => {
+  try {
+    const saved = await saveStaffRoster(req.user.uid, { ...req.body, id: req.params.id });
+    res.json({ ok: true, roster: saved });
+  } catch (err) {
+    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+  }
+});
+app.delete('/api/profiles/staff-rosters/:id', requireAuth, async (req, res) => {
+  const ok = await deleteStaffRoster(req.user.uid, req.params.id);
+  res.status(ok ? 200 : 404).json({ ok });
+});
+
+// ============================================================
+// 解析ドラフト（少しずつアップロード）— 匿名集計を複数回に分けて合算
+// ============================================================
+app.get('/api/drafts', requireAuth, async (req, res) => {
+  res.json({ ok: true, drafts: await listDrafts(req.user.uid) });
+});
+app.post('/api/drafts', requireAuth, async (req, res) => {
+  try {
+    const d = await createDraft(req.user.uid, req.body || {});
+    res.json({ ok: true, draft: d });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+app.get('/api/drafts/:id', requireAuth, async (req, res) => {
+  const d = await getDraft(req.user.uid, req.params.id);
+  if (!d) return res.status(404).json({ ok: false, error: 'not_found' });
+  res.json({ ok: true, draft: d });
+});
+app.post('/api/drafts/:id/merge', heavyLimiter, requireAuth, async (req, res) => {
+  try {
+    const d = await mergeIntoDraft(req.user.uid, req.params.id, req.body?.bundle || req.body || {});
+    res.json({ ok: true, draft: d });
+  } catch (err) {
+    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+  }
+});
+app.delete('/api/drafts/:id', requireAuth, async (req, res) => {
+  const ok = await deleteDraft(req.user.uid, req.params.id);
+  res.status(ok ? 200 : 404).json({ ok });
+});
+// ドラフトの集計値で加算チェックを実行（既存の from-local 経路を再利用）
+app.post('/api/drafts/:id/analyze', heavyLimiter, requireAuth, async (req, res) => {
+  const draft = await getDraft(req.user.uid, req.params.id);
+  if (!draft) return res.status(404).json({ ok: false, error: 'not_found' });
+  let facility = null;
+  if (draft.facilityId) {
+    const f = await getFacility(req.user.uid, draft.facilityId);
+    if (f) facility = { id: f.officeCode || f.id, name: f.name };
+  }
+  req.body = draftToBundle(draft, { facility });
+  return handleLocalAnalyze(req, res);
+});
+
+// ============================================================
+// 管理者: 有料ユーザー管理
+// ============================================================
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(1000, Math.max(1, Number(req.query?.limit) || 200));
+    res.json({ ok: true, users: await listUsers({ limit }) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 全体ダッシュボード（ユーザー総数・有料アクティブ・直近30日・サービス別解析数 等）
+app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
+  try {
+    const stats = await getAdminAggregateStats();
+    res.json({ ok: true, stats });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ユーザー単位の利用状況詳細
+app.get('/api/admin/users/:uid', requireAdmin, async (req, res) => {
+  try {
+    const detail = await getUserUsageDetail(req.params.uid);
+    if (!detail) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.json({ ok: true, detail });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+app.post('/api/admin/users/:uid/plan', heavyLimiter, requireAdmin, async (req, res) => {
+  try {
+    const action = String(req.body?.action || '');
+    if (!['grant', 'extend', 'revoke'].includes(action)) {
+      return res.status(400).json({ ok: false, error: 'invalid_action' });
+    }
+    const days = action === 'revoke' ? 0 : Number(req.body?.days);
+    const result = await adminSetPlan(req.params.uid, { action, days });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    const map = { user_not_found: 404, invalid_duration: 400 };
     res.status(map[err.message] || 500).json({ ok: false, error: err.message });
   }
 });
