@@ -55,55 +55,47 @@ import { isSessionSecretConfigured, redactSecret } from './utils/cookie-seal.js'
 import { buildAnalysisEnvelope } from './utils/analysis-envelope.js';
 import { docsRouter, isDocsAvailable } from './routes/docs.js';
 import { hydrateSecretsFromManager } from './services/secrets.js';
-import { initFirebase, isFirebaseInitialized, isUsingLocalStore } from './services/firebase-admin.js';
 import { authMiddleware, requireAuth, requirePaid, requireAdmin } from './middleware/auth.js';
-import { getUserFullView, listUsers, adminSetPlan } from './services/users.js';
-import { getAdminAggregateStats, getUserUsageDetail } from './services/admin-stats.js';
 import {
-  registerLocalUser,
-  loginLocalUser,
+  isCposLoginEnabled,
+  buildConnectUrl,
+  newState,
+  setStateCookie,
+  verifyStateCookie,
+  clearStateCookie,
+  loginWithCode,
   setSessionCookie,
   clearSessionCookie,
-  isLocalAuthEnabled,
-} from './services/auth-local.js';
+} from './services/cpos/app-auth.js';
+import { isAppCposConfigured, appCposStatus } from './services/cpos/app-context.js';
 import {
-  listFacilities,
-  getFacility,
-  saveFacility,
-  deleteFacility,
+  saveAnalysis,
+  listAnalyses,
+  getAnalysis,
+  recordReview,
+  listReviews,
+  listFacilityProfiles,
+  getFacilityProfile,
+  saveFacilityProfile,
+  deleteFacilityProfile,
   listStaffRosters,
   getStaffRoster,
   saveStaffRoster,
   deleteStaffRoster,
-} from './services/profiles.js';
-import {
   listDrafts,
   getDraft,
   createDraft,
-  mergeIntoDraft,
+  updateDraft,
   deleteDraft,
-  draftToBundle,
-} from './services/drafts.js';
-import {
-  issueAccessCode,
-  listAccessCodes,
-  revokeAccessCode,
-  redeemAccessCode,
-} from './services/access-codes.js';
-import {
-  persistAnalysisIfPaid,
-  listAnalysisJobsForUser,
-  getAnalysisJob,
-  loadAnalysisArtifact,
-  recordReviewDecision,
-  listReviewDecisions,
-} from './services/persistence.js';
+  getEntitlement,
+  setEntitlement,
+  listOrganizationUsers,
+  getUsageSummary,
+} from './services/cpos/store.js';
+import { mergeDraftData, draftToBundle } from './services/cpos/draft-merge.js';
+import { anonymizeStaffRoster, anonymizeAnalysisResult } from './services/anonymize.js';
 import { optimizePortfolio } from './services/portfolio.js';
 import { listGrades as listRegionalGrades, yenPerUnit as regionalYenPerUnit } from './services/regional-pricing.js';
-import {
-  summarizePastDecisionsForUser,
-  attachLearningHints,
-} from './services/review-learning.js';
 import {
   listPackets as listMasterReviewPackets,
   getPriorityMatrix as getMasterPriorityMatrix,
@@ -121,8 +113,6 @@ import {
 await hydrateSecretsFromManager().catch((err) => {
   console.warn(`[startup] Secret Manager hydration skipped: ${err?.message || err}`);
 });
-// Firebase Admin（Firestore / Auth / Storage）を初期化（失敗しても無料モードのみで動く）
-initFirebase();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -172,7 +162,7 @@ app.use('/api', generalLimiter);
 // /api/* の変更系には CSRF 検証を適用
 app.use('/api', csrfVerifyMiddleware);
 
-// /api/* で Firebase ID トークンがあれば検証し req.user を populate
+// /api/* で CPOS セッション cookie があれば検証し req.user を populate
 app.use('/api', authMiddleware);
 
 // ============================================================
@@ -198,15 +188,15 @@ app.get('/api/health', (req, res) => {
       min_score: recaptchaConfig.min_score,
     },
     cpos: {
-      // panel_visible: 連携機能の存在をユーザに知らせるため、常に true。実際にログインできるかは ready で判断
-      panel_visible: true,
-      // ready: PAT 入力 → 接続まで完了できるサーバ設定が整っているか
-      ready: isSessionSecretConfigured(),
+      // PAT パネルは廃止。CPOS 連携はアプリ登録（App Token）+ ログイン受け渡しに一本化。
+      panel_visible: false,
+      ready: isAppCposConfigured(),
       session_secret_configured: isSessionSecretConfigured(),
       default_base_url: defaultBaseUrl(),
-      not_ready_message: isSessionSecretConfigured()
+      app_configured: isAppCposConfigured(),
+      not_ready_message: isAppCposConfigured()
         ? null
-        : 'CPOS 連携にはサーバ管理者が KASAN_SESSION_SECRET を設定する必要があります。',
+        : 'CPOS 連携にはサーバ管理者が KASAN_CPOS_APP_TOKEN と KASAN_SESSION_SECRET / KASAN_DEFAULT_CPOS_BASE_URL を設定する必要があります。',
     },
     csrf: {
       cookie_name: CSRF_COOKIE_NAME,
@@ -215,35 +205,20 @@ app.get('/api/health', (req, res) => {
     },
     docs: { available: isDocsAvailable() },
     auth: {
-      // クライアントが Firebase ログイン UI を出すための条件:
-      // - サーバ側で Firebase Admin SDK が初期化されている（ID トークン検証可能）
-      // - かつ Firebase Web SDK の public config が env に設定されている
-      firebase_enabled: isFirebaseInitialized() && Boolean(buildFirebaseWebConfig()),
-      web_config: buildFirebaseWebConfig(),
-      // ネイティブ（ユーザー名/パスワード）ログインが使えるか（KASAN_SESSION_SECRET 設定時）
-      local_enabled: isLocalAuthEnabled(),
+      // ログインは CPOS 一本化。これが true のとき「CPOS でログイン」を表示する。
+      cpos_login_enabled: isCposLoginEnabled(),
+      provider: 'cpos',
     },
     persistence: {
-      // 保存バックエンド: 'firestore'（本番） / 'local_store'（自前ホスティング・dev） / 'none'
-      backend: isFirebaseInitialized() ? 'firestore' : isUsingLocalStore() ? 'local_store' : 'none',
+      // 保存バックエンドは CPOS app-data に一本化。
+      backend: isAppCposConfigured() ? 'cpos_app_data' : 'none',
+      app: appCposStatus(),
     },
   });
 });
 
-function buildFirebaseWebConfig() {
-  // これらはすべて public な値（Firebase の API key は同一プロジェクト内の認証用で機密ではない）
-  const cfg = {
-    apiKey: process.env.FIREBASE_WEB_API_KEY || null,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || null,
-    projectId: process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT_ID || null,
-    appId: process.env.FIREBASE_APP_ID || null,
-  };
-  if (!cfg.apiKey || !cfg.authDomain || !cfg.projectId) return null;
-  return cfg;
-}
-
 // ============================================================
-// 認証・プラン・アクセスコード API
+// 認証（CPOS ログイン一本化）
 // ============================================================
 app.get('/api/me', (req, res) => {
   if (!req.user?.uid) return res.json({ authenticated: false });
@@ -252,275 +227,427 @@ app.get('/api/me', (req, res) => {
     uid: req.user.uid,
     email: req.user.email,
     displayName: req.user.displayName,
+    role: req.user.role,
+    organizationId: req.user.organizationId,
     planTier: req.user.planTier,
     planExpiresAt: req.user.planExpiresAt,
     isAdmin: req.user.isAdmin,
+    authProvider: 'cpos',
   });
 });
 
-app.get('/api/me/full', requireAuth, async (req, res) => {
-  try {
-    const view = await getUserFullView(req.user.uid);
-    res.json({ ok: true, user: view });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.post('/api/access-codes/redeem', heavyLimiter, requireAuth, async (req, res) => {
-  const code = String(req.body?.code || '').trim();
-  if (!code) return res.status(400).json({ ok: false, error: 'empty_code', message: 'アクセスコードを入力してください' });
-  try {
-    const r = await redeemAccessCode(code, { uid: req.user.uid, email: req.user.email });
-    res.json({ ok: true, ...r });
-  } catch (err) {
-    const map = {
-      code_not_found: { status: 404, message: 'コードが見つかりません' },
-      code_revoked: { status: 410, message: 'このコードは失効しています' },
-      code_already_redeemed: { status: 409, message: 'このコードは使用済みです' },
-      empty_code: { status: 400, message: 'コードが空です' },
-      firestore_unavailable: { status: 503, message: 'バックエンドが利用できません' },
-    };
-    const m = map[err.message] || { status: 500, message: err.message };
-    res.status(m.status).json({ ok: false, error: err.message, message: m.message });
-  }
-});
-
-app.post('/api/admin/access-codes', heavyLimiter, requireAdmin, async (req, res) => {
-  const durationDays = Number(req.body?.durationDays);
-  const note = req.body?.note ? String(req.body.note).slice(0, 500) : null;
-  try {
-    const doc = await issueAccessCode({
-      durationDays,
-      note,
-      issuedBy: req.user.uid,
-      issuedByEmail: req.user.email,
-    });
-    res.json({ ok: true, code: doc });
-  } catch (err) {
-    res.status(400).json({ ok: false, error: err.message });
-  }
-});
-
-app.get('/api/admin/access-codes', requireAdmin, async (req, res) => {
-  try {
-    const limit = Math.min(500, Math.max(1, Number(req.query?.limit) || 100));
-    const codes = await listAccessCodes({ limit });
-    res.json({ ok: true, codes });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-app.delete('/api/admin/access-codes/:code', requireAdmin, async (req, res) => {
-  try {
-    const doc = await revokeAccessCode(req.params.code, { revokedBy: req.user.uid });
-    res.json({ ok: true, code: doc });
-  } catch (err) {
-    const map = {
-      code_not_found: 404,
-      already_redeemed: 409,
-    };
-    res.status(map[err.message] || 500).json({ ok: false, error: err.message });
-  }
-});
-
-// ============================================================
-// ネイティブ認証（ユーザー名/パスワード）— OAuth(Firebase) と併存
-// ============================================================
-function sendUserSession(res, user, planSummary = null) {
+// 互換: /api/me/full は /api/me と同じ内容（独自ユーザーレコードは廃止）
+app.get('/api/me/full', requireAuth, (req, res) => {
   res.json({
     ok: true,
-    authenticated: true,
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName || null,
-    authProvider: user.authProvider || 'local',
-    planTier: planSummary?.planTier || 'free',
-    planExpiresAt: planSummary?.planExpiresAt || null,
+    user: {
+      uid: req.user.uid,
+      email: req.user.email,
+      displayName: req.user.displayName,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+      planTier: req.user.planTier,
+      planExpiresAt: req.user.planExpiresAt,
+      isAdmin: req.user.isAdmin,
+    },
   });
+});
+
+function cposCallbackRedirectUri(req) {
+  const base = (process.env.KASAN_PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  return `${base}/api/auth/cpos/callback`;
 }
 
-const AUTH_ERR_MAP = {
-  local_auth_disabled: { status: 503, message: 'ネイティブログインは現在無効です（管理者の設定が必要です）。' },
-  invalid_email: { status: 400, message: 'メールアドレスの形式が正しくありません。' },
-  weak_password: { status: 400, message: 'パスワードは8文字以上で、英字と数字を含めてください。' },
-  email_taken: { status: 409, message: 'このメールアドレスは既に登録されています。' },
-  invalid_credentials: { status: 401, message: 'メールアドレスまたはパスワードが正しくありません。' },
-};
-
-app.post('/api/auth/register', heavyLimiter, async (req, res) => {
+// CPOS ログイン開始 → CPOS の同意画面へ 302
+app.get('/api/auth/cpos/start', (req, res) => {
+  if (!isCposLoginEnabled()) {
+    return res
+      .status(503)
+      .json({ ok: false, error: 'cpos_login_disabled', message: 'CPOS ログインが未設定です（管理者の設定が必要）。' });
+  }
   try {
-    const { user, session } = await registerLocalUser({
-      email: String(req.body?.email || '').trim(),
-      password: String(req.body?.password || ''),
-      displayName: req.body?.displayName ? String(req.body.displayName).slice(0, 80) : null,
-    });
-    setSessionCookie(res, session);
-    sendUserSession(res, user);
+    const state = newState();
+    setStateCookie(res, state);
+    const url = buildConnectUrl({ redirectUri: cposCallbackRedirectUri(req), state });
+    res.redirect(url);
   } catch (err) {
-    const m = AUTH_ERR_MAP[err.message] || { status: 500, message: ' 登録に失敗しました。' };
-    res.status(m.status).json({ ok: false, error: err.message, message: m.message });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-app.post('/api/auth/login', heavyLimiter, async (req, res) => {
+// CPOS からのコールバック（code を交換してセッション cookie を発行）
+app.get('/api/auth/cpos/callback', async (req, res) => {
+  const code = String(req.query?.code || '');
+  const state = String(req.query?.state || '');
+  if (!code || !verifyStateCookie(req, state)) {
+    clearStateCookie(res);
+    return res.status(400).send('ログインに失敗しました（state 不一致）。お手数ですが再度お試しください。');
+  }
+  clearStateCookie(res);
   try {
-    const { user, session } = await loginLocalUser({
-      email: String(req.body?.email || '').trim(),
-      password: String(req.body?.password || ''),
-    });
+    const { session } = await loginWithCode(code);
     setSessionCookie(res, session);
-    const summary = await getUserFullView(user.uid);
-    sendUserSession(res, user, summary);
+    res.redirect('/pro');
   } catch (err) {
-    const m = AUTH_ERR_MAP[err.message] || { status: 500, message: 'ログインに失敗しました。' };
-    res.status(m.status).json({ ok: false, error: err.message, message: m.message });
+    const status = err.statusCode || 500;
+    res.status(status).send(`CPOS ログインに失敗しました: ${err.message}`);
   }
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', (_req, res) => {
   clearSessionCookie(res);
   res.json({ ok: true });
 });
 
+// 解析結果を CPOS app-data に保存（有料 + CPOS 設定時のみ）。失敗してもレスポンスは止めない。
+async function persistAnalysisIfPaid({ req, analysisId, judgeResult, markdown, sourceType, extra = {} }) {
+  if (req?.user?.planTier !== 'paid' || !req?.user?.organizationId) {
+    return { persisted: false, reason: 'free_or_unauthenticated' };
+  }
+  if (!isAppCposConfigured()) return { persisted: false, reason: 'cpos_not_configured' };
+  try {
+    const s = judgeResult?.summary || {};
+    const data = {
+      analysisId,
+      service: judgeResult?.service || null,
+      serviceMonth: extra.service_month || null,
+      facilityId: extra.facility_id || extra.office || null,
+      source_type: sourceType || judgeResult?.source_type || null,
+      review_status: judgeResult?.review_status || 'draft',
+      kasan_count: judgeResult?.kasan_count ?? null,
+      summary_counts: {
+        clear: (s.clear || []).length,
+        waiting: (s.waiting || []).length,
+        not_clear: (s.not_clear || []).length,
+        unknown: (s.unknown || []).length,
+        currently_claimed: (s.currently_claimed || []).length,
+        claimed_but_requirements_unknown: (s.claimed_but_requirements_unknown || []).length,
+      },
+      mapping_warnings: judgeResult?.mapping_warnings || [],
+      reportMarkdown: markdown || null,
+      resultJson: anonymizeAnalysisResult(judgeResult),
+    };
+    const saved = await saveAnalysis({ organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    return { persisted: true, analysisId: saved.id };
+  } catch (err) {
+    console.warn(`[persist] CPOS save failed: ${err.message}`);
+    return { persisted: false, reason: err.message };
+  }
+}
+
 // ============================================================
-// プロフィール（施設・従業員名簿）— ログインユーザーごとに保存・流用・編集
+// プロフィール / ドラフト / 管理 — すべて CPOS app-data に保存
 // ============================================================
+
+// app-data ドキュメント → フロント互換のフラットなビュー（{id, ...data, createdAt, updatedAt}）
+function flattenDoc(doc) {
+  if (!doc) return null;
+  return { id: doc.id, ...(doc.data || {}), createdAt: doc.createdAt, updatedAt: doc.updatedAt };
+}
+// 取得 + 所有組織チェック（無所属/別組織は null）
+async function loadOwned(getter, id, req) {
+  let doc;
+  try {
+    doc = await getter(id);
+  } catch (err) {
+    if (err.statusCode === 404) return null;
+    throw err;
+  }
+  if (!doc || doc.organizationId !== req.user.organizationId) return null;
+  return doc;
+}
+// CPOS 未設定（503）・その他のストアエラーを HTTP に変換
+function storeError(res, err) {
+  if (err.message === 'cpos_not_configured' || err.statusCode === 503) {
+    return res
+      .status(503)
+      .json({ ok: false, error: 'cpos_not_configured', message: 'CPOS 連携が未設定です（保存できません）。' });
+  }
+  return res.status(err.statusCode || 500).json({ ok: false, error: err.message });
+}
+
+// ---- 施設プロフィール（組織内で共有・流用） ----
 app.get('/api/profiles/facilities', requireAuth, async (req, res) => {
-  res.json({ ok: true, facilities: await listFacilities(req.user.uid) });
+  try {
+    const items = await listFacilityProfiles({ organizationId: req.user.organizationId });
+    res.json({ ok: true, facilities: items.map(flattenDoc) });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 app.post('/api/profiles/facilities', requireAuth, async (req, res) => {
   try {
-    const saved = await saveFacility(req.user.uid, req.body || {});
-    res.json({ ok: true, facility: saved });
+    const b = req.body || {};
+    const data = { name: b.name || null, officeCode: b.officeCode || null, serviceKey: b.serviceKey || null, regionGrade: b.regionGrade || null, note: b.note || null };
+    const saved = await saveFacilityProfile({ organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    res.json({ ok: true, facility: flattenDoc(saved) });
   } catch (err) {
-    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 app.get('/api/profiles/facilities/:id', requireAuth, async (req, res) => {
-  const f = await getFacility(req.user.uid, req.params.id);
-  if (!f) return res.status(404).json({ ok: false, error: 'not_found' });
-  res.json({ ok: true, facility: f });
+  try {
+    const doc = await loadOwned(getFacilityProfile, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.json({ ok: true, facility: flattenDoc(doc) });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 app.put('/api/profiles/facilities/:id', requireAuth, async (req, res) => {
   try {
-    const saved = await saveFacility(req.user.uid, { ...req.body, id: req.params.id });
-    res.json({ ok: true, facility: saved });
+    const doc = await loadOwned(getFacilityProfile, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const b = req.body || {};
+    const data = { ...(doc.data || {}), ...b };
+    delete data.id;
+    const saved = await saveFacilityProfile({ id: req.params.id, organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    res.json({ ok: true, facility: flattenDoc(saved) });
   } catch (err) {
-    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 app.delete('/api/profiles/facilities/:id', requireAuth, async (req, res) => {
-  const ok = await deleteFacility(req.user.uid, req.params.id);
-  res.status(ok ? 200 : 404).json({ ok });
+  try {
+    const doc = await loadOwned(getFacilityProfile, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false });
+    await deleteFacilityProfile(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 
+// ---- 従業員名簿（保存時にサーバ側で匿名化集計に変換・氏名は保存しない） ----
+function rosterDataFromBody(b = {}) {
+  const anonymized = anonymizeStaffRoster(b.entries || []);
+  return {
+    label: b.label ? String(b.label).slice(0, 80) : '従業員名簿',
+    serviceKey: b.serviceKey || null,
+    facilityId: b.facilityId || null,
+    ...anonymized,
+  };
+}
 app.get('/api/profiles/staff-rosters', requireAuth, async (req, res) => {
-  res.json({ ok: true, rosters: await listStaffRosters(req.user.uid) });
+  try {
+    const items = await listStaffRosters({ organizationId: req.user.organizationId });
+    res.json({ ok: true, rosters: items.map(flattenDoc) });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 app.post('/api/profiles/staff-rosters', requireAuth, async (req, res) => {
   try {
-    const saved = await saveStaffRoster(req.user.uid, req.body || {});
-    res.json({ ok: true, roster: saved });
+    const saved = await saveStaffRoster({ organizationId: req.user.organizationId, createdBy: req.user.uid, data: rosterDataFromBody(req.body) });
+    res.json({ ok: true, roster: flattenDoc(saved) });
   } catch (err) {
-    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 app.get('/api/profiles/staff-rosters/:id', requireAuth, async (req, res) => {
-  const r = await getStaffRoster(req.user.uid, req.params.id);
-  if (!r) return res.status(404).json({ ok: false, error: 'not_found' });
-  res.json({ ok: true, roster: r });
+  try {
+    const doc = await loadOwned(getStaffRoster, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.json({ ok: true, roster: flattenDoc(doc) });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 app.put('/api/profiles/staff-rosters/:id', requireAuth, async (req, res) => {
   try {
-    const saved = await saveStaffRoster(req.user.uid, { ...req.body, id: req.params.id });
-    res.json({ ok: true, roster: saved });
+    const doc = await loadOwned(getStaffRoster, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const data = Array.isArray(req.body?.entries) ? rosterDataFromBody(req.body) : { ...(doc.data || {}), ...(req.body || {}) };
+    const saved = await saveStaffRoster({ id: req.params.id, organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    res.json({ ok: true, roster: flattenDoc(saved) });
   } catch (err) {
-    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 app.delete('/api/profiles/staff-rosters/:id', requireAuth, async (req, res) => {
-  const ok = await deleteStaffRoster(req.user.uid, req.params.id);
-  res.status(ok ? 200 : 404).json({ ok });
+  try {
+    const doc = await loadOwned(getStaffRoster, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false });
+    await deleteStaffRoster(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 
-// ============================================================
-// 解析ドラフト（少しずつアップロード）— 匿名集計を複数回に分けて合算
-// ============================================================
+// ---- 解析ドラフト（少しずつ取込・個人の作業セット） ----
 app.get('/api/drafts', requireAuth, async (req, res) => {
-  res.json({ ok: true, drafts: await listDrafts(req.user.uid) });
+  try {
+    const items = await listDrafts({ organizationId: req.user.organizationId, createdBy: req.user.uid });
+    res.json({ ok: true, drafts: items.map(flattenDoc) });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 app.post('/api/drafts', requireAuth, async (req, res) => {
   try {
-    const d = await createDraft(req.user.uid, req.body || {});
-    res.json({ ok: true, draft: d });
+    const b = req.body || {};
+    const data = {
+      label: b.label || '作業中の解析',
+      serviceKey: b.serviceKey || null,
+      serviceMonth: b.serviceMonth && /^\d{4}-\d{2}$/.test(b.serviceMonth) ? b.serviceMonth : null,
+      facilityId: b.facilityId || null,
+      contributedCount: 0,
+      fileTypeCounts: {},
+      warnings: [],
+    };
+    const d = await createDraft({ organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    res.json({ ok: true, draft: flattenDoc(d) });
   } catch (err) {
-    res.status(400).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 app.get('/api/drafts/:id', requireAuth, async (req, res) => {
-  const d = await getDraft(req.user.uid, req.params.id);
-  if (!d) return res.status(404).json({ ok: false, error: 'not_found' });
-  res.json({ ok: true, draft: d });
+  try {
+    const doc = await loadOwned(getDraft, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.json({ ok: true, draft: flattenDoc(doc) });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 app.post('/api/drafts/:id/merge', heavyLimiter, requireAuth, async (req, res) => {
   try {
-    const d = await mergeIntoDraft(req.user.uid, req.params.id, req.body?.bundle || req.body || {});
-    res.json({ ok: true, draft: d });
+    const doc = await loadOwned(getDraft, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const newData = mergeDraftData(doc.data || {}, req.body?.bundle || req.body || {});
+    const saved = await updateDraft(req.params.id, newData);
+    res.json({ ok: true, draft: flattenDoc(saved) });
   } catch (err) {
-    res.status(err.message === 'not_found' ? 404 : 400).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 app.delete('/api/drafts/:id', requireAuth, async (req, res) => {
-  const ok = await deleteDraft(req.user.uid, req.params.id);
-  res.status(ok ? 200 : 404).json({ ok });
+  try {
+    const doc = await loadOwned(getDraft, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false });
+    await deleteDraft(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    storeError(res, err);
+  }
 });
 // ドラフトの集計値で加算チェックを実行（既存の from-local 経路を再利用）
 app.post('/api/drafts/:id/analyze', heavyLimiter, requireAuth, async (req, res) => {
-  const draft = await getDraft(req.user.uid, req.params.id);
-  if (!draft) return res.status(404).json({ ok: false, error: 'not_found' });
-  let facility = null;
-  if (draft.facilityId) {
-    const f = await getFacility(req.user.uid, draft.facilityId);
-    if (f) facility = { id: f.officeCode || f.id, name: f.name };
+  try {
+    const doc = await loadOwned(getDraft, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    let facility = null;
+    if (doc.data?.facilityId) {
+      const f = await loadOwned(getFacilityProfile, doc.data.facilityId, req);
+      if (f) facility = { id: f.data?.officeCode || f.id, name: f.data?.name };
+    }
+    req.body = draftToBundle(doc.data || {}, { facility });
+    return handleLocalAnalyze(req, res);
+  } catch (err) {
+    storeError(res, err);
   }
-  req.body = draftToBundle(draft, { facility });
-  return handleLocalAnalyze(req, res);
 });
 
 // ============================================================
-// 管理者: 有料ユーザー管理
+// 管理者: 有料ユーザー管理（CPOS 組織・エンタイトルメント）
 // ============================================================
+const SERVICE_KEYS_FOR_STATS = ['tsusho_kaigo', 'houmon_kaigo', 'houmon_kango_kaigo', 'kyotaku_shien', 'sogoubu_tsusho'];
+
+function userView(u) {
+  const ent = u.entitlements?.['kasan-manager'] || null;
+  const active = ent?.status === 'active' && (!ent.expiresAt || new Date(ent.expiresAt).getTime() > Date.now());
+  return {
+    uid: u.id,
+    email: u.email || null,
+    displayName: u.name || null,
+    role: u.role || 'staff',
+    authProvider: 'cpos',
+    planTier: active ? 'paid' : 'free',
+    planExpiresAt: active ? ent.expiresAt : null,
+    createdAt: u.createdAt || null,
+    lastLoginAt: u.lastLoginAt || null,
+    isAdmin: u.role === 'admin',
+  };
+}
+
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
-    const limit = Math.min(1000, Math.max(1, Number(req.query?.limit) || 200));
-    res.json({ ok: true, users: await listUsers({ limit }) });
+    const users = await listOrganizationUsers({ organizationId: req.user.organizationId, limit: 1000 });
+    res.json({ ok: true, users: users.map(userView) });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
-// 全体ダッシュボード（ユーザー総数・有料アクティブ・直近30日・サービス別解析数 等）
-app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
+// 全体ダッシュボード（CPOS 組織のユーザー数 + app-data 解析集計）
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
   try {
-    const stats = await getAdminAggregateStats();
+    const usage = await getUsageSummary({ organizationId: req.user.organizationId });
+    const stats = {
+      users: {
+        total: usage.users.total,
+        paid_active: null, // CPOS エンタイトルメント横断集計は per-user 詳細で確認
+        active_last_30_days: null,
+        firebase: usage.users.total,
+        native: 0,
+      },
+      analyses: {
+        total: usage.analyses.total,
+        last_30_days: usage.analyses.last30Days,
+        by_service: usage.analyses.byService,
+        by_month: usage.analyses.byMonth,
+      },
+    };
     res.json({ ok: true, stats });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
-// ユーザー単位の利用状況詳細
+// ユーザー単位の利用状況詳細（組織内 app-data から集計）
 app.get('/api/admin/users/:uid', requireAdmin, async (req, res) => {
   try {
-    const detail = await getUserUsageDetail(req.params.uid);
-    if (!detail) return res.status(404).json({ ok: false, error: 'not_found' });
-    res.json({ ok: true, detail });
+    const orgId = req.user.organizationId;
+    const uid = req.params.uid;
+    const users = await listOrganizationUsers({ organizationId: orgId, limit: 1000 });
+    const u = users.find((x) => x.id === uid);
+    if (!u) return res.status(404).json({ ok: false, error: 'not_found' });
+    const [allAnalyses, ent] = await Promise.all([
+      listAnalyses({ organizationId: orgId, limit: 500 }),
+      getEntitlement({ organizationId: orgId, userId: uid }).catch(() => ({ status: 'none', expiresAt: null })),
+    ]);
+    const mine = allAnalyses.filter((a) => a.createdBy === uid);
+    const byService = {};
+    for (const a of mine) {
+      const k = a.data?.service || 'unknown';
+      byService[k] = (byService[k] || 0) + 1;
+    }
+    const active = ent.status === 'active' && (!ent.expiresAt || new Date(ent.expiresAt).getTime() > Date.now());
+    res.json({
+      ok: true,
+      detail: {
+        user: { ...userView(u), planTier: active ? 'paid' : 'free', planExpiresAt: active ? ent.expiresAt : null },
+        counts: { analyses: mine.length },
+        analyses_by_service: byService,
+        last_analysis_at: mine[0]?.createdAt || null,
+        recent_analyses: mine.slice(0, 10).map((a) => ({
+          analysis_id: a.id,
+          created_at: a.createdAt,
+          service: a.data?.service,
+          source_type: a.data?.source_type,
+          review_status: a.data?.review_status,
+          kasan_count: a.data?.kasan_count,
+          summary_counts: a.data?.summary_counts || {},
+        })),
+      },
+    });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
+
+// エンタイトルメント付与/延長/取消（旧 access-code + plan 操作を統合）
 app.post('/api/admin/users/:uid/plan', heavyLimiter, requireAdmin, async (req, res) => {
   try {
     const action = String(req.body?.action || '');
@@ -528,126 +655,158 @@ app.post('/api/admin/users/:uid/plan', heavyLimiter, requireAdmin, async (req, r
       return res.status(400).json({ ok: false, error: 'invalid_action' });
     }
     const days = action === 'revoke' ? 0 : Number(req.body?.days);
-    const result = await adminSetPlan(req.params.uid, { action, days });
-    res.json({ ok: true, ...result });
+    if (action !== 'revoke' && (!Number.isFinite(days) || days <= 0)) {
+      return res.status(400).json({ ok: false, error: 'invalid_duration' });
+    }
+    const ent = await setEntitlement({
+      organizationId: req.user.organizationId,
+      userId: req.params.uid,
+      action,
+      days,
+      grantedBy: req.user.uid,
+    });
+    const data = ent.data || ent;
+    const active = data.status === 'active';
+    res.json({ ok: true, planTier: active ? 'paid' : 'free', planExpiresAt: active ? data.expiresAt : null });
   } catch (err) {
-    const map = { user_not_found: 404, invalid_duration: 400 };
-    res.status(map[err.message] || 500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
 // ============================================================
-// 分析履歴・レビュー（有料プラン専用）
+// 分析履歴・レビュー（有料プラン専用）— CPOS app-data
 // ============================================================
+function analysisJobView(doc) {
+  const d = doc.data || {};
+  return {
+    analysis_id: doc.id,
+    uid: doc.createdBy,
+    created_at: doc.createdAt,
+    source_type: d.source_type || null,
+    review_status: d.review_status || 'draft',
+    service: d.service || null,
+    facility_id: d.facilityId || null,
+    service_month: d.serviceMonth || null,
+    kasan_count: d.kasan_count ?? null,
+    summary_counts: d.summary_counts || {},
+    mapping_warnings: d.mapping_warnings || [],
+  };
+}
+// 解析の取得 + 権限チェック（管理者は組織内、一般は自分のもの）
+async function loadOwnedAnalysis(id, req) {
+  let doc;
+  try {
+    doc = await getAnalysis(id);
+  } catch (err) {
+    if (err.statusCode === 404) return null;
+    throw err;
+  }
+  if (!doc || doc.organizationId !== req.user.organizationId) return null;
+  if (!req.user.isAdmin && doc.createdBy !== req.user.uid) return null;
+  return doc;
+}
+// レビュー一覧 → per_kasan_status + 集約 review_status
+function aggregateReviews(reviews) {
+  const perKasan = {};
+  for (const r of reviews) {
+    const k = r.data?.kasanKey || '__overall__';
+    perKasan[k] = { decision: r.data?.decision, comment: r.data?.comment || null, decided_at: r.createdAt };
+  }
+  const decisions = Object.entries(perKasan).filter(([k]) => k !== '__overall__').map(([, v]) => v.decision);
+  let status = 'draft';
+  if (decisions.length) {
+    if (decisions.includes('returned')) status = 'returned';
+    else if (decisions.every((d) => d === 'approved')) status = 'approved';
+    else status = 'awaiting_review';
+  }
+  return { perKasan, status };
+}
+
 app.get('/api/analyses', requirePaid, async (req, res) => {
   try {
     const limit = Math.min(200, Math.max(1, Number(req.query?.limit) || 50));
-    const jobs = await listAnalysisJobsForUser(req.user.uid, { limit });
-    res.json({ ok: true, jobs });
+    const all = await listAnalyses({ organizationId: req.user.organizationId, limit: 500 });
+    const mine = req.user.isAdmin ? all : all.filter((a) => a.createdBy === req.user.uid);
+    res.json({ ok: true, jobs: mine.slice(0, limit).map(analysisJobView) });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
 app.get('/api/analyses/:id', requirePaid, async (req, res) => {
   try {
-    const job = await getAnalysisJob({
-      analysisId: req.params.id,
-      uid: req.user.uid,
-      isAdmin: req.user.isAdmin,
-    });
-    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
-    const result = await loadAnalysisArtifact({ analysisId: req.params.id, uid: job.uid, kind: 'result' });
-    const report = await loadAnalysisArtifact({ analysisId: req.params.id, uid: job.uid, kind: 'report' });
-    const decisions = await listReviewDecisions({ analysisId: req.params.id });
+    const doc = await loadOwnedAnalysis(req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const reviews = await listReviews({ organizationId: req.user.organizationId, analysisId: req.params.id }).catch(() => []);
+    const agg = aggregateReviews(reviews);
     res.json({
       ok: true,
-      job,
-      result: result ? JSON.parse(result) : null,
-      report,
-      review_decisions: decisions,
+      job: { ...analysisJobView(doc), review_status: agg.status, per_kasan_status: agg.perKasan },
+      result: doc.data?.resultJson || null,
+      report: doc.data?.reportMarkdown || null,
+      review_decisions: reviews.map((r) => ({ ...r.data, decided_at: r.createdAt })),
     });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
+const VALID_DECISIONS = new Set(['approved', 'returned', 'awaiting_review']);
 app.post('/api/analyses/:id/review', heavyLimiter, requirePaid, async (req, res) => {
   try {
-    const job = await getAnalysisJob({
-      analysisId: req.params.id,
-      uid: req.user.uid,
-      isAdmin: req.user.isAdmin,
-    });
-    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
+    const doc = await loadOwnedAnalysis(req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
     const decision = String(req.body?.decision || '');
+    if (!VALID_DECISIONS.has(decision)) return res.status(400).json({ ok: false, error: 'invalid_decision' });
     const kasanKey = req.body?.kasan_key ? String(req.body.kasan_key) : null;
     const comment = req.body?.comment ? String(req.body.comment).slice(0, 2000) : null;
-    const r = await recordReviewDecision({
+    await recordReview({
+      organizationId: req.user.organizationId,
+      createdBy: req.user.uid,
       analysisId: req.params.id,
       kasanKey,
       decision,
       comment,
-      reviewerUid: req.user.uid,
-      reviewerEmail: req.user.email,
     });
-    res.json(r);
+    const reviews = await listReviews({ organizationId: req.user.organizationId, analysisId: req.params.id });
+    const agg = aggregateReviews(reviews);
+    res.json({ ok: true, review_status: agg.status, per_kasan_status: agg.perKasan });
   } catch (err) {
-    const map = { invalid_decision: 400, firestore_unavailable: 503 };
-    res.status(map[err.message] || 500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
-// 加算別レビュー履歴。kasan_key を渡せばその加算の決定一覧、未指定なら解析全体。
 app.get('/api/analyses/:id/decisions', requirePaid, async (req, res) => {
   try {
-    const job = await getAnalysisJob({
-      analysisId: req.params.id,
-      uid: req.user.uid,
-      isAdmin: req.user.isAdmin,
-    });
-    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
+    const doc = await loadOwnedAnalysis(req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
     const kasanKey = req.query?.kasan_key ? String(req.query.kasan_key) : null;
-    const decisions = await listReviewDecisions({ analysisId: req.params.id, kasanKey });
-    res.json({ ok: true, decisions, per_kasan_status: job.per_kasan_status || {} });
+    const reviews = await listReviews({ organizationId: req.user.organizationId, analysisId: req.params.id, kasanKey });
+    const agg = aggregateReviews(reviews);
+    res.json({ ok: true, decisions: reviews.map((r) => ({ ...r.data, decided_at: r.createdAt })), per_kasan_status: agg.perKasan });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
 // ============================================================
 // ポートフォリオ最適化 PoC
 // ============================================================
-// 有料ユーザー専用: 保存済 analysis から「あと一歩で取れる加算」を ROI で並べる
-// 任意で ?region_grade=1..7|other を渡すと、その級地の単価で再計算する
 app.get('/api/analyses/:id/portfolio', requirePaid, async (req, res) => {
   try {
-    const job = await getAnalysisJob({
-      analysisId: req.params.id,
-      uid: req.user.uid,
-      isAdmin: req.user.isAdmin,
-    });
-    if (!job) return res.status(404).json({ ok: false, error: 'not_found' });
-    const resultText = await loadAnalysisArtifact({
-      analysisId: req.params.id,
-      uid: job.uid,
-      kind: 'result',
-    });
-    if (!resultText) return res.status(404).json({ ok: false, error: 'result_not_persisted' });
-    const result = JSON.parse(resultText);
+    const doc = await loadOwnedAnalysis(req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const result = doc.data?.resultJson;
+    if (!result) return res.status(404).json({ ok: false, error: 'result_not_persisted' });
     const regionGrade = req.query?.region_grade ? String(req.query.region_grade) : null;
-    let portfolio = optimizePortfolio({ judgeResult: result, regionGrade });
-    // 学習ヒント（自分の過去判断）を付与
-    const learning = await summarizePastDecisionsForUser(req.user.uid).catch(() => null);
-    if (learning) portfolio = attachLearningHints(portfolio, learning);
+    const portfolio = optimizePortfolio({ judgeResult: result, regionGrade });
     res.json({ ok: true, portfolio });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    storeError(res, err);
   }
 });
 
 // 無料ユーザーでも分析の生 JSON を渡せば最適化候補を返す（保存はしない）
-// body.region_grade を渡せばその級地の単価で計算する
 app.post('/api/portfolio/optimize', heavyLimiter, async (req, res) => {
   try {
     const judgeResult = req.body?.judge || req.body?.result_json || req.body;
@@ -655,12 +814,7 @@ app.post('/api/portfolio/optimize', heavyLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bad_request', message: 'judge 結果（judgements を含む JSON）が必要です' });
     }
     const regionGrade = req.body?.region_grade || judgeResult.region_grade || null;
-    let portfolio = optimizePortfolio({ judgeResult, regionGrade });
-    // ログイン済なら学習ヒントも付与
-    if (req.user?.uid) {
-      const learning = await summarizePastDecisionsForUser(req.user.uid).catch(() => null);
-      if (learning) portfolio = attachLearningHints(portfolio, learning);
-    }
+    const portfolio = optimizePortfolio({ judgeResult, regionGrade });
     res.json({ ok: true, portfolio });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -672,11 +826,19 @@ app.get('/api/regional-grades', (_req, res) => {
   res.json({ ok: true, grades: listRegionalGrades() });
 });
 
-// 自分のレビュー履歴サマリ（学習ヒントの元データ）
+// 自分のレビュー履歴サマリ（CPOS reviews から集計）
 app.get('/api/me/review-learning', requireAuth, async (req, res) => {
   try {
-    const summary = await summarizePastDecisionsForUser(req.user.uid);
-    res.json({ ok: true, ...summary });
+    const reviews = await listReviews({ organizationId: req.user.organizationId, limit: 1000 }).catch(() => []);
+    const mine = reviews.filter((r) => r.createdBy === req.user.uid);
+    const perKasan = {};
+    for (const r of mine) {
+      const k = r.data?.kasanKey;
+      if (!k) continue;
+      perKasan[k] = perKasan[k] || { approved: 0, returned: 0, awaiting_review: 0 };
+      if (perKasan[k][r.data.decision] != null) perKasan[k][r.data.decision] += 1;
+    }
+    res.json({ ok: true, per_kasan: perKasan, total: mine.length });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

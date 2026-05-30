@@ -15,12 +15,7 @@
 //   - 一覧は CPOS の list を使い、集計は aggregate を試行 → 501 なら list で代替集計。
 //   - CPOS 未設定（App Token 無し）は 'cpos_not_configured' で throw（呼び出し側で 503）。
 
-import {
-  anonymizeAnalysisResult,
-  summarizeForStorage,
-  scrubString,
-  assertStorageSafe,
-} from '../anonymize.js';
+import { scrubString, assertStorageSafe } from '../anonymize.js';
 import { APP_ID, getAppCposClient } from './app-context.js';
 
 const RESOURCES = {
@@ -70,15 +65,16 @@ function safeWrap(data) {
 
 // ────────────────────────────────────────
 // 解析履歴（analyses）
+// data は呼び出し側で整形・匿名化済みであること（resultJson は anonymizeAnalysisResult 通過済み）。
+// store は最終防衛として assertStorageSafe のみ行う（長いレポート markdown を切り詰めない）。
 // ────────────────────────────────────────
-export async function saveAnalysis({ organizationId, createdBy, payload }) {
-  const safe = anonymizeAnalysisResult(payload);
-  assertStorageSafe(safe);
+export async function saveAnalysis({ organizationId, createdBy, data }) {
+  assertStorageSafe(data);
   return client().createAppData(APP_ID, RESOURCES.ANALYSES, {
     organizationId,
     createdBy,
-    status: 'submitted',
-    data: safe,
+    status: data?.review_status === 'approved' ? 'submitted' : 'submitted',
+    data,
   });
 }
 

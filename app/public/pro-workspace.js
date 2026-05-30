@@ -85,13 +85,10 @@ async function init() {
     const health = await api('/api/health');
     state.csrfToken = health.csrf?.token || null;
     state.csrfHeader = health.csrf?.header_name || 'x-csrf-token';
-    if (!health.auth?.local_enabled) {
+    state.cposLoginEnabled = Boolean(health.auth?.cpos_login_enabled);
+    if (!state.cposLoginEnabled) {
       $('pw-auth-msg').textContent =
-        'ネイティブ（メール/パスワード）ログインは未設定です。管理者が KASAN_SESSION_SECRET を設定すると有効になります。OAuth ログインは上部のパネルをご利用ください。';
-    }
-    if (health.persistence?.backend === 'none') {
-      $('pw-auth-msg').textContent =
-        '保存バックエンドが未設定です（ログイン/保存は使えません）。Firestore か KASAN_LOCAL_STORE_DIR を設定してください。';
+        'CPOS ログインが未設定です。管理者が CPOS アプリ登録（App Token）と KASAN_SESSION_SECRET / CPOS URL を設定すると有効になります。';
     }
   } catch {
     /* health 失敗時も UI は出す */
@@ -122,28 +119,31 @@ function fillSelect(sel, pairs) {
   }
 }
 
-// ---------------- 認証 ----------------
+// ---------------- 認証（CPOS ログイン一本化）----------------
 function wireAuth() {
-  $('pw-login').addEventListener('click', () => doAuth('/api/auth/login'));
-  $('pw-register').addEventListener('click', () => doAuth('/api/auth/register'));
-  $('pw-logout').addEventListener('click', async () => {
-    await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    await refreshMe();
+  // メール/パスワードのネイティブ認証は廃止。CPOS の同意画面へ遷移する。
+  const loginBtn = $('pw-login');
+  if (loginBtn) {
+    loginBtn.textContent = 'CPOS でログイン';
+    loginBtn.addEventListener('click', () => {
+      window.location.href = '/api/auth/cpos/start';
+    });
+  }
+  // 旧フォーム要素は隠す
+  ['pw-register', 'pw-email', 'pw-password', 'pw-name'].forEach((id) => {
+    const el = $(id);
+    if (el) {
+      const field = el.closest('.field') || el;
+      field.classList.add('hidden');
+      el.classList.add('hidden');
+    }
   });
-}
-
-async function doAuth(path) {
-  const email = $('pw-email').value.trim();
-  const password = $('pw-password').value;
-  const displayName = $('pw-name').value.trim() || null;
-  $('pw-auth-msg').textContent = '処理中…';
-  try {
-    await api(path, { method: 'POST', body: { email, password, displayName } });
-    $('pw-password').value = '';
-    $('pw-auth-msg').textContent = '';
-    await refreshMe();
-  } catch (err) {
-    $('pw-auth-msg').textContent = `エラー: ${err.message}`;
+  const logout = $('pw-logout');
+  if (logout) {
+    logout.addEventListener('click', async () => {
+      await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      await refreshMe();
+    });
   }
 }
 
