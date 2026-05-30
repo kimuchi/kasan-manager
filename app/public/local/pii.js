@@ -18,8 +18,9 @@ export const PII_PATTERNS = [
   { key: 'birth_seireki', re: /(?<!\d)(?:19|20)\d{2}[-/年]\s?\d{1,2}[-/月]\s?\d{1,2}\s?日?(?!\d)/g },
   // 電話番号（ハイフンあり）
   { key: 'phone_hyphen', re: /(?<!\d)0\d{1,4}-\d{1,4}-\d{3,4}(?!\d)/g },
-  // 郵便番号
-  { key: 'postal', re: /〒?\s?(?<!\d)\d{3}-\d{4}(?!\d)/g },
+  // 郵便番号: 〒 を必須にする（bare の 3桁-4桁 は誤検知が多い: UUID 等が偶然 \d{3}-\d{4} を含む）。
+  // 住所自体は別途 isPiiHeader / EXPLICIT_DROP_KEYS で列ごと破棄するので、ここを甘くしても全体の防御は維持される。
+  { key: 'postal', re: /〒\s?\d{3}-\d{4}/g },
   // マイナンバー（12桁）
   { key: 'mynumber', re: /(?<!\d)\d{12}(?!\d)/g },
   // 被保険者番号（10桁）

@@ -15,15 +15,15 @@
       "required": ["id"],
       "properties": {
         "id": { "type": "string" },
-        "name": { "type": "string" },
-        "businessNumber": { "type": "string" },
+        "name": { "type": ["string", "null"] },
+        "businessNumber": { "type": ["string", "null"] },
         "serviceTypeCodes": {
-          "type": "array",
+          "type": ["array", "null"],
           "items": { "type": "string" },
           "description": "CPOS の service_type_code（例: '15'=通所介護、'11'=訪問介護、'13'=訪問看護、'43'=居宅介護支援）。配列の先頭要素を service_key 推定に用いる。"
         },
-        "facilityCategoryCode": { "type": "string" },
-        "regionClass": { "type": "string" }
+        "facilityCategoryCode": { "type": ["string", "null"] },
+        "regionClass": { "type": ["string", "null"], "description": "未設定時は null 可。CPOS の地域区分が未登録のケースがある。" }
       }
     },
     "serviceMonth": {

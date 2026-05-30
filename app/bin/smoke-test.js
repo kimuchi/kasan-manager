@@ -92,6 +92,35 @@ import {
   loadAnalysisArtifact,
 } from '../src/services/persistence.js';
 import { getAdminAggregateStats, getUserUsageDetail } from '../src/services/admin-stats.js';
+// --- CPOS app-data store (新アーキテクチャ: 全保存を CPOS に集約) ---
+import { FakeCpos } from '../tests/helpers/fake-cpos.js';
+import {
+  _setAppCposClient as _setCposStoreClient,
+  _resetAppCposClient as _resetCposStoreClient,
+  isAppCposConfigured,
+} from '../src/services/cpos/app-context.js';
+import {
+  saveAnalysis,
+  listAnalyses as listCposAnalyses,
+  getAnalysis as getCposAnalysis,
+  aggregateAnalyses,
+  recordReview,
+  listReviews,
+  saveFacilityProfile as cposSaveFacility,
+  listFacilityProfiles as cposListFacilities,
+  getFacilityProfile as cposGetFacility,
+  deleteFacilityProfile as cposDeleteFacility,
+  saveStaffRoster as cposSaveRoster,
+  listStaffRosters as cposListRosters,
+  createDraft as cposCreateDraft,
+  updateDraft as cposUpdateDraft,
+  getDraft as cposGetDraft,
+  listDrafts as cposListDrafts,
+  getEntitlement,
+  setEntitlement,
+  listOrganizationUsers,
+  getUsageSummary,
+} from '../src/services/cpos/store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1746,6 +1775,226 @@ await test('AdminStats: ユーザー詳細（解析数・サービス別・最�
 await test('AdminStats: 存在しないユーザーは null', async () => {
   const d = await getUserUsageDetail('not_a_user_xxx');
   assert.equal(d, null);
+});
+
+// =====================================================================
+// CPOS app-data ストア — 新アーキテクチャの基盤（FakeCpos で検証）
+// =====================================================================
+
+const FAKE_ORG = 'org_demo';
+const FAKE_USER = { id: 'user_demo', email: 'demo@example.com', name: 'Demo', role: 'admin' };
+
+function withFakeCpos() {
+  const fake = new FakeCpos({ organizationId: FAKE_ORG, user: FAKE_USER });
+  _setCposStoreClient(fake);
+  return fake;
+}
+
+await test('CposStore: CPOS 未設定なら 503 系のエラー（cpos_not_configured）', async () => {
+  _resetCposStoreClient();
+  // App Token を持たないので isAppCposConfigured=false
+  assert.equal(isAppCposConfigured(), false);
+  await assert.rejects(() => listCposAnalyses({ organizationId: FAKE_ORG }), /cpos_not_configured/);
+});
+
+await test('CposStore: 解析サマリの保存・一覧・取得・集計（fallback 集計含む）', async () => {
+  withFakeCpos();
+  const judge = {
+    service: 'tsusho_kaigo',
+    kasan_count: 3,
+    summary: { clear: ['a'], waiting: [], not_clear: [], unknown: [], currently_claimed: [], claimed_but_requirements_unknown: [] },
+    mapping_warnings: [],
+  };
+  const saved = await saveAnalysis({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, payload: { ...judge, facilityId: 'fac_a', serviceMonth: '2026-04' } });
+  assert.ok(saved.id);
+  assert.equal(saved.organizationId, FAKE_ORG);
+  // list
+  const list = await listCposAnalyses({ organizationId: FAKE_ORG });
+  assert.equal(list.length, 1);
+  assert.equal(list[0].data.service, 'tsusho_kaigo');
+  // get
+  const got = await getCposAnalysis(saved.id);
+  assert.equal(got.id, saved.id);
+  // 集計（CPOS aggregate は FakeCpos で 501 → list 集計フォールバック）
+  const agg = await aggregateAnalyses({ organizationId: FAKE_ORG });
+  assert.equal(agg.total, 1);
+  assert.equal(agg.byService.tsusho_kaigo, 1);
+  assert.ok(agg.byMonth['2026-04'] >= 1 || Object.keys(agg.byMonth).length >= 1);
+});
+
+await test('CposStore: 解析の自由文に PII を入れても保存後の data 上から除去される（多層防御）', async () => {
+  withFakeCpos();
+  const saved = await saveAnalysis({
+    organizationId: FAKE_ORG, createdBy: FAKE_USER.id,
+    payload: { service: 'tsusho_kaigo', summary: { clear: [] }, kasan_count: 1, leak: '電話 03-1234-5678 メール a@b.com' },
+  });
+  const json = JSON.stringify(saved.data);
+  assert.equal(/03-1234-5678/.test(json), false, '電話番号は scrubbing される');
+  assert.equal(/a@b\.com/.test(json), false, 'メールは scrubbing される');
+});
+
+await test('CposStore: review の保存・一覧（analysisId / kasanKey で絞り込み）', async () => {
+  withFakeCpos();
+  await recordReview({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, analysisId: 'an_x', kasanKey: 'nyuyoku_I', decision: 'approved' });
+  await recordReview({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, analysisId: 'an_x', kasanKey: 'koukuu_I', decision: 'returned', comment: '要再確認' });
+  await recordReview({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, analysisId: 'an_y', kasanKey: 'nyuyoku_I', decision: 'awaiting_review' });
+  const allX = await listReviews({ organizationId: FAKE_ORG, analysisId: 'an_x' });
+  assert.equal(allX.length, 2);
+  const nyu = await listReviews({ organizationId: FAKE_ORG, analysisId: 'an_x', kasanKey: 'nyuyoku_I' });
+  assert.equal(nyu.length, 1);
+  assert.equal(nyu[0].data.decision, 'approved');
+});
+
+await test('CposStore: 施設プロフィールの作成・更新・取得・削除', async () => {
+  withFakeCpos();
+  const created = await cposSaveFacility({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, data: { name: 'デイほっと', officeCode: 'DEMO-0004', serviceKey: 'tsusho_kaigo' } });
+  assert.ok(created.id);
+  // 更新
+  const upd = await cposSaveFacility({ id: created.id, organizationId: FAKE_ORG, createdBy: FAKE_USER.id, data: { name: 'デイほっと改' } });
+  assert.equal(upd.data.name, 'デイほっと改');
+  assert.equal(upd.data.officeCode, 'DEMO-0004', '更新は data を merge する');
+  // 一覧
+  const list = await cposListFacilities({ organizationId: FAKE_ORG });
+  assert.equal(list.length, 1);
+  // 取得
+  const got = await cposGetFacility(created.id);
+  assert.equal(got.data.name, 'デイほっと改');
+  // 削除
+  assert.equal(await cposDeleteFacility(created.id), true);
+  assert.equal((await cposListFacilities({ organizationId: FAKE_ORG })).length, 0);
+});
+
+await test('CposStore: 名簿の自由文中の被保番は保存時に除去される（保存自体は通る）', async () => {
+  withFakeCpos();
+  const ok = await cposSaveRoster({
+    organizationId: FAKE_ORG,
+    createdBy: FAKE_USER.id,
+    data: { label: '本体職員', qualifiedPersonCountByProfession: { care_worker: 5, nurse: 1 }, fteByProfession: {}, headcount: 6 },
+  });
+  assert.ok(ok.id);
+  // 自由文中の 10桁被保番はサーバ側 scrubbing で除去（保存後の data に残らない）
+  const withLeak = await cposSaveRoster({
+    organizationId: FAKE_ORG,
+    createdBy: FAKE_USER.id,
+    data: { label: '担当外', notes: '被保 1234567890', headcount: 1 },
+  });
+  assert.equal(/1234567890/.test(JSON.stringify(withLeak.data)), false, '被保番は scrubbing される');
+  const list = await cposListRosters({ organizationId: FAKE_ORG });
+  assert.equal(list.length, 2);
+});
+
+await test('CposStore: ドラフトの作成・更新・一覧', async () => {
+  withFakeCpos();
+  const d = await cposCreateDraft({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, data: { serviceKey: 'tsusho_kaigo', serviceMonth: '2026-04', contributedCount: 0 } });
+  assert.ok(d.id);
+  const upd = await cposUpdateDraft(d.id, { contributedCount: 2, userSummary: { activeUserCount: 10 } });
+  assert.equal(upd.data.contributedCount, 2);
+  assert.equal(upd.data.userSummary.activeUserCount, 10);
+  const list = await cposListDrafts({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id });
+  assert.equal(list.length, 1);
+});
+
+await test('CposStore: エンタイトルメント grant→active / revoke→revoked', async () => {
+  withFakeCpos();
+  let e = await getEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id });
+  assert.equal(e.status, 'none');
+  await setEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id, action: 'grant', days: 30 });
+  e = await getEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id });
+  assert.equal(e.status, 'active');
+  assert.ok(e.expiresAt);
+  await setEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id, action: 'revoke' });
+  e = await getEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id });
+  assert.equal(e.status, 'revoked');
+  // grant→extend が既存期限を加算するか
+  await setEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id, action: 'grant', days: 10 });
+  const e2 = await getEntitlement({ organizationId: FAKE_ORG, userId: FAKE_USER.id });
+  assert.equal(e2.status, 'active');
+});
+
+await test('CposStore: 利用状況サマリ（ユーザー数 + 解析集計）', async () => {
+  const fake = withFakeCpos();
+  // ユーザーを追加
+  await fake.addOrganizationUser(FAKE_ORG, { email: 'sub@example.com', name: 'Sub', role: 'staff' });
+  // 解析を 2 件
+  await saveAnalysis({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, payload: { service: 'tsusho_kaigo', summary: { clear: [] }, kasan_count: 1 } });
+  await saveAnalysis({ organizationId: FAKE_ORG, createdBy: FAKE_USER.id, payload: { service: 'houmon_kaigo', summary: { clear: [] }, kasan_count: 2 } });
+  const s = await getUsageSummary({ organizationId: FAKE_ORG });
+  assert.equal(s.users.total >= 2, true);
+  assert.equal(s.analyses.total, 2);
+  assert.equal(s.analyses.byService.tsusho_kaigo, 1);
+  assert.equal(s.analyses.byService.houmon_kaigo, 1);
+});
+
+await test('CposStore: 組織プロビジョニング（B2）と専用組織への保存隔離', async () => {
+  const fake = withFakeCpos();
+  // 専用組織を払い出し
+  const prov = await fake.createOrganization({ displayName: 'デイほっと', type: 'kasan_app', admin: { email: 'owner@example.com', name: '山田' } });
+  const newOrg = prov.organizationId;
+  // 新組織への解析保存は新組織にしか入らない
+  await saveAnalysis({ organizationId: newOrg, createdBy: prov.adminUserId, payload: { service: 'tsusho_kaigo', summary: { clear: [] }, kasan_count: 1 } });
+  const inNew = await listCposAnalyses({ organizationId: newOrg });
+  const inDefault = await listCposAnalyses({ organizationId: FAKE_ORG });
+  assert.equal(inNew.length, 1);
+  // FAKE_ORG 側に侵入していない
+  const leaked = inDefault.find((d) => d.organizationId === newOrg);
+  assert.equal(leaked, undefined);
+});
+
+_resetCposStoreClient();
+
+// =====================================================================
+// 回帰: CPOS の analysis-source で facility.regionClass=null のとき通る
+// =====================================================================
+
+await test('CPOS: facility.regionClass=null / 他オプショナル null でも validate + transform を通る', async () => {
+  const payload = {
+    schemaVersion: '1.0',
+    organizationId: 'org_x',
+    serviceMonth: '2026-04',
+    facility: {
+      id: 'fac_a',
+      name: null,             // ← null でも通る
+      businessNumber: null,
+      serviceTypeCodes: null, // ← null は配列省略扱い
+      facilityCategoryCode: null,
+      regionClass: null,      // ← ユーザー報告のケース
+    },
+    userSummary: {},
+    staffSummary: {},
+    claimSummary: { currentAddOnCounts: {} },
+    dataCompleteness: {},
+  };
+  const normalized = normalizeCposAnalysisPayload(payload);
+  // null 系はキーごと落ちている
+  assert.equal(normalized.facility.regionClass, undefined);
+  assert.equal(normalized.facility.name, undefined);
+  assert.equal(normalized.facility.serviceTypeCodes, undefined);
+  // 必須の id は残る
+  assert.equal(normalized.facility.id, 'fac_a');
+  // schema 検証も通る
+  validateAnalysisSource(normalized);
+});
+
+await test('CPOS: facility.regionClass="2" のような数値文字列でもそのまま通る', () => {
+  const ok = {
+    schemaVersion: '1.0',
+    serviceMonth: '2026-04',
+    facility: { id: 'fac_a', name: 'デイほっと', regionClass: '2' },
+  };
+  const r = normalizeCposAnalysisPayload(ok);
+  assert.equal(r.facility.regionClass, '2');
+  validateAnalysisSource(r);
+});
+
+await test('CPOS: facility.regionClass=2 (number) でも文字列化されて通る', () => {
+  const payload = {
+    schemaVersion: '1.0',
+    serviceMonth: '2026-04',
+    facility: { id: 'fac_a', regionClass: 2 },
+  };
+  const r = normalizeCposAnalysisPayload(payload);
+  assert.equal(r.facility.regionClass, '2');
+  validateAnalysisSource(r);
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

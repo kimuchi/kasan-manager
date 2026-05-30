@@ -136,6 +136,11 @@ export class CposClient {
     return this._fetch('/api/platform/me');
   }
 
+  // 現行 CPOS の cookie セッション情報（外部アプリ運用では使わないが互換のため残す）
+  async getAuthMe() {
+    return this._fetch('/api/auth/me');
+  }
+
   async getPlatformFacilities() {
     return this._fetch('/api/platform/facilities');
   }
@@ -164,5 +169,82 @@ export class CposClient {
         includePii: includePii ? 'true' : 'false',
       },
     });
+  }
+
+  // ─────────────────────────────────────────
+  // App Platform: 汎用ドキュメントストア
+  //   /api/app-data/:appId/:resource
+  // 既存 CPOS の API（API.md §AppData / app-data）に準拠。
+  // 加算マネージャは appId=kasan で resources を保存する。
+  // ─────────────────────────────────────────
+  async createAppData(appId, resource, body) {
+    return this._fetch(`/api/app-data/${encodeURIComponent(appId)}/${encodeURIComponent(resource)}`, {
+      method: 'POST',
+      body,
+    });
+  }
+  async listAppData(appId, resource, params = {}) {
+    return this._fetch(`/api/app-data/${encodeURIComponent(appId)}/${encodeURIComponent(resource)}`, {
+      params,
+    });
+  }
+  async getAppData(appId, resource, id) {
+    return this._fetch(
+      `/api/app-data/${encodeURIComponent(appId)}/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`,
+    );
+  }
+  async updateAppData(appId, resource, id, body) {
+    return this._fetch(
+      `/api/app-data/${encodeURIComponent(appId)}/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`,
+      { method: 'PUT', body },
+    );
+  }
+  async deleteAppData(appId, resource, id) {
+    return this._fetch(
+      `/api/app-data/${encodeURIComponent(appId)}/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    );
+  }
+  // [PROPOSED] B5: 集計クエリ（CPOS 未実装時はアプリ側で list 集計にフォールバック）
+  async aggregateAppData(appId, resource, params = {}) {
+    return this._fetch(
+      `/api/app-data/${encodeURIComponent(appId)}/${encodeURIComponent(resource)}/aggregate`,
+      { params },
+    );
+  }
+
+  // ─────────────────────────────────────────
+  // [PROPOSED] B1: 外部アプリへのユーザー受け渡し
+  // 加算マネージャは GET /api/apps/:appId/connect への 302 を組み立てるだけ。
+  // 戻りの code をこの exchange で検証してユーザー identity を得る。
+  // ─────────────────────────────────────────
+  async exchangeAppSessionCode(appId, code) {
+    return this._fetch(`/api/apps/${encodeURIComponent(appId)}/session/exchange`, {
+      method: 'POST',
+      body: { code },
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // [PROPOSED] B2: 加算マネージャ専用組織の払い出し
+  // ─────────────────────────────────────────
+  async createOrganization(payload) {
+    return this._fetch('/api/platform/organizations', { method: 'POST', body: payload });
+  }
+  async addOrganizationUser(organizationId, payload) {
+    return this._fetch(
+      `/api/platform/organizations/${encodeURIComponent(organizationId)}/users`,
+      { method: 'POST', body: payload },
+    );
+  }
+  async getOrganization(organizationId) {
+    return this._fetch(`/api/platform/organizations/${encodeURIComponent(organizationId)}`);
+  }
+
+  // ─────────────────────────────────────────
+  // [PROPOSED] B3: ユーザー一覧（管理ダッシュボード）
+  // ─────────────────────────────────────────
+  async listPlatformUsers(params = {}) {
+    return this._fetch('/api/platform/users', { params });
   }
 }

@@ -53,18 +53,71 @@ export function resolveKasanKey(mapping, { serviceKey, addOnKey, addOnName, serv
   return null;
 }
 
+// facility のオプショナル文字列フィールド: null/undefined/空文字なら欠落として扱い、削除する。
+// 旧 schema(string-only) でも新 schema(string|null) でもバリデーションを通すための前処理。
+// 何も変更が要らない場合は **同じ参照** を返す（呼び出し側で strictEqual を期待する箇所のため）。
+function dropEmptyFacilityFields(facility) {
+  if (!facility || typeof facility !== 'object') return facility;
+  let touched = false;
+  let out = facility;
+  const ensureClone = () => {
+    if (!touched) {
+      out = { ...facility };
+      touched = true;
+    }
+  };
+  for (const k of ['name', 'businessNumber', 'facilityCategoryCode', 'regionClass']) {
+    const v = facility[k];
+    if (v === undefined) continue;
+    if (v === null || (typeof v === 'string' && v.trim() === '')) {
+      ensureClone();
+      delete out[k];
+    } else if (typeof v !== 'string') {
+      ensureClone();
+      out[k] = String(v);
+    }
+  }
+  // serviceTypeCodes: null は省略、単一値は配列化、要素は文字列化、空配列は省略
+  if (facility.serviceTypeCodes !== undefined) {
+    const s = facility.serviceTypeCodes;
+    if (s === null) {
+      ensureClone();
+      delete out.serviceTypeCodes;
+    } else if (!Array.isArray(s)) {
+      ensureClone();
+      out.serviceTypeCodes = [String(s)];
+    } else {
+      const filtered = s.filter((x) => x != null).map((x) => String(x));
+      const same = filtered.length === s.length && filtered.every((x, i) => x === s[i]);
+      if (!same || filtered.length === 0) {
+        ensureClone();
+        if (filtered.length === 0) delete out.serviceTypeCodes;
+        else out.serviceTypeCodes = filtered;
+      }
+    }
+  }
+  return out;
+}
+
 // /api/platform/kasan/export と /api/kasan/v1/analysis-source のスキーマ差異を吸収する。
 // - analysis-source は schemaVersion=1.0、claimSummary.currentAddOnCounts
 // - platform/kasan/export は formatVersion=1、claimSummary.currentKasanCounts
 // toEngineInputs は前者を前提にしているため、export 形式が来たらこの関数で変換する。
+// さらに、facility の任意フィールドが null で来ても通るよう dropEmptyFacilityFields を適用。
 export function normalizeCposAnalysisPayload(payload) {
   if (!payload || typeof payload !== 'object') return payload;
-  if (payload.schemaVersion) return payload;
+  if (payload.schemaVersion) {
+    if (!payload.facility) return payload;
+    const fixed = dropEmptyFacilityFields(payload.facility);
+    // 何も変更が要らなければ payload 自体も同一参照のまま返す（呼び出し側の strictEqual 期待を維持）
+    if (fixed === payload.facility) return payload;
+    return { ...payload, facility: fixed };
+  }
   if (payload.formatVersion) {
     return {
       schemaVersion: '1.0',
       organizationId: payload.organizationId,
-      facility: payload.facility,
+      facility: dropEmptyFacilityFields(payload.facility),
       serviceMonth: payload.serviceMonth,
       serviceKey: payload.serviceKey,
       privacy: { includePii: false, userIdentifierType: 'anonymousUserKey' },
