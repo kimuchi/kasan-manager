@@ -31,27 +31,14 @@ import {
   CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
 } from './middleware/csrf.js';
-import {
-  CposClient,
-  defaultBaseUrl,
-  isAllowedBaseUrl,
-  normalizeBaseUrl,
-} from './services/cpos/client.js';
+import { defaultBaseUrl } from './services/cpos/client.js';
 import { validateAnalysisSource, deriveCompletenessWarnings } from './services/cpos/schemas.js';
 import { CposApiError, CposNotConfiguredError } from './services/cpos/errors.js';
 import {
   toEngineInputs as toCposEngineInputs,
   normalizeCposAnalysisPayload,
 } from './services/cpos/transform.js';
-import {
-  readCposSession,
-  readCposSessionDetailed,
-  buildSessionPayload,
-  setCposSessionCookie,
-  clearCposSessionCookie,
-  toPublicSessionView,
-} from './services/cpos/auth.js';
-import { isSessionSecretConfigured, redactSecret } from './utils/cookie-seal.js';
+import { isSessionSecretConfigured } from './utils/cookie-seal.js';
 import { buildAnalysisEnvelope } from './utils/analysis-envelope.js';
 import { docsRouter, isDocsAvailable } from './routes/docs.js';
 import { hydrateSecretsFromManager } from './services/secrets.js';
@@ -67,7 +54,7 @@ import {
   setSessionCookie,
   clearSessionCookie,
 } from './services/cpos/app-auth.js';
-import { isAppCposConfigured, appCposStatus } from './services/cpos/app-context.js';
+import { isAppCposConfigured, appCposStatus, getAppCposClient } from './services/cpos/app-context.js';
 import {
   saveAnalysis,
   listAnalyses,
@@ -965,166 +952,48 @@ function handleCposUpstreamError(err, res) {
 
 // normalizeCposAnalysisPayload は services/cpos/transform.js から import 済み
 
-function logRedacted(prefix, info) {
-  const safe = { ...info };
-  if (safe.token) safe.token = redactSecret(safe.token);
-  if (safe.cookie) safe.cookie = '[redacted]';
-  console.log(`[cpos] ${prefix}`, safe);
-}
-
-// PAT を受け取って検証 → sealed cookie を発行
-app.post('/api/cpos-token', async (req, res) => {
-  if (!isSessionSecretConfigured()) {
-    return res.status(503).json({
-      ok: false,
-      error: 'session_not_configured',
-      message: 'KASAN_SESSION_SECRET が未設定です。サーバ管理者に連絡してください。',
-    });
-  }
-  const cposBaseUrl = normalizeBaseUrl(req.body?.cposBaseUrl || defaultBaseUrl());
-  const token = (req.body?.token || '').toString().trim();
-  if (!cposBaseUrl) {
-    return res.status(400).json({ ok: false, error: 'bad_request', message: 'CPOS URL が指定されていません' });
-  }
-  if (!isAllowedBaseUrl(cposBaseUrl)) {
-    return res.status(400).json({
-      ok: false,
-      error: 'invalid_base_url',
-      message: 'CPOS URL が許可されていません（本番では https のみ）。',
-    });
-  }
-  if (!token) {
-    return res.status(400).json({ ok: false, error: 'bad_request', message: 'CPOS PAT が指定されていません' });
-  }
-  if (!/^cpos_pat_/.test(token) || token.length < 20) {
-    return res.status(400).json({
-      ok: false,
-      error: 'bad_token_format',
-      message: 'CPOS PAT の形式が不正です（cpos_pat_ で始まる必要があります）。',
-    });
-  }
-
-  try {
-    const client = new CposClient({ baseUrl: cposBaseUrl, token });
-    const me = await client.getMe();
-    const authMethod = me?.token?.authMethod || me?.authMethod;
-    const allowAppToken = process.env.KASAN_ALLOW_APP_TOKEN === 'true';
-    if (!allowAppToken && authMethod !== 'personal_access_token') {
-      return res.status(400).json({
-        ok: false,
-        error: 'not_pat',
-        message: `このトークンは PAT ではありません（authMethod=${authMethod}）。CPOS で発行した cpos_pat_ を使ってください。`,
-      });
-    }
-    const expiresAt = me?.token?.expiresAt || me?.expiresAt || null;
-    const payload = buildSessionPayload({
-      cposBaseUrl,
-      token,
-      me,
-      expiresAtFromCpos: expiresAt,
-    });
-    setCposSessionCookie(res, payload);
-    logRedacted('token verified', {
-      cposBaseUrl,
-      subject: payload.subjectUserEmail,
-      tokenPreview: payload.tokenPreview,
-    });
-    res.json({ ok: true, ...toPublicSessionView(payload) });
-  } catch (err) {
-    logRedacted('token verify failed', { cposBaseUrl, token, message: err?.message });
-    handleCposError(err, res);
-  }
-});
-
-app.get('/api/cpos-token/status', (req, res) => {
-  const session = readCposSession(req);
-  if (!session) {
-    return res.json({ connected: false });
-  }
-  res.json(toPublicSessionView(session));
-});
-
-app.delete('/api/cpos-token', (_req, res) => {
-  clearCposSessionCookie(res);
-  res.json({ ok: true, connected: false });
-});
-
-app.post('/api/cpos-token/test', async (req, res) => {
-  const session = readCposSession(req);
-  if (!session) return res.status(401).json({ ok: false, error: 'not_connected' });
-  try {
-    const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
-    const me = await client.getMe();
-    let facilityCount = 0;
-    try {
-      const facilities = await client.getPlatformFacilities();
-      facilityCount = Array.isArray(facilities?.facilities)
-        ? facilities.facilities.length
-        : Array.isArray(facilities)
-        ? facilities.length
-        : 0;
-    } catch (err) {
-      // facilities が取れないだけでは fail しない
-      logRedacted('facilities probe failed', { cposBaseUrl: session.cposBaseUrl, message: err?.message });
-    }
-    res.json({
-      ok: true,
-      me: { id: me?.user?.id || me?.id, email: me?.user?.email || me?.email },
-      facilityCount,
-    });
-  } catch (err) {
-    handleCposError(err, res);
-  }
-});
-
 // ============================================================
-// CPOS データ proxy（cookie PAT 利用・自分の権限範囲内）
+// CPOS データ proxy（App Token + ログインユーザーの権限範囲内）
 // ============================================================
-function requireCposSession(req, res) {
-  const { session, reason, detail } = readCposSessionDetailed(req);
-  if (!session) {
-    console.warn('[cpos] local sealed cookie not available', {
-      reason,
-      hasCookieHeader: Boolean(req.headers.cookie),
-      cookieHeaderLength: req.headers.cookie?.length ?? 0,
-      detail: detail ? { reason: detail.reason, expiredAt: detail.expiredAt } : null,
-    });
-    res.status(401).json({
+// PAT 個人トークンは廃止。s2s は CPOS アプリ登録の App Token（getAppCposClient）を使い、
+// 「誰の操作か」はログイン済みセッション（req.user.organizationId / allowedFacilityIds）で判断する。
+
+function requireAppCpos(res) {
+  const client = getAppCposClient();
+  if (!client) {
+    res.status(503).json({
       ok: false,
-      error: 'not_connected',
-      reason,
-      message:
-        reason === 'expired'
-          ? 'CPOS 接続セッションの有効期限が切れました。PAT を再入力してください。'
-          : reason === 'decrypt_or_auth_tag_failed'
-          ? 'CPOS 接続情報を復号できませんでした。サーバ側の暗号鍵が変わった可能性があります。再接続してください。'
-          : 'CPOS 接続情報が見つかりません。PAT を再入力してください。',
+      error: 'cpos_not_configured',
+      message: 'CPOS 連携が未設定です（KASAN_CPOS_APP_TOKEN / CPOS URL）。',
     });
     return null;
   }
-  return session;
+  return client;
 }
 
-function checkFacilityAllowed(session, facilityId) {
+function checkFacilityAllowed(req, facilityId) {
   if (!facilityId) return true;
-  const allow = session.allowedFacilityIds;
+  const allow = req.user?.allowedFacilityIds;
   if (!allow || !Array.isArray(allow) || allow.length === 0) return true; // 制限なし
   return allow.includes(facilityId);
 }
 
-app.get('/api/cpos/facilities', async (req, res) => {
-  const session = requireCposSession(req, res);
-  if (!session) return;
+app.get('/api/cpos/facilities', requireAuth, async (req, res) => {
+  const client = requireAppCpos(res);
+  if (!client) return;
   try {
-    const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
     let facilities = [];
     try {
       const r = await client.getPlatformFacilities();
       facilities = Array.isArray(r?.facilities) ? r.facilities : Array.isArray(r) ? r : [];
     } catch (err) {
-      // /api/platform/facilities が無ければ /api/kasan/v1/bootstrap で代替
       const b = await client.getBootstrap();
       facilities = b?.facilities || [];
+    }
+    // allowedFacilityIds がある場合はその範囲だけに絞る
+    const allow = req.user?.allowedFacilityIds;
+    if (Array.isArray(allow) && allow.length) {
+      facilities = facilities.filter((f) => allow.includes(f.id || f.facilityId));
     }
     res.json({ facilities });
   } catch (err) {
@@ -1132,36 +1001,31 @@ app.get('/api/cpos/facilities', async (req, res) => {
   }
 });
 
-// 加算分析: CPOS から bundle を取り、既存判定エンジンで判定 → Markdown を返す（指示書 §4.6 / §4.7）
+// 加算分析: CPOS から bundle を取り、既存判定エンジンで判定 → Markdown を返す
 async function handleCposAnalyze(req, res) {
-  const session = requireCposSession(req, res);
-  if (!session) return;
+  const client = requireAppCpos(res);
+  if (!client) return;
   const facilityId = String(req.body?.facilityId || '').trim();
   const serviceMonth = String(req.body?.serviceMonth || '').trim();
   const serviceKey = req.body?.serviceKey ? String(req.body.serviceKey) : null;
   if (!facilityId || !serviceMonth) {
     return res.status(400).json({ ok: false, error: 'bad_request', message: 'facilityId と serviceMonth は必須です' });
   }
-  if (!checkFacilityAllowed(session, facilityId)) {
+  if (!checkFacilityAllowed(req, facilityId)) {
     return res.status(403).json({ ok: false, error: 'forbidden_facility', message: 'この事業所への権限がありません' });
   }
 
-  // 切り分け用ログ（PAT 平文は出さず tokenPreview のみ）
-  logRedacted('analyze from cpos start', {
-    cposBaseUrl: session.cposBaseUrl,
-    subjectUserEmail: session.subjectUserEmail,
-    tokenPreview: session.tokenPreview,
-    hasToken: Boolean(session.token),
+  console.log('[cpos] analyze from cpos start', {
+    organizationId: req.user?.organizationId,
+    subjectUserEmail: req.user?.email,
     facilityId,
     serviceMonth,
     serviceKey,
   });
 
   try {
-    const client = new CposClient({ baseUrl: session.cposBaseUrl, token: session.token });
-    // 第一候補: /api/kasan/v1/analysis-source（schemaVersion=1.0、scope は kasan:read 系で広く通る）
-    // 第二候補: /api/platform/kasan/export（formatVersion=1、kasan-export:read 必須・PATの scope 構成によっては 401/403）
-    // 旧仕様への後方互換のため、analysis-source が 404 のときだけ kasan/export に fallback する。
+    // 第一候補: /api/kasan/v1/analysis-source（schemaVersion=1.0）
+    // 第二候補: /api/platform/kasan/export（formatVersion=1）。analysis-source が 404 のときだけ fallback。
     let source;
     let sourceEndpoint = null;
     let sourceTypeForEnvelope = 'cpos_analysis_source';
@@ -1173,7 +1037,7 @@ async function handleCposAnalyze(req, res) {
         console.warn('[cpos] analysis-source not found; fallback to platform/kasan/export', {
           facilityId,
           serviceMonth,
-          tokenPreview: session.tokenPreview,
+          organizationId: req.user?.organizationId,
         });
         sourceEndpoint = '/api/platform/kasan/export';
         source = await client.getKasanExport({ facilityId, serviceMonth, serviceKey });
@@ -1186,7 +1050,7 @@ async function handleCposAnalyze(req, res) {
       sourceEndpoint,
       facilityId,
       serviceMonth,
-      tokenPreview: session.tokenPreview,
+      organizationId: req.user?.organizationId,
       schemaVersion: source?.schemaVersion ?? null,
       formatVersion: source?.formatVersion ?? null,
     });
@@ -1208,7 +1072,7 @@ async function handleCposAnalyze(req, res) {
     enriched.cpos_metadata = {
       ...inputs.metadata,
       serviceMonth,
-      subjectUserEmail: session.subjectUserEmail,
+      subjectUserEmail: req.user?.email || null,
     };
     // dataCompleteness=missing/partial 由来の警告を mapping_warnings に集約
     const completenessWarnings = deriveCompletenessWarnings(validated);
@@ -1252,7 +1116,7 @@ async function handleCposAnalyze(req, res) {
         upstreamStatus: err.statusCode,
         facilityId,
         serviceMonth,
-        tokenPreview: session.tokenPreview,
+        organizationId: req.user?.organizationId,
         message: err.message,
       });
     }
@@ -1260,9 +1124,9 @@ async function handleCposAnalyze(req, res) {
   }
 }
 
-app.post('/api/analyze/from-cpos', heavyLimiter, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
-// 正規エンドポイント別名（指示書 §6 命名統一）。挙動は /api/analyze/from-cpos と同一。
-app.post('/api/cpos/facility/analyze', heavyLimiter, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
+app.post('/api/analyze/from-cpos', heavyLimiter, requireAuth, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
+// 正規エンドポイント別名。挙動は /api/analyze/from-cpos と同一。
+app.post('/api/cpos/facility/analyze', heavyLimiter, requireAuth, recaptchaMiddleware('cpos_analyze'), handleCposAnalyze);
 
 // ============================================================
 // ローカル前処理エンジン（ブラウザ完結 /local-import）からの集計バンドル受け口

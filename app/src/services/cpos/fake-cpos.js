@@ -47,10 +47,32 @@ export class FakeCpos {
     return { user: this.user, organizationId: this.organizationId };
   }
   async getPlatformFacilities() {
-    return { facilities: [] };
+    return {
+      facilities: [{ id: 'fac_a', name: 'デイサービスほっと（Fake）', serviceTypeCodes: ['15'] }],
+    };
+  }
+  async getBootstrap() {
+    return { facilities: (await this.getPlatformFacilities()).facilities };
+  }
+  // analysis-source の最小フィクスチャ（通所介護・集計値のみ）
+  async getAnalysisSource({ facilityId, serviceMonth } = {}) {
+    return {
+      schemaVersion: '1.0',
+      organizationId: this.organizationId,
+      facility: { id: facilityId || 'fac_a', name: 'デイサービスほっと（Fake）', serviceTypeCodes: ['15'], regionClass: null },
+      serviceMonth: serviceMonth || '2026-04',
+      privacy: { includePii: false, userIdentifierType: 'anonymousUserKey' },
+      userSummary: { activeUserCount: 40, careLevelDistribution: { care3: 12, care4: 8, care5: 7 }, care3PlusCount: 27, care3PlusRatio: 0.675 },
+      staffSummary: { qualifiedPersonCountByProfession: { care_worker: 6, nurse: 1 }, fteByProfession: {} },
+      claimSummary: { currentAddOnCounts: {} },
+      dataCompleteness: { facility: 'complete', users: 'partial', staffing: 'partial', billing: 'missing' },
+      warnings: ['FakeCpos analysis-source'],
+    };
   }
   async getKasanExport() {
-    throw new Error('fake_cpos: getKasanExport not implemented in tests');
+    const e = new Error('not_found');
+    e.statusCode = 404;
+    throw e;
   }
 
   // ---- app-data ----

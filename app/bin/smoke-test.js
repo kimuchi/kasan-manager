@@ -63,7 +63,7 @@ import {
   readSession,
 } from '../src/services/cpos/app-auth.js';
 // --- CPOS app-data store (新アーキテクチャ: 全保存を CPOS に集約) ---
-import { FakeCpos } from '../tests/helpers/fake-cpos.js';
+import { FakeCpos } from '../src/services/cpos/fake-cpos.js';
 import {
   _setAppCposClient as _setCposStoreClient,
   _resetAppCposClient as _resetCposStoreClient,
@@ -516,24 +516,6 @@ await test('Cookie seal: exp 切れの payload は null を返す', async () => 
   assert.equal(r, null);
 });
 
-await test('CPOS auth: buildSessionPayload と toPublicSessionView が PAT 平文を返さない', async () => {
-  const { buildSessionPayload, toPublicSessionView } = await import('../src/services/cpos/auth.js');
-  const payload = buildSessionPayload({
-    cposBaseUrl: 'https://cpos.example.jp',
-    token: 'cpos_pat_secretvalue1234567890',
-    me: {
-      user: { id: 'u1', email: 'a@b', name: 'A B' },
-      token: { authMethod: 'personal_access_token', scopes: ['x'], allowedFacilityIds: ['f1'] },
-    },
-  });
-  // payload には平文 token が含まれる（cookie 暗号化前なので）
-  assert.equal(payload.token, 'cpos_pat_secretvalue1234567890');
-  // public view には含まれない
-  const view = toPublicSessionView(payload);
-  assert.equal(view.token.tokenPreview, 'cpos_pat_secre...7890');
-  assert.equal(JSON.stringify(view).includes('cpos_pat_secretvalue1234567890'), false);
-});
-
 await test('CPOS client: isAllowedBaseUrl が production で http を拒否', async () => {
   const { isAllowedBaseUrl } = await import('../src/services/cpos/client.js');
   // dev 環境（既定）
@@ -675,14 +657,6 @@ await test('Cookie seal: unsealCookieDetailed が reason を返す', async () =>
   const r2 = unsealCookieDetailed(ok);
   assert.equal(r2.ok, true);
   assert.equal(r2.payload.token, 'cpos_pat_test');
-});
-
-await test('readCposSessionDetailed: cookie 無し時は missing_cookie', async () => {
-  const { readCposSessionDetailed } = await import('../src/services/cpos/auth.js');
-  const fakeReq = { headers: {} };
-  const r = readCposSessionDetailed(fakeReq);
-  assert.equal(r.session, null);
-  assert.equal(r.reason, 'missing_cookie');
 });
 
 // =====================================================================

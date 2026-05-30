@@ -25,6 +25,7 @@
     "deploy:cloudrun:local": "node bin/deploy-cloudrun.js local",
     "logs": "node bin/logs.js",
     "test:smoke": "node bin/smoke-test.js",
+    "test:integration": "node bin/integration-test.js",
     "test:python": "cd .. && python3 -m pytest tests/",
     "review:generate:packet": "cd .. && python3 scripts/generate_alpha5_9_master_review_packet.py",
     "review:generate:gate": "cd .. && python3 scripts/generate_alpha5_10_reviewer_decision_gate.py",

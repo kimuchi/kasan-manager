@@ -12,18 +12,32 @@
 // テストではクライアントを差し替える: import { _setAppCposClient } from './app-context.js'
 
 import { CposClient, defaultBaseUrl } from './client.js';
+import { FakeCpos } from './fake-cpos.js';
 
 export const APP_ID = 'kasan';
 
 let cached = null;
 
+// 開発・結合テスト用: KASAN_CPOS_FAKE=1 でプロセス内 Fake CPOS を使う（本番では使わない）。
+function isFakeMode() {
+  return process.env.KASAN_CPOS_FAKE === '1';
+}
+
 export function isAppCposConfigured() {
+  if (isFakeMode()) return true;
   return Boolean((process.env.KASAN_CPOS_APP_TOKEN || '').trim()) && Boolean(defaultBaseUrl());
 }
 
-// 本物の CPOS への HTTP クライアント。設定が無ければ null（呼び出し側で 503 を返す）。
+// CPOS への HTTP クライアント（または Fake）。設定が無ければ null（呼び出し側で 503）。
 export function getAppCposClient() {
   if (cached) return cached;
+  if (isFakeMode()) {
+    cached = new FakeCpos({
+      organizationId: process.env.KASAN_CPOS_FAKE_ORG || 'org_demo',
+      user: { id: 'user_demo', email: 'demo@example.com', name: 'Demo Admin', role: 'admin' },
+    });
+    return cached;
+  }
   if (!isAppCposConfigured()) return null;
   cached = new CposClient({ baseUrl: defaultBaseUrl(), token: process.env.KASAN_CPOS_APP_TOKEN });
   return cached;
