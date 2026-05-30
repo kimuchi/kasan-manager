@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "service_key": "sogoubu_tsusho",
+    "display_name": "通所型独自サービス（介護予防・日常生活支援総合事業）",
+    "domain": "kaigo",
+    "payer": "kaigo_hoken_sogoubu",
+    "service_code_prefix": "A6",
+    "version": "0.1.0-draft",
+    "effective_from": "2024-04-01",
+    "updated": "2026-05-30",
+    "revision_tag": "R6_2024_04_draft_sogoubu",
+    "source": "介護予防・日常生活支援総合事業（市町村独自基準）",
+    "source_status": "source_required",
+    "_note": "総合事業の通所型独自サービス。市町村ごとにサービスコード体系（A6xxxx）と加算基準が異なるため、共通の加算要件マスタは持たない。ローカル前処理エンジン（/）では、要支援/事業対象者の集計値と加算名（処遇改善加算・提供体制加算・科学的介護推進体制加算 等）の検出のみ対応する。詳細な要件判定は有料プラン（/pro）または市町村別マスタの追加対応をご利用ください。"
+  },
+  "kasans": {}
+}

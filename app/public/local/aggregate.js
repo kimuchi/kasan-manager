@@ -17,16 +17,25 @@ function z2h(s) {
 }
 
 // レセプト本文からサービス種別を推定。最もヒットの多い service_key を返す（なければ null）。
+// service_name_keyword（例: '通所型独自サービス'）を最優先に重み付け：これにより
+// matchName が短い汎用名（'処遇改善加算' 等）でも、複数サービス間で正しく弁別できる。
 export function detectServiceKeyFromText(text) {
-  const t = z2h(String(text ?? '')).replace(/\s/g, '');
+  const raw = z2h(String(text ?? ''));
+  const t = raw.replace(/\s/g, '');
   let best = null;
   let bestScore = 0;
   for (const [serviceKey, config] of Object.entries(SERVICE_PATTERNS)) {
     let score = 0;
-    if (config.care_level_regex && config.care_level_regex.test(z2h(String(text ?? '')))) score += 2;
+    if (config.service_name_keyword && t.includes(config.service_name_keyword.replace(/\s/g, ''))) {
+      score += 5;
+    }
+    if (config.care_level_regex && config.care_level_regex.test(raw)) score += 2;
     if (config.service_code_prefix) {
-      const re = new RegExp(`${config.service_code_prefix}\\d{4}`, 'g');
-      const m = t.match(re);
+      const escaped = config.service_code_prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      // (?<![A-Za-z\d])…(?![\d]) で 10桁の事業所番号や英字に接続したコードを誤検出しない。
+      // 走査対象は空白を保持した raw（隣接する単位数値とコードを境界で区別するため）。
+      const re = new RegExp(`(?<![A-Za-z\\d])${escaped}\\d{4}(?![\\d])`, 'g');
+      const m = raw.match(re);
       if (m) score += Math.min(m.length, 5);
     }
     for (const [, , code, matchName] of config.kasan_patterns) {

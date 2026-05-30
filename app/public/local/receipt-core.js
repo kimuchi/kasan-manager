@@ -31,6 +31,11 @@ export const SERVICE_CODE_MAPPING_STATUS = {
     source: '社内資料 skills/regulatory/HOUMON_KANGO.md + 加算マスタ houmon_kango_kaigo.json + DEMO fixture',
     note: '訪問看護（介護保険）のサービスコードは社内マスタに基づくが、公式サービスコード表との完全一致は未検証。介護保険版のみ対応・医療保険版（訪問看護療養費）は別管理。帳票形式により抽出精度が変動する。',
   },
+  sogoubu_tsusho: {
+    status: 'municipal_variant_unmapped',
+    source: '総合事業（介護予防・日常生活支援総合事業）の通所型独自サービス。市町村ごとにコード体系が異なるため、共通の加算マスタは持たない。',
+    note: '加算名（処遇改善加算・提供体制加算・科学的介護推進体制加算 等）の本文一致で算定中加算を集計する。要支援1/2/事業対象者の区別はサービスコードからは推定できない。詳細な要件判定は無料のローカル版では非対応（高精度版で対応予定）。',
+  },
 };
 
 const ZENKAKU_DIGITS = '０１２３４５６７８９';
@@ -133,10 +138,24 @@ const KYOTAKU_SHIEN_KASAN_PATTERNS = [
   ['shougu_kaizen_kasan_2026_06', '処遇改善加算（R8.6新規対象）', null, '処遇改善加算'],
 ];
 
+// 総合事業（介護予防・日常生活支援総合事業）の通所型独自サービス。
+// コード A6xxxx は市町村ごとに体系が異なるため、kasan_patterns はコード非依存（matchName 一致のみ）。
+const SOGOUBU_TSUSHO_KASAN_PATTERNS = [
+  ['sogoubu_tsusho_shougu_kaizen', '通所型独自サービス処遇改善加算', null, '処遇改善加算'],
+  ['sogoubu_tsusho_taisei_kyouka', '通所型独自サービス提供体制加算', null, '提供体制加算'],
+  ['sogoubu_tsusho_kagakuteki', '通所型独自サービス科学的介護推進体制加算', null, '科学的介護推進体制加算'],
+  ['sogoubu_tsusho_kobetsu_kinou', '通所型独自サービス個別機能訓練加算', null, '個別機能訓練加算'],
+  ['sogoubu_tsusho_nyuyoku', '通所型独自サービス入浴介助加算', null, '入浴介助加算'],
+  ['sogoubu_tsusho_koukuu', '通所型独自サービス口腔機能向上加算', null, '口腔機能向上加算'],
+  ['sogoubu_tsusho_eiyou_kaizen', '通所型独自サービス栄養改善加算', null, '栄養改善加算'],
+  ['sogoubu_tsusho_eiyou_assessment', '通所型独自サービス栄養アセスメント加算', null, '栄養アセスメント'],
+];
+
 export const SERVICE_PATTERNS = {
   tsusho_kaigo: {
     kasan_patterns: TSUSHO_KASAN_PATTERNS,
     care_level_regex: /通所介護[ⅠⅡ]([1-9])([1-5])(?!\d)/,
+    service_name_keyword: '通所介護',
   },
   houmon_kaigo: {
     kasan_patterns: HOUMON_KASAN_PATTERNS,
@@ -144,16 +163,26 @@ export const SERVICE_PATTERNS = {
     time_bands: HOUMON_TIME_BANDS,
     service_code_prefix: '11',
     care_level_regex: /訪問介護[ⅠⅡⅢ]?([1-9])([1-5])?(?!\d)/,
+    service_name_keyword: '訪問介護',
   },
   kyotaku_shien: {
     kasan_patterns: KYOTAKU_SHIEN_KASAN_PATTERNS,
     service_code_prefix: '43',
     care_level_regex: /居宅介護支援費[ⅠⅡ]([1-9])([1-5])(?!\d)/,
+    service_name_keyword: '居宅介護支援',
   },
   houmon_kango_kaigo: {
     kasan_patterns: HOUMON_KANGO_KAIGO_KASAN_PATTERNS,
     service_code_prefix: '13',
     care_level_regex: /訪問看護[ⅠⅡⅢ]?([1-9])([1-5])?(?!\d)/,
+    service_name_keyword: '訪問看護',
+  },
+  sogoubu_tsusho: {
+    kasan_patterns: SOGOUBU_TSUSHO_KASAN_PATTERNS,
+    service_code_prefix: 'A6',
+    service_name_keyword: '通所型独自サービス',
+    care_level_inference: 'yoshien_sogoubu', // A-prefix 検出時に「要支援/事業対象者」とみなす
+    service_code_codes_unmapped: true, // 市町村ごとにコード体系が異なるため、未マッピングコードは "unknown" 扱いしない
   },
 };
 
@@ -194,15 +223,55 @@ export function analyzeText(text, serviceKey) {
   const serviceCategories = config.service_categories || [];
   const timeBands = config.time_bands || [];
 
+  // 要介護状態区分欄の選択肢列ラベル（フォームテンプレート由来）。
+  // 選択された値ではなく「全選択肢の見出し」がテキスト抽出に混入するため、
+  // テキストベースの fallback 検出ではここを先に除去する。
+  const LABEL_LIST_PATTERNS = [
+    /事業対象者\s*[・･]?\s*要支援\s*1\s*[・･]?\s*要支援\s*2/g,
+    /要介護\s*1\s*[・･]?\s*要介護\s*2\s*[・･]?\s*要介護\s*3\s*[・･]?\s*要介護\s*4\s*[・･]?\s*要介護\s*5/g,
+  ];
+
+  const escapedPrefix = codePrefix
+    ? codePrefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    : null;
+  // (?<![A-Za-z\d])PREFIX\d{4}(?![\d]): 事業所番号(10桁等) の一部や、英字の続きを service code と
+  // 誤検出しないようガード。textZ2H（空白含む）に対して走らせるので、隣接する単位数値とも区別できる。
+  const codeRegex = escapedPrefix ? new RegExp(`(?<![A-Za-z\\d])${escapedPrefix}\\d{4}(?![\\d])`, 'g') : null;
+  const skipUnknown = Boolean(config.service_code_codes_unmapped);
+
   for (const pageText of pages) {
     const textZ2H = z2h(pageText);
     const textNoSpace = textZ2H.replace(/\s/g, '');
 
+    // === care_level 抽出：3段階のフォールバック ===
+    let careLevelForPage = null;
+    // (1) サービスコード由来の正規表現（例: 通所介護Ⅰ31 → 要介護1）
     if (careLevelRegex) {
       const m = textZ2H.match(careLevelRegex);
-      if (m && m[2]) careLevels.push(`要介護${m[2]}`);
+      if (m && m[2]) careLevelForPage = `要介護${m[2]}`;
     }
+    // (2) 総合事業推定：A-prefix コードがあれば要支援/事業対象者とみなす
+    if (!careLevelForPage && config.care_level_inference === 'yoshien_sogoubu') {
+      // textZ2H（空白含む）に対して letter/digit 境界を確認
+      if (/(?<![A-Za-z\d])A\d{5}(?![\d])/.test(textZ2H)) {
+        careLevelForPage = '要支援';
+      }
+    }
+    // (3) テキスト直接マッチ（ラベル列除去後）
+    if (!careLevelForPage) {
+      let debiased = textZ2H;
+      for (const pat of LABEL_LIST_PATTERNS) debiased = debiased.replace(pat, '');
+      if (/事業対象者/.test(debiased)) careLevelForPage = '事業対象者';
+      else {
+        const ys = debiased.match(/要支援\s*([12])/);
+        const yk = debiased.match(/要介護\s*([1-5])/);
+        if (ys) careLevelForPage = `要支援${ys[1]}`;
+        else if (yk) careLevelForPage = `要介護${yk[1]}`;
+      }
+    }
+    if (careLevelForPage) careLevels.push(careLevelForPage);
 
+    // === 加算名マッチ ===
     for (const [kasanKey, , code, matchName] of patterns) {
       if (textNoSpace.includes(matchName)) {
         kasanCounter.set(kasanKey, (kasanCounter.get(kasanKey) || 0) + 1);
@@ -222,14 +291,16 @@ export function analyzeText(text, serviceKey) {
       }
     }
 
-    if (codePrefix) {
-      const codeRegex = new RegExp(`${codePrefix}\\d{4}`, 'g');
+    // === サービスコード収集（境界保護つき・textZ2H 上で走らせて隣接する単位数値と区別） ===
+    if (codeRegex) {
       let cm;
-      while ((cm = codeRegex.exec(textNoSpace)) !== null) {
+      while ((cm = codeRegex.exec(textZ2H)) !== null) {
         const code = cm[0];
-        if (!detectedCodes.has(code)) {
-          const known = patterns.some((p) => p[2] === code);
-          if (!known) unknownCodes.add(code);
+        const known = patterns.some((p) => p[2] === code);
+        if (known || skipUnknown) {
+          detectedCodes.add(code);
+        } else if (!detectedCodes.has(code)) {
+          unknownCodes.add(code);
         }
       }
     }
@@ -244,11 +315,17 @@ export function analyzeText(text, serviceKey) {
 
   if (total === 0) warnings.push('pages=0: 抽出対象テキストが空');
   if (!careLevels.length && total > 0)
-    warnings.push('care_level: 要介護度を1件も抽出できず（PDFフォーマット要確認）');
+    warnings.push(
+      'care_level: 要介護度・要支援度を1件も抽出できず（PDFのフォーマット要確認 / フォーム内に要介護状態区分の選択肢列ラベルのみで選択値が伝わらない形式の可能性）',
+    );
   if (!kasanCounter.size && total > 0)
     warnings.push('kasan: 算定中加算を1件も抽出できず（PDFフォーマット要確認）');
   if (unknownCodes.size) {
-    const formatted = `[${[...unknownCodes].sort().map((c) => `'${c}'`).join(', ')}]`;
+    const sorted = [...unknownCodes].sort();
+    const CAP = 10;
+    const display = sorted.slice(0, CAP);
+    const remaining = sorted.length - display.length;
+    const formatted = `[${display.map((c) => `'${c}'`).join(', ')}${remaining > 0 ? `, ...+${remaining}件` : ''}]`;
     warnings.push(`unknown_service_code: 既知パターン外のサービスコードを検出 ${formatted}`);
   }
 
@@ -256,6 +333,11 @@ export function analyzeText(text, serviceKey) {
   if (isKyotakuShien) {
     warnings.push(
       'kyotaku_shien: 特定事業所加算(I)の40%要件は地域包括紹介除外などPDFのみで確定できない。raw_yokaigo_3plus_ratioは参考値。',
+    );
+  }
+  if (serviceKey === 'sogoubu_tsusho') {
+    warnings.push(
+      'sogoubu_tsusho: 総合事業（市町村独自サービス）はコード体系が地域ごとに異なります。要支援1/要支援2/事業対象者の区別はサービスコードからは推定できません。詳細な要件判定（高精度版）は有料プランで対応予定です。',
     );
   }
 

@@ -65,6 +65,18 @@
       "source_required": true
     },
     {
+      "service_key": "sogoubu_tsusho",
+      "display_name": "通所型独自サービス（総合事業）",
+      "domain": "kaigo",
+      "payer": "kaigo_hoken_sogoubu",
+      "status": "draft",
+      "master_file": "regulatory_master/kaigo/sogoubu_tsusho.json",
+      "effective_from": "2024-04-01",
+      "revision_tag": "R6_2024_04_draft_sogoubu",
+      "source_required": true,
+      "_scope_note": "総合事業（要支援/事業対象者向け）。市町村ごとにコード体系が異なるため、共通マスタは持たない。ローカル前処理エンジンでの集計値抽出のみ対応。"
+    },
+    {
       "service_key": "tokuyo",
       "display_name": "特別養護老人ホーム",
       "domain": "kaigo",

@@ -1371,5 +1371,73 @@ await test('Local/e2e: ローカルバンドル → toEngineInputs → judge.run
   assert.ok(claimedUnknown >= 1, `claimed_but_requirements_unknown=${claimedUnknown}`);
 });
 
+// =====================================================================
+// 総合事業（sogoubu_tsusho）+ 要支援/事業対象者 + 事業所番号 false-positive
+// =====================================================================
+
+await test('Local/receipt-core: sogoubu_tsusho 要支援2 PDF（画像由来テキスト）から加算3件＋要支援を抽出', () => {
+  // ユーザー添付画像（A6 コード・通所型独自サービス・要支援2）相当のテキスト
+  const text = [
+    '要介護状態区分 事業対象者・要支援1・要支援2',
+    '3. 介護予防支援事業者・地域包括支援センター作成',
+    '事業所番号 1300600077 事業所名称 ほうらい',
+    '通所型独自サービス12 A61121 362 1 362 1 362',
+    '通所型独自サービス処遇改善加算Ⅰ A66100 350 1 350',
+    '通所型独自サービス提供体制加算Ⅱ2 A66108 144 1 144 1 144',
+    '通所型独自サービス科学的介護推進体制加算 A66311 40 1 40',
+  ].join('\n');
+  const r = analyzeText(text, 'sogoubu_tsusho');
+  assert.equal(r.care_level_distribution['要支援'], 1, 'A-prefix から要支援を推定');
+  assert.equal(r.current_kasan_counts.sogoubu_tsusho_shougu_kaizen, 1);
+  assert.equal(r.current_kasan_counts.sogoubu_tsusho_taisei_kyouka, 1);
+  assert.equal(r.current_kasan_counts.sogoubu_tsusho_kagakuteki, 1);
+  // 市町村別コードは "unknown" 扱いせず detected に入れる
+  assert.equal(r.unknown_service_codes.length, 0, 'sogoubu では unknown_service_codes 警告を出さない');
+  assert.ok(r.detected_service_codes.length >= 3, 'A6 コードが detected に複数件入る');
+  // 事業所番号 1300600077 から "130060" が誤検出されない（境界保護）
+  assert.equal(r.detected_service_codes.includes('130060'), false);
+});
+
+await test('Local/detectServiceKey: 通所型独自サービス + A-codes から sogoubu_tsusho を推定', () => {
+  const text = '通所型独自サービス12 A61121 通所型独自サービス処遇改善加算Ⅰ A66100';
+  assert.equal(detectServiceKeyFromText(text), 'sogoubu_tsusho');
+});
+
+await test('Local/receipt-core: 事業所番号 1300600077 は 130060 として service_code 誤検出されない', () => {
+  const text = '事業所番号 1300600077 事業所名称 テスト 131111 訪問看護(I)イ';
+  const r = analyzeText(text, 'houmon_kango_kaigo');
+  assert.equal(r.unknown_service_codes.includes('130060'), false, '事業所番号からの誤検出が無い');
+  assert.ok(
+    r.unknown_service_codes.includes('131111') || r.detected_service_codes.includes('131111'),
+    '正しいコードは検出される',
+  );
+});
+
+await test('Local/receipt-core: 要介護状態区分の選択肢列ラベルから care_level を誤検出しない', () => {
+  // フォーム選択肢列のみで selected value が無いケース。サービスコード "通所介護Ⅱ32" から要介護2 を取れる。
+  const text = '要介護状態区分 事業対象者・要支援1・要支援2 通所介護Ⅱ32 個別機能訓練加算Ⅰ1';
+  const r = analyzeText(text, 'tsusho_kaigo');
+  assert.equal(r.care_level_distribution['要介護2'], 1);
+  assert.equal(r.care_level_distribution['要支援1'], undefined, 'ラベル列から要支援1は拾わない');
+  assert.equal(r.care_level_distribution['要支援2'], undefined, 'ラベル列から要支援2は拾わない');
+});
+
+await test('Local/receipt-core: テキスト中の "要介護3" を care_level fallback で抽出', () => {
+  // サービスコード regex がマッチしないケース。ラベル列も無い場合は text fallback が動く。
+  const text = '認定情報: 要介護3 通所介護 個別機能訓練加算Ⅰ1';
+  const r = analyzeText(text, 'tsusho_kaigo');
+  assert.equal(r.care_level_distribution['要介護3'], 1);
+});
+
+await test('Local/receipt-core: unknown_service_codes は10件で打ち切られて末尾に件数表示', () => {
+  // 12件の "未知" 13xxxx コードを並べる（131500〜は加算マスタに無い）
+  const codes = ['131500', '131501', '131502', '131503', '131504', '131505', '131506', '131507', '131508', '131509', '131510', '131511'];
+  const text = codes.join(' ');
+  const r = analyzeText(text, 'houmon_kango_kaigo');
+  const warn = (r.warnings || []).find((w) => w.startsWith('unknown_service_code'));
+  assert.ok(warn, 'unknown_service_code 警告が出る');
+  assert.ok(warn.includes('+2件'), `末尾に +2件 表示: ${warn}`);
+});
+
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
 if (failed > 0) process.exit(1);
