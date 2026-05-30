@@ -78,6 +78,13 @@ cp .env.example .env
 GEMINI_API_KEY=AIzaSyXXXXXXXXXXXXXXXXX
 GCP_PROJECT_ID=kasan-manager-prod
 
+# ▼ /pro（CPOS 連携）を使う場合は必須 ▼
+KASAN_SESSION_SECRET=        # openssl rand -hex 32
+KASAN_DEFAULT_CPOS_BASE_URL=https://cpos.example.jp
+KASAN_CPOS_APP_TOKEN=        # CPOS /app-tokens で発行した App Token
+# KASAN_PUBLIC_BASE_URL=https://kasan.example.jp   # 任意（OAuth コールバック用）
+# KASAN_ADMIN_EMAILS=admin@example.com             # 任意（管理者 override）
+
 # ▼ デフォルトのままで良い項目 ▼
 GCP_REGION=asia-northeast1
 CLOUD_RUN_SERVICE_NAME=kasan-manager
@@ -87,6 +94,11 @@ NODE_ENV=production
 # ▼ カスタムドメインを使う場合 ▼
 CLOUD_RUN_CUSTOM_DOMAIN=kasan.example.jp
 ```
+
+> **認証・保存について**: 加算マネージャは独自の DB を持ちません。`/pro` のログイン・ユーザー管理・
+> データ保存はすべて **CPOS**（App Platform `app-data`）に集約されます。Firebase / Firestore / GCS の
+> 設定は不要です。詳細は [AUTH_AND_PLANS.md](./AUTH_AND_PLANS.md) / [CPOS_INTEGRATION.md](./CPOS_INTEGRATION.md)。
+> 公開トップ `/`（ローカルエンジン）はログイン不要・無保存で動きます。
 
 ```bash
 npm run install:app

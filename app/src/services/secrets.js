@@ -65,7 +65,7 @@ export async function hydrateSecretsFromManager() {
     ['KASAN_SECRET_SESSION_NAME', 'KASAN_SESSION_SECRET'],
     ['KASAN_SECRET_GEMINI_NAME', 'GEMINI_API_KEY'],
     ['KASAN_SECRET_RECAPTCHA_NAME', 'RECAPTCHA_SECRET_KEY'],
-    ['KASAN_SECRET_FIREBASE_SA_NAME', 'FIREBASE_SERVICE_ACCOUNT_JSON'],
+    ['KASAN_SECRET_CPOS_APP_TOKEN_NAME', 'KASAN_CPOS_APP_TOKEN'],
   ];
   let count = 0;
   for (const [ref, target] of mappings) {

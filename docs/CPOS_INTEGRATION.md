@@ -1,256 +1,110 @@
-# CPOS 連携（開発者向け）
+# CPOS 連携（開発者・管理者向け）
 
-加算マネージャと CPOS（介護記録・請求基盤）の接続仕様を、開発者向けにまとめたものです。利用者向けの操作手順は [CPOS_TOKEN.md](./CPOS_TOKEN.md) を参照してください。
+加算マネージャは CPOS の **App Platform アプリ（appId=`kasan`）** として動作します。
+ログイン・ユーザー管理・データ保存はすべて CPOS 側に集約され、加算マネージャ独自の保存はありません。
+利用者向けの手順は [CPOS_TOKEN.md](./CPOS_TOKEN.md)、追加が必要な CPOS API は
+[`ref/KASAN_APP_API_ADDITIONS.md`](../ref/KASAN_APP_API_ADDITIONS.md) を参照してください。
 
 ---
 
 ## 1. アーキテクチャ
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ Browser                                                    │
-│  - PAT 入力 → POST /api/cpos-token                          │
-│  - 以後、HTTP-only Cookie が認証トークン                       │
-│  - localStorage / sessionStorage は使わない                   │
-└─────────────┬──────────────────────────────────────────────┘
-              │  Cookie: kasan_cpos_session=<sealed>
-              ▼
-┌────────────────────────────────────────────────────────────┐
-│ 加算マネージャ サーバ (Express)                              │
-│  - sealed cookie を AES-256-GCM で復号                       │
-│  - リクエストごとにメモリ上で PAT を取り出して CPOS API を叩く  │
-│  - PAT を DB / ファイル / 環境変数 / ログに永続保存しない      │
-└─────────────┬──────────────────────────────────────────────┘
-              │  Authorization: Bearer <PAT>
-              ▼
-┌────────────────────────────────────────────────────────────┐
-│ CPOS API                                                    │
-│  - /api/platform/me                                         │
-│  - /api/platform/facilities                                 │
-│  - /api/platform/kasan/export                               │
-│  - /api/kasan/v1/analysis-source（旧経路、互換）              │
-└────────────────────────────────────────────────────────────┘
+Browser (/pro)
+  └─ 「CPOS でログイン」→ /api/auth/cpos/start → CPOS 同意 → /api/auth/cpos/callback
+       → 加算マネージャが kasan_session cookie(AES-GCM, HttpOnly) を発行
+  └─ 以降の API は kasan_session で認証（req.user に organizationId/role/allowedFacilityIds）
+        │
+        ▼
+加算マネージャ サーバ (Express)
+  └─ s2s は CPOS の App Token（KASAN_CPOS_APP_TOKEN）で CPOS API を呼ぶ
+  └─ 保存は CPOS app-data:kasan/*（organizationId で隔離）。保存前に匿名化
+        │  Authorization: Bearer <App Token>
+        ▼
+CPOS API
+  - /api/app-data/kasan/{analyses,reviews,facility-profiles,staff-rosters,drafts,entitlements,...}
+  - /api/platform/facilities, /api/platform/users
+  - /api/kasan/v1/analysis-source（CPOS 請求/体制データの集計）
+  - [PROPOSED] /api/apps/kasan/session/exchange, /api/platform/organizations …
 ```
 
 ---
 
-## 2. サーバ環境変数
+## 2. 設定（サーバ環境変数）
 
 | 変数 | 必須 | 用途 |
 |---|---|---|
-| `KASAN_SESSION_SECRET` | **必須**（CPOS 機能を有効化するなら） | Cookie 暗号化鍵。32 文字以上のランダム値 |
-| `KASAN_DEFAULT_CPOS_BASE_URL` | 任意 | フロントの CPOS URL 入力欄に初期表示する URL |
-| `KASAN_CPOS_ALLOWLIST` | 任意 | 許可する CPOS ホストの allowlist（カンマ区切り） |
-| `KASAN_ALLOW_APP_TOKEN` | 任意 | true で App Token も許容（既定: PAT のみ） |
-| `KASAN_COOKIE_SECURE` | 任意 | 本番では `true` 必須 |
-| `KASAN_COOKIE_SAMESITE` | 任意 | `Lax` / `Strict` / `None` |
+| `KASAN_SESSION_SECRET` | **必須** | ログインセッション cookie の暗号鍵（32 文字以上）。`openssl rand -hex 32` |
+| `KASAN_DEFAULT_CPOS_BASE_URL` | **必須** | CPOS のベース URL（例 `https://cpos.example.jp`） |
+| `KASAN_CPOS_APP_TOKEN` | **必須** | CPOS `/app-tokens` で発行したアプリ用 App Token |
+| `KASAN_CPOS_APP_CLIENT_ID` | 任意 | ログ突合用のアプリ識別（既定 `kasan`） |
+| `KASAN_PUBLIC_BASE_URL` | 任意 | OAuth コールバックの公開 URL（未指定は host 推定） |
+| `KASAN_ADMIN_EMAILS` | 任意 | 管理者 email（CPOS `role=admin` への override） |
+| `KASAN_CPOS_FAKE` | 任意 | `1` で開発用 Fake CPOS（本番は未設定） |
+| `KASAN_COOKIE_SECURE` / `KASAN_COOKIE_SAMESITE` | 任意 | 本番は `true` / `Lax` |
 | `CPOS_TIMEOUT_MS` | 任意 | CPOS への HTTP タイムアウト（既定 30000） |
 
-`KASAN_SESSION_SECRET` 未設定の場合、`POST /api/cpos-token` は 503 を返し、UI のパネルは表示されません。
-
-`openssl rand -hex 32` で生成して `.env` に書いてください。
+App Token の推奨 scope: `app-data:kasan:read` `app-data:kasan:write` `users:read` `facilities:read`
+（CPOS 実データ活用なら `master-users:read` / `facility-staff:read` / `care-*:read` も）。
 
 ---
 
-## 3. Cookie 仕様
+## 3. App 登録手順（CPOS 側）
 
-### 名前
+1. CPOS 管理コンソールで加算マネージャをアプリ（`appId=kasan`）として登録。
+2. `/app-tokens` で上記 scope を持つ App Token を発行 → `KASAN_CPOS_APP_TOKEN` に設定。
+3. （ユーザーログインを使う場合）CPOS 側に外部アプリ用の受け渡し API を実装
+   （`ref/KASAN_APP_API_ADDITIONS.md` B1）。未実装の間は `KASAN_CPOS_FAKE=1` で動作確認できます。
 
-- `kasan_cpos_session`
+---
 
-### 属性
+## 4. 主なエンドポイント（加算マネージャ側）
 
-| 属性 | 値 | 理由 |
+| メソッド | パス | 説明 |
 |---|---|---|
-| `HttpOnly` | 必須 | JavaScript から読めなくする |
-| `Secure` | 本番必須 | HTTPS のみで送信 |
-| `SameSite` | `Lax` 推奨 | CSRF 対策の基本 |
-| `Path` | `/` | アプリ全体で有効 |
-| `Max-Age` | CPOS PAT の `expiresAt` 以下、最大 90 日 | PAT 失効と同期 |
+| GET | `/api/auth/cpos/start` | CPOS 同意画面へ 302 |
+| GET | `/api/auth/cpos/callback` | code 交換 → セッション cookie 発行 → `/pro` |
+| POST | `/api/auth/logout` | セッション破棄 |
+| GET | `/api/me` | ログイン状態（uid/organizationId/role/plan） |
+| GET/POST/PUT/DELETE | `/api/profiles/facilities`・`/api/profiles/staff-rosters` | 施設・名簿（CPOS app-data） |
+| GET/POST/DELETE | `/api/drafts`（`/:id/merge`・`/:id/analyze`） | ドラフト |
+| GET | `/api/analyses`・`/api/analyses/:id` | 履歴（有料） |
+| POST | `/api/analyses/:id/review` | レビュー記録（有料） |
+| POST | `/api/analyze/from-cpos` | App Token で CPOS 集計を取得 → 判定（要ログイン） |
+| GET | `/api/cpos/facilities` | App Token で事業所一覧（allowedFacilityIds で絞込） |
+| GET/POST | `/api/admin/users`・`/api/admin/stats`・`/api/admin/users/:uid`・`/api/admin/users/:uid/plan` | 管理（管理者のみ） |
 
-### ペイロード（暗号化前）
-
-```json
-{
-  "v": 1,
-  "cposBaseUrl": "https://cpos.example.com",
-  "token": "cpos_pat_xxx",
-  "tokenPreview": "cpos_pat_abcd...wxyz",
-  "subjectUserId": "user_xxx",
-  "subjectUserEmail": "yamada@example.com",
-  "subjectUserName": "山田 太郎",
-  "subjectUserRole": "staff",
-  "scopes": ["facilities:read", "master-users:read"],
-  "allowedFacilityIds": ["facility-a"],
-  "authMethod": "personal_access_token",
-  "expiresAtFromCpos": "2026-08-05T00:00:00.000Z",
-  "createdAt": "2026-05-07T12:00:00.000Z",
-  "exp": 1762300800000
-}
-```
-
-### 暗号化
-
-AES-256-GCM、IV 12B、認証タグ 16B、`IV(12B) || ciphertext || tag(16B)` を base64url。実装は `app/src/utils/cookie-seal.js`。
+CSRF: 変更系 `/api/*` は `X-CSRF-Token`（`/api/health` の `csrf.token`）が必要。
 
 ---
 
-## 4. CSRF 対策
+## 5. ログとセキュリティ
 
-加算マネージャは double-submit cookie パターンで CSRF 対策しています。
-
-| | 値 |
-|---|---|
-| Cookie 名 | `kasan_csrf` |
-| Header 名 | `X-CSRF-Token` |
-| 適用 | `POST` / `PUT` / `PATCH` / `DELETE` の `/api/*` 全部 |
-| 取得方法 | `GET /api/health` の `csrf.token` フィールド |
-
-フロントは `/api/health` を初期化時に叩き、`csrf.token` を保持して以降の mutating リクエストに `X-CSRF-Token` を付けます。
+- ログ禁止: App Token 平文 / Authorization ヘッダ / Cookie 本文 / 個人情報。
+- 保存禁止: 氏名・被保険者番号等。保存前に `anonymize.js` で除去・要約し、`assertStorageSafe` で最終チェック。
+- 組織隔離: すべての保存は `organizationId` 名前空間。
 
 ---
 
-## 5. API リファレンス
-
-### `POST /api/cpos-token`
-
-PAT を受け取って CPOS で検証し、sealed cookie を返す。
-
-**Request:**
-```json
-{ "cposBaseUrl": "https://cpos.example.jp", "token": "cpos_pat_..." }
-```
-
-**Response (200):**
-```json
-{
-  "ok": true,
-  "connected": true,
-  "cposBaseUrl": "https://cpos.example.jp",
-  "user": { "id": "user_xxx", "email": "...", "name": "...", "role": "..." },
-  "token": {
-    "tokenPreview": "cpos_pat_abcd...wxyz",
-    "scopes": [...],
-    "allowedFacilityIds": [...],
-    "expiresAt": "...",
-    "createdAt": "..."
-  }
-}
-```
-
-**Errors:**
-- `400 bad_token_format`: PAT が `cpos_pat_` で始まらない
-- `400 invalid_base_url`: 本番で `http://` を指定した、allowlist 外
-- `400 not_pat`: App Token 等を指定（`KASAN_ALLOW_APP_TOKEN=true` で許容可）
-- `401 cpos_api_error`: PAT が無効・失効
-- `403 cpos_api_error`: scope 不足
-- `503 session_not_configured`: `KASAN_SESSION_SECRET` 未設定
-
-### `GET /api/cpos-token/status`
-
-Cookie の存在確認。PAT 平文は返さない。
-
-**Response (200):**
-```json
-{ "connected": false }   // 未接続
-{ "connected": true, "cposBaseUrl": "...", "user": {...}, "token": {...} }   // 接続中
-```
-
-### `DELETE /api/cpos-token`
-
-Cookie を削除（接続解除）。
-
-### `POST /api/cpos-token/test`
-
-現在の Cookie で CPOS への疎通確認。
-
-### `GET /api/cpos/facilities`
-
-Cookie の PAT で `/api/platform/facilities`（または `/api/kasan/v1/bootstrap`）を叩いて事業所一覧を返す。
-
-### `POST /api/analyze/from-cpos`
-
-Cookie の PAT で CPOS export を取得 → 既存判定エンジンで判定 → Markdown レポートを返す。
-
-**Request:**
-```json
-{ "facilityId": "facility-a", "serviceMonth": "2026-04", "serviceKey": "tsusho_kaigo" }
-```
-
-**Response (200):**
-```json
-{
-  "ok": true,
-  "reportMarkdown": "# CareLinker 加算チェッカー 判定レポート\n...",
-  "resultJson": { "service": "...", "judgements": {...}, "cpos_metadata": {...} },
-  "cpos": { "facilityId": "facility-a", "serviceMonth": "2026-04", "schemaVersion": "1.0" }
-}
-```
-
-`allowedFacilityIds` 外を指定すると 403 `forbidden_facility`。
-
----
-
-## 6. ログとセキュリティ
-
-### ログ禁止項目
-
-- PAT 平文
-- Authorization ヘッダ
-- Cookie 本文
-- 個人情報（氏名・被保険者番号等）
-
-実装は `app/src/utils/cookie-seal.js#redactSecret()`。
-
-### ログ許可項目
-
-- `subjectUserEmail`
-- `tokenPreview`（先頭 14 文字 + ...REDACTED）
-- CPOS host
-- HTTP ステータス・所要時間
-
----
-
-## 7. CLI（フィクスチャ検証用）
-
-CPOS API がまだ稼働していない開発時は、`app/tests/fixtures/cpos_analysis_source.sample.json` を使って CLI 検証できます。
+## 6. ローカル/結合テスト
 
 ```bash
-# Live (PAT を引数で渡す。.env への書き込み回避のため)
-npm run cpos:analyze -- \
-  --facility=facility-a --month=2026-04 \
-  --base-url=https://cpos.example.jp \
-  --token=cpos_pat_... \
-  --report-md=out/cpos-test.md
+# 純ロジック + 匿名化 + CPOS store（Fake）
+npm run test:smoke
 
-# Fixture (CPOS 不要)
-npm run cpos:analyze -- \
-  --source=app/tests/fixtures/cpos_analysis_source.sample.json \
-  --report-md=/tmp/cpos.md
+# サーバ起動 + Fake CPOS でルートを実 HTTP 検証
+npm run test:integration
+
+# 手動: Fake CPOS でサーバ起動
+KASAN_CPOS_FAKE=1 KASAN_SESSION_SECRET=$(openssl rand -hex 32) \
+  KASAN_DEFAULT_CPOS_BASE_URL=https://cpos.example.jp npm start
 ```
 
 ---
 
-## 8. 既存 JSON への変換
+## 7. 関連ドキュメント
 
-CPOS の analysis-source / kasan export は、既存判定エンジンの 4 種 JSON に変換されます。
-
-| CPOS | → | 加算マネージャ |
-|---|---|---|
-| `userSummary` | → | `user_summary.json`（[仕様](./json/user_summary.md)） |
-| `staffSummary` | → | `staff.json`（合成 staff[]・[仕様](./json/staff.md)） |
-| `claimSummary` | → | `evidence.json`（[仕様](./json/evidence.md)） |
-| `dataCompleteness` / `warnings` | → | `tenant_status.json` の `inquiry`（[仕様](./json/tenant_status.md)） |
-
-加算キーマッピング: `regulatory_master/mapping/cpos_addon_mapping.json`。マッピング外の `addOnKey` は警告に出ます（勝手に推測しない）。
-
-実装: `app/src/services/cpos/transform.js`。
-
----
-
-## 9. 関連ドキュメント
-
-- [CPOS_TOKEN.md](./CPOS_TOKEN.md) — 利用者向け PAT 接続手順
+- [CPOS_TOKEN.md](./CPOS_TOKEN.md) — 利用者向けログイン手順
+- [AUTH_AND_PLANS.md](./AUTH_AND_PLANS.md) — ログイン・プラン
 - [DATA_SAFETY.md](./DATA_SAFETY.md) — データ取扱方針
-- [json/](./json/) — JSON 形式リファレンス
-- [TECHNICAL.md](./TECHNICAL.md) — 全体アーキテクチャ
+- [`ref/KASAN_APP_API_ADDITIONS.md`](../ref/KASAN_APP_API_ADDITIONS.md) — CPOS に追加すべき API（提案）
