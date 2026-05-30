@@ -91,6 +91,7 @@ import {
   getAnalysisJob,
   loadAnalysisArtifact,
 } from '../src/services/persistence.js';
+import { getAdminAggregateStats, getUserUsageDetail } from '../src/services/admin-stats.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1709,6 +1710,42 @@ await test('Persistence: 無料ユーザーは保存しない', async () => {
   const req = { user: { uid: 'u_free', email: 'free@example.com', planTier: 'free' } };
   const r = await persistAnalysisIfPaid({ req, analysisId: 'an_free', judgeResult: { service: 'x', summary: {} }, sourceType: 'local_engine' });
   assert.equal(r.persisted, false);
+});
+
+await test('AdminStats: 全体集計（ユーザー総数・有料アクティブ・サービス別件数）', async () => {
+  const stats = await getAdminAggregateStats();
+  assert.ok(stats, 'stats が取れる');
+  // 前段のテストで複数ユーザーを作っているので >0
+  assert.ok(stats.users.total >= 3, `users.total=${stats.users.total}`);
+  // u_admin_t は revoke 済み、u_code/u_paid は paid 付与済み → 有料アクティブが 1 以上
+  assert.ok(stats.users.paid_active >= 1, `paid_active=${stats.users.paid_active}`);
+  // 有料 u_paid の解析が tsusho_kaigo で 1件保存されている
+  assert.ok((stats.analyses.by_service.tsusho_kaigo || 0) >= 1, 'by_service.tsusho_kaigo >= 1');
+  assert.ok(stats.analyses.total >= 1);
+});
+
+await test('AdminStats: ユーザー詳細（解析数・サービス別・最終解析時刻・直近10件・redeemed コード）', async () => {
+  // 別ユーザーを作ってからのテストでも安定させるため、u_paid を対象に詳細を取る
+  const d = await getUserUsageDetail('u_paid');
+  assert.ok(d, 'detail が取れる');
+  assert.equal(d.user.uid, 'u_paid');
+  assert.equal(d.user.planTier, 'paid');
+  assert.ok(d.counts.analyses >= 1);
+  assert.ok(d.last_analysis_at);
+  assert.equal(d.analyses_by_service.tsusho_kaigo, d.counts.analyses);
+  assert.ok(d.recent_analyses.length >= 1);
+  assert.equal(d.recent_analyses[0].service, 'tsusho_kaigo');
+  // u_paid 自身は code redeem していないので 0
+  assert.equal(d.counts.redeemed_codes, 0);
+  // u_code は redeem 済み → 1
+  const d2 = await getUserUsageDetail('u_code');
+  assert.equal(d2.counts.redeemed_codes, 1);
+  assert.ok(d2.redeemed_codes[0].code);
+});
+
+await test('AdminStats: 存在しないユーザーは null', async () => {
+  const d = await getUserUsageDetail('not_a_user_xxx');
+  assert.equal(d, null);
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

@@ -21,6 +21,15 @@
       .pw-table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin-top: 8px; }
       .pw-table th, .pw-table td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
       .pw-table th { background: #f4f6fb; }
+      .pw-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+      .pw-stat { background: #f7f9fd; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+      .pw-stat .pw-stat-label { font-size: 12px; color: var(--ink-mute); }
+      .pw-stat .pw-stat-value { font-size: 22px; font-weight: 700; color: var(--ink); }
+      .pw-stat .pw-stat-sub { font-size: 11.5px; color: var(--ink-mute); }
+      .pw-user-detail { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+      .pw-user-detail-head { display: flex; justify-content: space-between; align-items: center; }
+      .pw-ud-meta { font-size: 13.5px; margin: 4px 0 8px; color: var(--ink); }
+      .pw-ud-meta code { background: #f1f1f4; padding: 1px 5px; border-radius: 3px; }
       .le-report { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
     </style>
   </head>
@@ -313,12 +322,36 @@
         <!-- 管理者: 有料ユーザー管理 -->
         <div id="pw-admin" class="hidden">
           <hr />
-          <h3 class="result-h3">🛠 有料ユーザー管理（管理者）</h3>
+          <h3 class="result-h3">🛠 管理ダッシュボード</h3>
+          <div id="pw-stats" class="pw-stats"></div>
+
+          <h3 class="result-h3">👥 有料ユーザー管理</h3>
           <table class="pw-table">
-            <thead><tr><th>ユーザー</th><th>方式</th><th>プラン</th><th>登録日</th><th>操作</th></tr></thead>
+            <thead><tr><th>ユーザー</th><th>方式</th><th>プラン</th><th>解析数</th><th>最終ログイン</th><th>登録日</th><th>操作</th></tr></thead>
             <tbody id="pw-users"></tbody>
           </table>
           <p class="hint" id="pw-admin-msg"></p>
+
+          <!-- ユーザー詳細パネル -->
+          <div id="pw-user-detail" class="pw-user-detail hidden">
+            <div class="pw-user-detail-head">
+              <h3 class="result-h3" id="pw-ud-title">ユーザー詳細</h3>
+              <button type="button" id="pw-ud-close" class="ghost-btn">× 閉じる</button>
+            </div>
+            <div id="pw-ud-meta" class="pw-ud-meta"></div>
+            <div id="pw-ud-counts" class="pw-stats"></div>
+            <h4 class="result-h3">サービス別 解析回数</h4>
+            <ul id="pw-ud-by-service" class="pw-list"></ul>
+            <h4 class="result-h3">直近の解析（最大10件）</h4>
+            <table class="pw-table">
+              <thead><tr><th>日時</th><th>サービス</th><th>由来</th><th>状態</th><th>加算数</th><th>clear/wait/unknown</th></tr></thead>
+              <tbody id="pw-ud-analyses"></tbody>
+            </table>
+            <h4 class="result-h3">アクセスコード履歴</h4>
+            <ul id="pw-ud-codes" class="pw-list"></ul>
+            <h4 class="result-h3">監査ログ（直近）</h4>
+            <ul id="pw-ud-audits" class="pw-list"></ul>
+          </div>
         </div>
       </section>
 

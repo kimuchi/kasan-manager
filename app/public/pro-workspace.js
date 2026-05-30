@@ -102,7 +102,13 @@ async function init() {
   wireAuth();
   wireWorkspace();
   wireRoster();
+  wireAdmin();
   await refreshMe();
+}
+
+function wireAdmin() {
+  const close = $('pw-ud-close');
+  if (close) close.addEventListener('click', () => $('pw-user-detail').classList.add('hidden'));
 }
 
 function fillSelect(sel, pairs) {
@@ -498,20 +504,90 @@ function loadRosterIntoEditor(roster) {
   flash($('pw-roster-msg'), '名簿をエディタに読み込みました。編集して保存すると新規保存されます。');
 }
 
-// ---------------- 管理者: 有料ユーザー管理 ----------------
+// ---------------- 管理者: 集計ダッシュボード + ユーザー利用状況 ----------------
+const SERVICE_LABELS = {
+  tsusho_kaigo: '通所介護',
+  houmon_kaigo: '訪問介護',
+  houmon_kango_kaigo: '訪問看護（介護保険）',
+  kyotaku_shien: '居宅介護支援',
+  sogoubu_tsusho: '通所型独自サービス',
+};
+
+function fmtDateTime(iso) {
+  if (!iso) return '-';
+  const s = String(iso);
+  return s.length >= 16 ? s.slice(0, 16).replace('T', ' ') : s;
+}
+
+function pct(num, denom) {
+  if (!denom) return '0%';
+  return `${Math.round((num / denom) * 100)}%`;
+}
+
+function statCard(label, value, sub = '') {
+  const el = document.createElement('div');
+  el.className = 'pw-stat';
+  el.innerHTML =
+    `<div class="pw-stat-label">${escapeHtml(label)}</div>` +
+    `<div class="pw-stat-value">${escapeHtml(String(value))}</div>` +
+    (sub ? `<div class="pw-stat-sub">${escapeHtml(sub)}</div>` : '');
+  return el;
+}
+
 async function refreshUsers() {
-  const r = await api('/api/admin/users').catch(() => ({ users: [] }));
+  // 集計ダッシュボード + ユーザー一覧をまとめて取得
+  const [statsResp, usersResp] = await Promise.all([
+    api('/api/admin/stats').catch(() => ({ stats: null })),
+    api('/api/admin/users').catch(() => ({ users: [] })),
+  ]);
+  renderAdminStats(statsResp.stats);
+  renderAdminUsers(usersResp.users || []);
+}
+
+function renderAdminStats(stats) {
+  const wrap = $('pw-stats');
+  wrap.innerHTML = '';
+  if (!stats) {
+    wrap.textContent = '集計データを取得できませんでした。';
+    return;
+  }
+  wrap.append(
+    statCard('登録ユーザー', stats.users.total, `直近30日アクティブ ${stats.users.active_last_30_days}`),
+    statCard('有料アクティブ', stats.users.paid_active, `全体の ${pct(stats.users.paid_active, stats.users.total)}`),
+    statCard('認証方式', `${stats.users.firebase}/${stats.users.native}`, 'OAuth / ネイティブ'),
+    statCard('総解析数', stats.analyses.total, `直近30日 ${stats.analyses.last_30_days}`),
+  );
+  const top = Object.entries(stats.analyses.by_service || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  if (top.length) {
+    const sub = top.map(([k, v]) => `${SERVICE_LABELS[k] || k}: ${v}`).join(' / ');
+    wrap.appendChild(statCard('サービス別 TOP', top[0][1], sub));
+  }
+}
+
+const _detailCache = new Map();
+
+function renderAdminUsers(users) {
   const tbody = $('pw-users');
   tbody.innerHTML = '';
-  for (const u of r.users || []) {
+  for (const u of users) {
     const tr = document.createElement('tr');
     const tier = u.planTier === 'paid' ? `有料（〜${(u.planExpiresAt || '').slice(0, 10)}）` : '無料';
+    const lastLogin = (u.lastLoginAt || '').slice(0, 10) || '-';
+    const created = (u.createdAt || '').slice(0, 10);
     tr.innerHTML =
-      `<td>${escapeHtml(u.email || u.uid)}</td>` +
-      `<td>${u.authProvider}</td>` +
-      `<td>${tier}</td>` +
-      `<td>${(u.createdAt || '').slice(0, 10)}</td>`;
+      `<td>${escapeHtml(u.email || u.uid)}${u.isAdmin ? ' <small>(管理者)</small>' : ''}</td>` +
+      `<td>${escapeHtml(u.authProvider)}</td>` +
+      `<td>${escapeHtml(tier)}</td>` +
+      `<td class="pw-ud-an-count">…</td>` +
+      `<td>${escapeHtml(lastLogin)}</td>` +
+      `<td>${escapeHtml(created)}</td>`;
     const actions = document.createElement('td');
+    const detail = document.createElement('button');
+    detail.className = 'ghost-btn';
+    detail.textContent = '詳細';
+    detail.addEventListener('click', () => openUserDetail(u.uid));
     const grant = document.createElement('button');
     grant.className = 'ghost-btn';
     grant.textContent = '+30日';
@@ -520,15 +596,115 @@ async function refreshUsers() {
     revoke.className = 'ghost-btn';
     revoke.textContent = '取消';
     revoke.addEventListener('click', () => setPlan(u.uid, 'revoke', 0));
-    actions.append(grant, ' ', revoke);
+    actions.append(detail, ' ', grant, ' ', revoke);
     tr.appendChild(actions);
     tbody.appendChild(tr);
+    fillAnalysisCount(tr, u.uid);
+  }
+}
+
+async function fillAnalysisCount(tr, uid) {
+  let d = _detailCache.get(uid);
+  if (!d) {
+    try {
+      const r = await api(`/api/admin/users/${uid}`);
+      d = r.detail;
+      _detailCache.set(uid, d);
+    } catch {
+      const cell = tr.querySelector('.pw-ud-an-count');
+      if (cell) cell.textContent = '?';
+      return;
+    }
+  }
+  const cell = tr.querySelector('.pw-ud-an-count');
+  if (cell) cell.textContent = String(d.counts.analyses);
+}
+
+async function openUserDetail(uid) {
+  const panel = $('pw-user-detail');
+  panel.classList.remove('hidden');
+  $('pw-ud-title').textContent = 'ユーザー詳細を読み込み中…';
+  $('pw-ud-meta').innerHTML = '';
+  $('pw-ud-counts').innerHTML = '';
+  $('pw-ud-by-service').innerHTML = '';
+  $('pw-ud-analyses').innerHTML = '';
+  $('pw-ud-codes').innerHTML = '';
+  $('pw-ud-audits').innerHTML = '';
+  try {
+    const r = await api(`/api/admin/users/${uid}`);
+    _detailCache.set(uid, r.detail);
+    renderUserDetail(r.detail);
+  } catch (err) {
+    $('pw-ud-title').textContent = `エラー: ${err.message}`;
+  }
+}
+
+function renderUserDetail(d) {
+  const u = d.user;
+  $('pw-ud-title').textContent = `ユーザー詳細: ${u.email || u.uid}`;
+  const tier = u.planTier === 'paid' ? `有料（〜${(u.planExpiresAt || '').slice(0, 10)}）` : '無料';
+  $('pw-ud-meta').innerHTML =
+    `<div>uid: <code>${escapeHtml(u.uid)}</code> ・ 認証: ${escapeHtml(u.authProvider)} ・ ${escapeHtml(tier)}${u.isAdmin ? ' ・ 管理者' : ''}</div>` +
+    `<div>表示名: ${escapeHtml(u.displayName || '-')} ・ 登録: ${escapeHtml(fmtDateTime(u.createdAt))} ・ 最終ログイン: ${escapeHtml(fmtDateTime(u.lastLoginAt))}</div>` +
+    `<div>最終解析: ${escapeHtml(fmtDateTime(d.last_analysis_at))}</div>`;
+
+  $('pw-ud-counts').append(
+    statCard('解析実行', d.counts.analyses),
+    statCard('ドラフト', d.counts.drafts),
+    statCard('施設プロフィール', d.counts.facilities),
+    statCard('保存名簿', d.counts.rosters),
+    statCard('redeem コード', d.counts.redeemed_codes),
+  );
+
+  const bySvc = $('pw-ud-by-service');
+  const svcEntries = Object.entries(d.analyses_by_service || {}).sort((a, b) => b[1] - a[1]);
+  if (!svcEntries.length) bySvc.innerHTML = '<li>解析実行履歴はありません。</li>';
+  for (const [k, v] of svcEntries) {
+    const li = document.createElement('li');
+    li.textContent = `${SERVICE_LABELS[k] || k}: ${v}件`;
+    bySvc.appendChild(li);
+  }
+
+  const an = $('pw-ud-analyses');
+  if (!d.recent_analyses.length) {
+    an.innerHTML = '<tr><td colspan="6">履歴なし</td></tr>';
+  } else {
+    for (const a of d.recent_analyses) {
+      const c = a.summary_counts || {};
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td>${escapeHtml(fmtDateTime(a.created_at))}</td>` +
+        `<td>${escapeHtml(SERVICE_LABELS[a.service] || a.service || '-')}</td>` +
+        `<td>${escapeHtml(a.source_type || '-')}</td>` +
+        `<td>${escapeHtml(a.review_status || '-')}</td>` +
+        `<td>${escapeHtml(String(a.kasan_count ?? '-'))}</td>` +
+        `<td>${escapeHtml(`${c.clear ?? 0}/${c.waiting ?? 0}/${c.unknown ?? 0}`)}</td>`;
+      an.appendChild(tr);
+    }
+  }
+
+  const codes = $('pw-ud-codes');
+  if (!d.redeemed_codes.length) codes.innerHTML = '<li>redeem 履歴はありません。</li>';
+  for (const c of d.redeemed_codes) {
+    const li = document.createElement('li');
+    li.textContent = `${c.code}（${c.durationDays}日分・${fmtDateTime(c.redeemedAt)}${c.note ? ' / ' + c.note : ''}）`;
+    codes.appendChild(li);
+  }
+
+  const audits = $('pw-ud-audits');
+  if (!d.recent_audits.length) audits.innerHTML = '<li>監査ログはありません。</li>';
+  for (const a of d.recent_audits) {
+    const li = document.createElement('li');
+    const detail = a.detail ? ` ・ ${JSON.stringify(a.detail).slice(0, 120)}` : '';
+    li.textContent = `[${fmtDateTime(a.at)}] ${a.event_type}${detail}`;
+    audits.appendChild(li);
   }
 }
 
 async function setPlan(uid, action, days) {
   try {
     await api(`/api/admin/users/${uid}/plan`, { method: 'POST', body: { action, days } });
+    _detailCache.delete(uid);
     await refreshUsers();
   } catch (err) {
     flash($('pw-admin-msg'), `エラー: ${err.message}`);

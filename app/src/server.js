@@ -58,6 +58,7 @@ import { hydrateSecretsFromManager } from './services/secrets.js';
 import { initFirebase, isFirebaseInitialized, isUsingLocalStore } from './services/firebase-admin.js';
 import { authMiddleware, requireAuth, requirePaid, requireAdmin } from './middleware/auth.js';
 import { getUserFullView, listUsers, adminSetPlan } from './services/users.js';
+import { getAdminAggregateStats, getUserUsageDetail } from './services/admin-stats.js';
 import {
   registerLocalUser,
   loginLocalUser,
@@ -495,6 +496,27 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
     const limit = Math.min(1000, Math.max(1, Number(req.query?.limit) || 200));
     res.json({ ok: true, users: await listUsers({ limit }) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 全体ダッシュボード（ユーザー総数・有料アクティブ・直近30日・サービス別解析数 等）
+app.get('/api/admin/stats', requireAdmin, async (_req, res) => {
+  try {
+    const stats = await getAdminAggregateStats();
+    res.json({ ok: true, stats });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ユーザー単位の利用状況詳細
+app.get('/api/admin/users/:uid', requireAdmin, async (req, res) => {
+  try {
+    const detail = await getUserUsageDetail(req.params.uid);
+    if (!detail) return res.status(404).json({ ok: false, error: 'not_found' });
+    res.json({ ok: true, detail });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
