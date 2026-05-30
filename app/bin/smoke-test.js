@@ -999,8 +999,35 @@ await test('Interaction hints: 候補自身が乗算系なら multiplicative_sel
 // =====================================================================
 // レビュー学習
 // =====================================================================
-// （Review learning の独自実装は CPOS 移行で廃止。/api/me/review-learning は CPOS reviews を集計。
-//   学習ヒントの再実装は次フェーズで対応予定。）
+// レビュー学習ヒント（CPOS reviews 由来）
+// =====================================================================
+await test('ReviewHints: summarizeReviewsForUser が自分の判断のみ集計', async () => {
+  const { summarizeReviewsForUser } = await import('../src/services/review-hints.js');
+  const reviews = [
+    { createdBy: 'me', data: { kasanKey: 'a', decision: 'approved' } },
+    { createdBy: 'me', data: { kasanKey: 'a', decision: 'approved' } },
+    { createdBy: 'other', data: { kasanKey: 'a', decision: 'returned' } },
+    { createdBy: 'me', data: { kasanKey: 'b', decision: 'returned' } },
+  ];
+  const s = summarizeReviewsForUser(reviews, 'me');
+  assert.equal(s.total, 3);
+  assert.equal(s.per_kasan.a.approved, 2);
+  assert.equal(s.per_kasan.b.returned, 1);
+  assert.equal(s.per_kasan.a.tendency, 'usually_approved'); // 2/0 は >=0.7 だが 5 未満
+});
+
+await test('ReviewHints: formatTendencyLabel / attachLearningHints', async () => {
+  const { formatTendencyLabel, attachLearningHints } = await import('../src/services/review-hints.js');
+  assert.equal(formatTendencyLabel('consistently_approved'), '通常承認');
+  assert.equal(formatTendencyLabel('mixed'), '判断が分かれる');
+  assert.equal(formatTendencyLabel('xxx'), '');
+  const portfolio = { recommendations: [{ kasan_key: 'a', kasan_name: 'A' }, { kasan_key: 'b' }] };
+  const learning = { per_kasan: { a: { approved: 5, returned: 0, tendency: 'consistently_approved' } } };
+  const out = attachLearningHints(portfolio, learning);
+  assert.equal(out.recommendations[0].learning_hint.approved, 5);
+  assert.equal(out.recommendations[0].learning_tendency_label, '通常承認');
+  assert.equal(out.recommendations[1].learning_hint, undefined);
+});
 
 // =====================================================================
 // portfolio 統合 (region_grade + target_user + interaction)

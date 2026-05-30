@@ -551,10 +551,12 @@ function renderAdminStats(stats) {
     wrap.textContent = '集計データを取得できませんでした。';
     return;
   }
+  const activeLabel = stats.users.active_last_30_days == null ? '—' : `直近30日アクティブ ${stats.users.active_last_30_days}`;
+  const paidVal = stats.users.paid_active == null ? '—' : stats.users.paid_active;
   wrap.append(
-    statCard('登録ユーザー', stats.users.total, `直近30日アクティブ ${stats.users.active_last_30_days}`),
-    statCard('有料アクティブ', stats.users.paid_active, `全体の ${pct(stats.users.paid_active, stats.users.total)}`),
-    statCard('認証方式', `${stats.users.firebase}/${stats.users.native}`, 'OAuth / ネイティブ'),
+    statCard('CPOS 組織ユーザー', stats.users.total, activeLabel),
+    statCard('有料（エンタイトルメント）', paidVal, '詳細は各ユーザーで確認'),
+    statCard('認証', 'CPOS', 'CPOS ログイン一本化'),
     statCard('総解析数', stats.analyses.total, `直近30日 ${stats.analyses.last_30_days}`),
   );
   const top = Object.entries(stats.analyses.by_service || {})

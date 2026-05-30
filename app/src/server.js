@@ -81,6 +81,7 @@ import {
 } from './services/cpos/store.js';
 import { mergeDraftData, draftToBundle } from './services/cpos/draft-merge.js';
 import { anonymizeStaffRoster, anonymizeAnalysisResult } from './services/anonymize.js';
+import { summarizeReviewsForUser, attachLearningHints } from './services/review-hints.js';
 import { optimizePortfolio } from './services/portfolio.js';
 import { listGrades as listRegionalGrades, yenPerUnit as regionalYenPerUnit } from './services/regional-pricing.js';
 import {
@@ -786,7 +787,11 @@ app.get('/api/analyses/:id/portfolio', requirePaid, async (req, res) => {
     const result = doc.data?.resultJson;
     if (!result) return res.status(404).json({ ok: false, error: 'result_not_persisted' });
     const regionGrade = req.query?.region_grade ? String(req.query.region_grade) : null;
-    const portfolio = optimizePortfolio({ judgeResult: result, regionGrade });
+    let portfolio = optimizePortfolio({ judgeResult: result, regionGrade });
+    // 学習ヒント（自分の過去判断）を付与
+    const reviews = await listReviews({ organizationId: req.user.organizationId, limit: 1000 }).catch(() => []);
+    const learning = summarizeReviewsForUser(reviews, req.user.uid);
+    portfolio = attachLearningHints(portfolio, learning);
     res.json({ ok: true, portfolio });
   } catch (err) {
     storeError(res, err);
@@ -801,7 +806,11 @@ app.post('/api/portfolio/optimize', heavyLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'bad_request', message: 'judge 結果（judgements を含む JSON）が必要です' });
     }
     const regionGrade = req.body?.region_grade || judgeResult.region_grade || null;
-    const portfolio = optimizePortfolio({ judgeResult, regionGrade });
+    let portfolio = optimizePortfolio({ judgeResult, regionGrade });
+    if (req.user?.uid) {
+      const reviews = await listReviews({ organizationId: req.user.organizationId, limit: 1000 }).catch(() => []);
+      portfolio = attachLearningHints(portfolio, summarizeReviewsForUser(reviews, req.user.uid));
+    }
     res.json({ ok: true, portfolio });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -817,15 +826,7 @@ app.get('/api/regional-grades', (_req, res) => {
 app.get('/api/me/review-learning', requireAuth, async (req, res) => {
   try {
     const reviews = await listReviews({ organizationId: req.user.organizationId, limit: 1000 }).catch(() => []);
-    const mine = reviews.filter((r) => r.createdBy === req.user.uid);
-    const perKasan = {};
-    for (const r of mine) {
-      const k = r.data?.kasanKey;
-      if (!k) continue;
-      perKasan[k] = perKasan[k] || { approved: 0, returned: 0, awaiting_review: 0 };
-      if (perKasan[k][r.data.decision] != null) perKasan[k][r.data.decision] += 1;
-    }
-    res.json({ ok: true, per_kasan: perKasan, total: mine.length });
+    res.json({ ok: true, ...summarizeReviewsForUser(reviews, req.user.uid) });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
