@@ -47,6 +47,50 @@ import {
 } from '../public/local/aggregate.js';
 import { buildLocalBundle } from '../public/local/bundle.js';
 import { readFile } from 'node:fs/promises';
+// --- Pro mode: 認証 / 永続化 / 匿名化 / プロフィール / ドラフト ---
+import { _resetLocalStoreCache, isLocalStoreEnabled } from '../src/services/local-store.js';
+import {
+  anonymizeStaffRoster,
+  summarizeForStorage,
+  scrubString,
+  anonymizeAnalysisResult,
+  assertStorageSafe,
+} from '../src/services/anonymize.js';
+import {
+  hashPassword,
+  verifyPassword,
+  validateEmail,
+  validatePassword,
+  registerLocalUser,
+  loginLocalUser,
+  buildSessionPayload,
+  readSession,
+  isLocalAuthEnabled,
+} from '../src/services/auth-local.js';
+import {
+  ensureUser,
+  getUserSummary,
+  findUserByEmail,
+  listUsers,
+  adminSetPlan,
+  getUserRecord,
+} from '../src/services/users.js';
+import { issueAccessCode, redeemAccessCode } from '../src/services/access-codes.js';
+import {
+  saveFacility,
+  listFacilities,
+  getFacility,
+  deleteFacility,
+  saveStaffRoster,
+  getStaffRoster,
+} from '../src/services/profiles.js';
+import { createDraft, mergeIntoDraft, getDraft, draftToBundle } from '../src/services/drafts.js';
+import {
+  persistAnalysisIfPaid,
+  listAnalysisJobsForUser,
+  getAnalysisJob,
+  loadAnalysisArtifact,
+} from '../src/services/persistence.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1437,6 +1481,234 @@ await test('Local/receipt-core: unknown_service_codes は10件で打ち切られ
   const warn = (r.warnings || []).find((w) => w.startsWith('unknown_service_code'));
   assert.ok(warn, 'unknown_service_code 警告が出る');
   assert.ok(warn.includes('+2件'), `末尾に +2件 表示: ${warn}`);
+});
+
+// =====================================================================
+// Pro mode: ローカルストア / 認証 / 匿名化 / プロフィール / ドラフト / 永続化
+// =====================================================================
+
+// テスト用: in-memory ローカルストア + セッション秘密鍵
+process.env.KASAN_LOCAL_STORE_DIR = ':memory:';
+process.env.KASAN_SESSION_SECRET = process.env.KASAN_SESSION_SECRET || 'a'.repeat(48);
+_resetLocalStoreCache();
+
+await test('LocalStore: 有効・getDb 経由で set/get/query/transaction が動く', async () => {
+  assert.equal(isLocalStoreEnabled(), true);
+  // ensureUser → getUserSummary（getDb 経由でローカルストアに書ける）
+  await ensureUser({ uid: 'u_ls1', email: 'ls1@example.com', emailVerified: true, displayName: 'LS1' });
+  const sum = await getUserSummary('u_ls1');
+  assert.equal(sum.planTier, 'free');
+  const rec = await getUserRecord('u_ls1');
+  assert.equal(rec.email, 'ls1@example.com');
+  assert.equal(rec.authProvider, 'firebase');
+});
+
+await test('Anonymize: scrubString が被保険者番号・電話・メールを伏字化', () => {
+  const s = scrubString('氏名 山田太郎 電話 03-1234-5678 メール a@b.com 被保険者番号 1234567890');
+  assert.equal(/03-1234-5678/.test(s), false);
+  assert.equal(/a@b\.com/.test(s), false);
+  assert.equal(/1234567890/.test(s), false);
+});
+
+await test('Anonymize: summarizeForStorage が PII キーを破棄し文字列をスクラブ', () => {
+  const out = summarizeForStorage({
+    氏名: '山田太郎',
+    name: 'Taro',
+    住所: '東京都...',
+    note: '連絡先 090-1111-2222',
+    count: 5,
+    nested: { 電話番号: '03-0000-0000', ok: true },
+  });
+  assert.equal(out.氏名, undefined);
+  assert.equal(out.name, undefined);
+  assert.equal(out.住所, undefined);
+  assert.equal(out.count, 5);
+  assert.equal(out.nested.電話番号, undefined);
+  assert.equal(out.nested.ok, true);
+  assert.equal(/090-1111-2222/.test(out.note), false);
+});
+
+await test('Anonymize: anonymizeStaffRoster は氏名を捨て職種別に集計', () => {
+  const r = anonymizeStaffRoster([
+    { label: '山田太郎', qualification: '介護福祉士', fte: 1.0, joukin: true },
+    { name: '佐藤花子', qualifications: ['看護師'], fte: 0.5, joukin: false },
+    { qualification: '理学療法士', fte: 1.0 },
+  ]);
+  assert.equal(r.headcount, 3);
+  assert.equal(r.joukinCount, 1);
+  assert.equal(r.qualifiedPersonCountByProfession.care_worker, 1);
+  assert.equal(r.qualifiedPersonCountByProfession.nurse, 1);
+  assert.equal(r.qualifiedPersonCountByProfession.physical_therapist, 1);
+  // 個人エントリに氏名（name）が残っていない
+  const json = JSON.stringify(r.entries);
+  assert.equal(/山田太郎|佐藤花子|name/.test(json), false);
+});
+
+await test('Anonymize: anonymizeAnalysisResult + assertStorageSafe が PII 残存で throw', () => {
+  // 被保険者番号 10桁が残るオブジェクトは保存前チェックで弾く
+  assert.throws(() => assertStorageSafe({ leak: '被保番 1234567890 です' }));
+  // 通常の judge result 風（集計のみ）は通る
+  const safe = anonymizeAnalysisResult({ service: 'tsusho_kaigo', summary: { clear: ['a'] }, kasan_count: 3 });
+  assert.equal(safe.service, 'tsusho_kaigo');
+  assertStorageSafe(safe);
+});
+
+await test('AuthLocal: hashPassword / verifyPassword（正誤）', () => {
+  const h = hashPassword('Abcd1234');
+  assert.notEqual(h, 'Abcd1234');
+  assert.equal(verifyPassword('Abcd1234', h), true);
+  assert.equal(verifyPassword('wrongpass1', h), false);
+});
+
+await test('AuthLocal: email / password バリデーション', () => {
+  assert.equal(validateEmail('a@b.com'), true);
+  assert.equal(validateEmail('nope'), false);
+  assert.equal(validatePassword('Abcd1234'), true);
+  assert.equal(validatePassword('short'), false); // 8文字未満
+  assert.equal(validatePassword('allletters'), false); // 数字なし
+});
+
+await test('AuthLocal: register → login → セッション復元', async () => {
+  assert.equal(isLocalAuthEnabled(), true);
+  const { user, session } = await registerLocalUser({
+    email: 'pro1@example.com',
+    password: 'Secret123',
+    displayName: '事業所太郎',
+  });
+  assert.equal(user.authProvider, 'local');
+  assert.ok(session.uid.startsWith('local_'));
+  // findUserByEmail で引ける
+  const found = await findUserByEmail('PRO1@example.com'); // 大文字でも引ける
+  assert.equal(found.uid, user.uid);
+  // 重複登録は弾く
+  await assert.rejects(() => registerLocalUser({ email: 'pro1@example.com', password: 'Other123' }));
+  // login 成功・失敗
+  const ok = await loginLocalUser({ email: 'pro1@example.com', password: 'Secret123' });
+  assert.equal(ok.user.uid, user.uid);
+  await assert.rejects(() => loginLocalUser({ email: 'pro1@example.com', password: 'badpass99' }));
+  // セッション Cookie → readSession で復元
+  const sealed = (await import('../src/utils/cookie-seal.js')).sealCookie(session);
+  const fakeReq = { headers: { cookie: `kasan_session=${encodeURIComponent(sealed)}` } };
+  const restored = readSession(fakeReq);
+  assert.equal(restored.uid, user.uid);
+});
+
+await test('Admin: listUsers / adminSetPlan grant→paid→revoke→free', async () => {
+  await ensureUser({ uid: 'u_admin_t', email: 'plan@example.com', emailVerified: true });
+  let r = await adminSetPlan('u_admin_t', { action: 'grant', days: 30 });
+  assert.equal(r.planTier, 'paid');
+  let sum = await getUserSummary('u_admin_t');
+  assert.equal(sum.planTier, 'paid');
+  r = await adminSetPlan('u_admin_t', { action: 'revoke' });
+  assert.equal(r.planTier, 'free');
+  sum = await getUserSummary('u_admin_t');
+  assert.equal(sum.planTier, 'free');
+  const users = await listUsers({ limit: 100 });
+  assert.ok(users.find((u) => u.uid === 'u_admin_t'));
+});
+
+await test('AccessCode: issue → redeem が plan を paid に（ローカルストア）', async () => {
+  await ensureUser({ uid: 'u_code', email: 'code@example.com', emailVerified: true });
+  const issued = await issueAccessCode({ durationDays: 14, note: 'test', issuedBy: 'admin', issuedByEmail: 'a@x.com' });
+  assert.ok(/^[A-Z0-9]{4}-/.test(issued.code));
+  const redeemed = await redeemAccessCode(issued.code, { uid: 'u_code', email: 'code@example.com' });
+  assert.ok(redeemed.planExpiresAt);
+  const sum = await getUserSummary('u_code');
+  assert.equal(sum.planTier, 'paid');
+  // 二重 redeem は弾く
+  await assert.rejects(() => redeemAccessCode(issued.code, { uid: 'u_code', email: 'code@example.com' }));
+});
+
+await test('Profiles: 施設プロフィールの保存・取得・更新・削除', async () => {
+  const uid = 'u_prof';
+  await ensureUser({ uid, email: 'prof@example.com', emailVerified: true });
+  const saved = await saveFacility(uid, { name: 'デイほっと', officeCode: 'DEMO-0004', serviceKey: 'tsusho_kaigo', regionGrade: '2' });
+  assert.ok(saved.id);
+  const list = await listFacilities(uid);
+  assert.equal(list.length, 1);
+  const updated = await saveFacility(uid, { id: saved.id, name: 'デイほっと改', serviceKey: 'tsusho_kaigo' });
+  assert.equal(updated.name, 'デイほっと改');
+  // 他人の uid からは見えない
+  assert.equal(await getFacility('someone_else', saved.id), null);
+  assert.equal(await deleteFacility(uid, saved.id), true);
+  assert.equal((await listFacilities(uid)).length, 0);
+});
+
+await test('Profiles: 従業員名簿は氏名を保存せず職種集計で保持・流用できる', async () => {
+  const uid = 'u_roster';
+  await ensureUser({ uid, email: 'roster@example.com', emailVerified: true });
+  const saved = await saveStaffRoster(uid, {
+    label: '本体職員',
+    serviceKey: 'tsusho_kaigo',
+    entries: [
+      { label: '田中', qualification: '介護福祉士', fte: 1, joukin: true },
+      { name: '鈴木一郎', qualifications: ['看護師'], fte: 1, joukin: true },
+    ],
+  });
+  assert.equal(saved.headcount, 2);
+  assert.equal(saved.qualifiedPersonCountByProfession.care_worker, 1);
+  assert.equal(saved.qualifiedPersonCountByProfession.nurse, 1);
+  const got = await getStaffRoster(uid, saved.id);
+  assert.equal(/鈴木一郎|name/.test(JSON.stringify(got)), false);
+});
+
+await test('Drafts: createDraft → 2回 merge で集計が合算される', async () => {
+  const uid = 'u_draft';
+  await ensureUser({ uid, email: 'draft@example.com', emailVerified: true });
+  const draft = await createDraft(uid, { serviceKey: 'tsusho_kaigo', serviceMonth: '2026-04' });
+  // 1 回目: 利用者集計
+  await mergeIntoDraft(uid, draft.id, {
+    userSummary: { activeUserCount: 10, careLevelDistribution: { youkaigo_3: 6 }, care3PlusCount: 6, care3PlusRatio: 0.6 },
+    fileTypeCounts: { user_roster: 1 },
+  });
+  // 2 回目: レセプト由来 evidence + 職員
+  const merged = await mergeIntoDraft(uid, draft.id, {
+    staffSummary: { qualifiedPersonCountByProfession: { care_worker: 5 }, fteByProfession: {} },
+    claimEvidence: { _meta: { schema: 'evidence' }, evidence: [{ current_kasan_counts: { nyuyoku_I: 3 }, detected_service_codes: ['155301'], total_pages: 3 }] },
+    fileTypeCounts: { receipt: 1, staff_roster: 1 },
+  });
+  assert.equal(merged.contributedCount, 2);
+  assert.equal(merged.userSummary.activeUserCount, 10);
+  assert.equal(merged.staffSummary.qualifiedPersonCountByProfession.care_worker, 5);
+  assert.equal(merged.claimEvidence.evidence[0].current_kasan_counts.nyuyoku_I, 3);
+  assert.equal(merged.fileTypeCounts.receipt, 1);
+  // draftToBundle が analysis_source 互換になる
+  const bundle = draftToBundle(merged);
+  assert.equal(bundle.schemaVersion, '1.0');
+  assert.equal(bundle.serviceKey, 'tsusho_kaigo');
+  assert.ok(bundle.userSummary && bundle.claimEvidence);
+});
+
+await test('Persistence: 有料ユーザーは履歴保存・取得・匿名アーティファクト取得できる', async () => {
+  const uid = 'u_paid';
+  await ensureUser({ uid, email: 'paid@example.com', emailVerified: true });
+  await adminSetPlan(uid, { action: 'grant', days: 30 });
+  const req = { user: { uid, email: 'paid@example.com', planTier: 'paid' } };
+  const analysisId = 'an_test_1';
+  const judgeResult = {
+    service: 'tsusho_kaigo',
+    office: 'DEMO',
+    kasan_count: 3,
+    summary: { clear: ['a'], waiting: [], not_clear: [], unknown: [], currently_claimed: [], claimed_but_requirements_unknown: [] },
+    mapping_warnings: [],
+  };
+  const r = await persistAnalysisIfPaid({ req, analysisId, judgeResult, markdown: '# レポート', sourceType: 'local_engine' });
+  assert.equal(r.persisted, true);
+  const jobs = await listAnalysisJobsForUser(uid, { limit: 10 });
+  assert.ok(jobs.find((j) => j.analysis_id === analysisId));
+  const job = await getAnalysisJob({ analysisId, uid });
+  assert.equal(job.service, 'tsusho_kaigo');
+  // GCS 非設定 → ローカルアーティファクト
+  const result = await loadAnalysisArtifact({ analysisId, uid, kind: 'result' });
+  assert.ok(result && JSON.parse(result).service === 'tsusho_kaigo');
+  const md = await loadAnalysisArtifact({ analysisId, uid, kind: 'report' });
+  assert.ok(md.includes('レポート'));
+});
+
+await test('Persistence: 無料ユーザーは保存しない', async () => {
+  const req = { user: { uid: 'u_free', email: 'free@example.com', planTier: 'free' } };
+  const r = await persistAnalysisIfPaid({ req, analysisId: 'an_free', judgeResult: { service: 'x', summary: {} }, sourceType: 'local_engine' });
+  assert.equal(r.persisted, false);
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

@@ -10,13 +10,13 @@
 //
 // ポートフォリオ候補や、未判定の加算カードに付与する。
 
-import { getFirestoreClient } from './firebase-admin.js';
+import { getDb } from './firebase-admin.js';
 
 const COLLECTION_REVIEWS = 'review_decisions';
 const MAX_FETCH = 1000;
 
 export async function summarizePastDecisionsForUser(uid, { limit = MAX_FETCH } = {}) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) return { per_kasan: {}, total: 0 };
   let snap;
   try {

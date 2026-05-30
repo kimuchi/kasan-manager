@@ -9,11 +9,13 @@
 //   - 失敗してもクライアント側の分析結果返却は止めない（背景でログを残す）。
 //   - レビューア用に review_decisions も別コレクションで管理。
 
-import { getFirestoreClient, getStorageBucket } from './firebase-admin.js';
+import { getDb, getStorageBucket } from './firebase-admin.js';
+import { anonymizeAnalysisResult, assertStorageSafe } from './anonymize.js';
 
 const COLLECTION_JOBS = 'analysis_jobs';
 const COLLECTION_REVIEWS = 'review_decisions';
 const COLLECTION_AUDIT = 'audit_logs';
+const COLLECTION_ARTIFACTS = 'analysis_artifacts'; // GCS 非設定時のフォールバック保存先
 
 function summarizeForFirestore(judgeResult) {
   const s = judgeResult?.summary || {};
@@ -36,7 +38,7 @@ function summarizeForFirestore(judgeResult) {
 
 export async function persistAnalysisIfPaid({ req, analysisId, judgeResult, markdown, sourceType, extra = {} }) {
   if (req?.user?.planTier !== 'paid' || !req?.user?.uid) return { persisted: false, reason: 'free_or_unauthenticated' };
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) return { persisted: false, reason: 'firestore_unavailable' };
   const bucket = getStorageBucket();
   const uid = req.user.uid;
@@ -59,10 +61,20 @@ export async function persistAnalysisIfPaid({ req, analysisId, judgeResult, mark
     return { persisted: false, reason: 'firestore_write_failed' };
   }
 
-  if (bucket) {
+  // フルレポートは保存前に必ず匿名化（サーバ側の最終防衛線）。
+  let safeResult = judgeResult;
+  try {
+    safeResult = anonymizeAnalysisResult(judgeResult);
+    assertStorageSafe(safeResult);
+  } catch (err) {
+    console.warn(`[persistence] anonymize/assert failed, storing minimal meta only: ${err.message}`);
+    safeResult = null; // PII 残存の疑い → フルレポートは保存しない（メタのみ残す）
+  }
+
+  if (bucket && safeResult) {
     try {
       const base = `analyses/${uid}/${analysisId}`;
-      await bucket.file(`${base}/result.json`).save(JSON.stringify(judgeResult, null, 2), {
+      await bucket.file(`${base}/result.json`).save(JSON.stringify(safeResult, null, 2), {
         contentType: 'application/json; charset=utf-8',
         resumable: false,
       });
@@ -76,14 +88,43 @@ export async function persistAnalysisIfPaid({ req, analysisId, judgeResult, mark
       console.warn(`[persistence] GCS save failed: ${err.message}`);
       // Firestore のメタは残っているので持続的失敗ではない
     }
+  } else if (!bucket && safeResult) {
+    // GCS 非設定環境（ローカルストア運用）: 永続化レイヤにフルレポートを保存
+    try {
+      await saveArtifact({ uid, analysisId, kind: 'result', content: JSON.stringify(safeResult, null, 2) });
+      if (markdown) await saveArtifact({ uid, analysisId, kind: 'report', content: markdown });
+    } catch (err) {
+      console.warn(`[persistence] local artifact save failed: ${err.message}`);
+    }
   }
 
   await logAudit({ uid, eventType: 'analysis_persisted', detail: { analysisId, sourceType } });
   return { persisted: true };
 }
 
+// ---- アーティファクト（GCS 非設定時の result.json / report.md フォールバック） ----
+function artifactId(uid, analysisId, kind) {
+  return `${uid}__${analysisId}__${kind}`;
+}
+
+async function saveArtifact({ uid, analysisId, kind, content }) {
+  const db = getDb();
+  if (!db) return;
+  await db
+    .collection(COLLECTION_ARTIFACTS)
+    .doc(artifactId(uid, analysisId, kind))
+    .set({ uid, analysis_id: analysisId, kind, content, saved_at: new Date() });
+}
+
+async function loadLocalArtifact({ uid, analysisId, kind }) {
+  const db = getDb();
+  if (!db) return null;
+  const snap = await db.collection(COLLECTION_ARTIFACTS).doc(artifactId(uid, analysisId, kind)).get();
+  return snap.exists ? snap.data().content : null;
+}
+
 export async function listAnalysisJobsForUser(uid, { limit = 50 } = {}) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) return [];
   const snap = await db
     .collection(COLLECTION_JOBS)
@@ -95,7 +136,7 @@ export async function listAnalysisJobsForUser(uid, { limit = 50 } = {}) {
 }
 
 export async function getAnalysisJob({ analysisId, uid, isAdmin = false }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) return null;
   const snap = await db.collection(COLLECTION_JOBS).doc(analysisId).get();
   if (!snap.exists) return null;
@@ -106,7 +147,10 @@ export async function getAnalysisJob({ analysisId, uid, isAdmin = false }) {
 
 export async function loadAnalysisArtifact({ analysisId, uid, kind = 'result' }) {
   const bucket = getStorageBucket();
-  if (!bucket) return null;
+  if (!bucket) {
+    // GCS 非設定: ローカルストアのアーティファクトを返す
+    return loadLocalArtifact({ uid, analysisId, kind });
+  }
   const base = `analyses/${uid}/${analysisId}`;
   const path = kind === 'report' ? `${base}/report.md` : `${base}/result.json`;
   const [buf] = await bucket.file(path).download().catch(() => [null]);
@@ -134,7 +178,7 @@ export function aggregateReviewStatus(perKasanStatus) {
 const VALID_DECISIONS = new Set(['approved', 'returned', 'awaiting_review']);
 
 export async function recordReviewDecision({ analysisId, kasanKey, decision, comment, reviewerUid, reviewerEmail }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) throw new Error('firestore_unavailable');
   if (!VALID_DECISIONS.has(decision)) {
     throw new Error('invalid_decision');
@@ -182,7 +226,7 @@ export async function recordReviewDecision({ analysisId, kasanKey, decision, com
 }
 
 export async function listReviewDecisions({ analysisId, kasanKey = null }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) return [];
   let q = db.collection(COLLECTION_REVIEWS).where('analysis_id', '==', analysisId);
   if (kasanKey) q = q.where('kasan_key', '==', kasanKey);
@@ -198,7 +242,7 @@ export async function listReviewDecisions({ analysisId, kasanKey = null }) {
 }
 
 export async function logAudit({ uid, eventType, detail }) {
-  const db = getFirestoreClient();
+  const db = getDb();
   if (!db) return;
   try {
     await db.collection(COLLECTION_AUDIT).add({

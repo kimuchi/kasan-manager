@@ -11,14 +11,33 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
+import { getLocalStore } from './local-store.js';
+
 let initialized = false;
 let lastInitError = null;
+
+// Firebase / Firestore を実際に使える構成か（プロジェクト ID か資格情報が揃っているか）。
+// これが false の環境では Firestore クライアントを作らず、ローカルストアにフォールバックする。
+// （資格情報なしで initializeApp すると、利用時に「Unable to detect a Project Id」で落ちるため）
+export function isFirebaseConfigured() {
+  return Boolean(
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+      process.env.GCP_PROJECT_ID ||
+      process.env.GCLOUD_PROJECT ||
+      process.env.GOOGLE_CLOUD_PROJECT ||
+      process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  );
+}
 
 export function initFirebase() {
   if (initialized) return true;
   if (getApps().length > 0) {
     initialized = true;
     return true;
+  }
+  if (!isFirebaseConfigured()) {
+    // 未設定環境（ローカル開発 / CI / 自前ホスティング）: ローカルストアで動作させる
+    return false;
   }
   try {
     const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || null;
@@ -63,6 +82,21 @@ export function getAuthClient() {
 export function getFirestoreClient() {
   if (!initFirebase()) return null;
   return getFirestore();
+}
+
+// 永続化レイヤの統一エントリポイント。
+// Firestore が使えればそれを、無ければローカルストア（Firestore 互換サブセット）を返す。
+// これにより、ユーザー/プラン/プロフィール/履歴は Firebase 未設定でも保存・テストできる。
+// 本番で Firestore を設定している場合は従来どおり Firestore を返す（挙動不変）。
+export function getDb() {
+  const fs = getFirestoreClient();
+  if (fs) return fs;
+  return getLocalStore();
+}
+
+// 永続化が「ローカルストア」で動いているか（health 表示・診断用）
+export function isUsingLocalStore() {
+  return !getFirestoreClient() && Boolean(getLocalStore());
 }
 
 export function getStorageBucket() {

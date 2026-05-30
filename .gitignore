@@ -36,6 +36,10 @@ app/uploads/
 uploads/
 tmp/
 
+# Local persistence fallback (Firestore 非設定時のユーザーデータ。コミットしない)
+.localstore/
+app/.localstore/
+
 # Cloud Build / GCP secrets
 service-account-*.json
 gcp-credentials*.json
