@@ -15,9 +15,61 @@
       "skills/regulatory/KASAN_YOKEN_DAITAI.md",
       "skills/regulatory/KAISHAKU_TSUUCHI.md"
     ],
-    "source_status": "implemented"
+    "source_status": "implemented",
+    "service_code_mapping_audit": {
+      "audit_version": "alpha.5.8.1",
+      "audit_date": "2026-05-10",
+      "primary_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+      "primary_source_kind": "definitive",
+      "primary_source_revision_status": "current_definitive",
+      "match_type_breakdown": {
+        "exact_match": 0,
+        "code_mismatch": 16,
+        "unit_mismatch": 0,
+        "code_and_unit_mismatch": 0,
+        "not_found": 2
+      },
+      "checked_count": 0,
+      "pattern_based_unverified_count": 18,
+      "not_applicable_count": 0,
+      "note": "kyotaku_shien: alpha.5.7 で R7.4確定版（current_definitive）と照合実施。コード・単位整合は exact_match のみ checked、それ以外は社内マスタ訂正候補として pattern_based_unverified 維持。詳細は service_code_audit 参照。",
+      "alpha_5_7_1_hotfix": "source_anchor_corrected_to_r7_4_definitive_2025_03_28",
+      "alpha_5_7_2_effective_period_correction": {
+        "r7_4_revision_status": "historical_definitive (was: current_definitive in alpha.5.7.1)",
+        "r7_8_revision_status": "current_definitive (newly assigned)",
+        "as_of_date": "2026-05-10",
+        "checked_items_reconfirmed_count": 0,
+        "diff_from_r7_4": "no_diff",
+        "note": "2026-05時点で R7.8 が current_definitive。R7.4 は historical_definitive。checked件数は維持。"
+      },
+      "sources_consulted": [
+        "WAM_R7_8_DEFINITIVE_2025_03_28"
+      ],
+      "alpha_5_8_three_layer_model_introduced": {
+        "schema_version": "alpha.5.8",
+        "schema_path": "regulatory_master/sources/code_model_schema.json",
+        "overall_mapping_status_breakdown": {
+          "checked": 0,
+          "needs_review": 16,
+          "pattern_based_unverified": 2,
+          "not_applicable": 0,
+          "provisional_future": 0
+        },
+        "proposed_action_breakdown": {
+          "needs_master_review": 16,
+          "keep_pattern_based_unverified": 1,
+          "future_candidate_only": 1
+        },
+        "note": "三層モデル(official / receipt_detection / internal_legacy)導入。一括置換せず、各加算で公式コード・PDF検出・社内legacyを分離管理。"
+      },
+      "alpha_5_8_1_audit_metadata_hotfix": {
+        "applied_at": "2026-05-10",
+        "scope": "audit metadata only — three-layer model business data unchanged",
+        "reason": "alpha.5.8 audit report の narrative不整合 (needs_master_review breakdown 6+13+16=35 vs machine-counted 28) を修正、R8.6「その3」source URL null / content未検証を解消",
+        "master_data_changes": "none (kasan業務データ・proposed_action・overall_mapping_status は alpha.5.8 の機械集計値を保持)"
+      }
+    }
   },
-
   "kihon_houshu": {
     "_note": "基本報酬。45件未満=(I)、45件以上=(II)。ICT活用or事務職員配置で50件まで緩和",
     "kyotaku_shien_I": {
@@ -43,40 +95,75 @@
     "teigensei_kanwa": {
       "name": "逓減制の緩和（45→50件）",
       "or_conditions": [
-        {"key": "ICT", "description": "ケアプラン作成支援AI・AIケアプラン点検等の活用（実業務での活用が必要）"},
-        {"key": "JIMU", "description": "常勤換算1人以上の事務職員を配置"}
+        {
+          "key": "ICT",
+          "description": "ケアプラン作成支援AI・AIケアプラン点検等の活用（実業務での活用が必要）"
+        },
+        {
+          "key": "JIMU",
+          "description": "常勤換算1人以上の事務職員を配置"
+        }
       ],
       "hourei_konkyo": "R6改定 / 老企第36号"
     }
   },
-
   "kasans": {
     "tokutei_jigyousho_I": {
       "name": "特定事業所加算(I)",
       "short_name": "特事Ⅰ",
       "unit_per_month": 519,
       "unit_type": "月/利用者",
-      "service_codes": ["438100"],
+      "service_codes": [
+        "438100"
+      ],
       "category": "体制加算",
       "priority_hint": "最重要・年200-500万円規模・要件ハードル高",
       "requirements": {
         "staff": {
-          "joukin_senjuu_cm": {"count": 3, "note": "常勤かつ専従の介護支援専門員3名以上", "tenant_status_key": "joukin_senjuu_cm_count"},
-          "shunin_cm": {"count": 2, "note": "主任介護支援専門員2名以上", "tenant_status_key": "shunin_cm_count"}
+          "joukin_senjuu_cm": {
+            "count": 3,
+            "note": "常勤かつ専従の介護支援専門員3名以上",
+            "tenant_status_key": "joukin_senjuu_cm_count"
+          },
+          "shunin_cm": {
+            "count": 2,
+            "note": "主任介護支援専門員2名以上",
+            "tenant_status_key": "shunin_cm_count"
+          }
         },
-        "renkei_24h": {"description": "利用者・家族からの連絡に常時対応できる24時間連絡体制", "tenant_status_key": "renkei_24h"},
-        "case_meeting": {"description": "週1回以上のケース会議（全ケアマネ参加）", "tenant_status_key": "case_meeting_weekly"},
-        "kenshuu": {"description": "計画的な研修の実施（年間研修計画の策定・実施）", "tenant_status_key": "annual_training_plan"},
-        "houkatsu_renkei": {"description": "地域包括支援センターと困難事例対応について助言を得る体制", "tenant_status_key": "houkatsu_renkei"},
+        "renkei_24h": {
+          "description": "利用者・家族からの連絡に常時対応できる24時間連絡体制",
+          "tenant_status_key": "renkei_24h"
+        },
+        "case_meeting": {
+          "description": "週1回以上のケース会議（全ケアマネ参加）",
+          "tenant_status_key": "case_meeting_weekly"
+        },
+        "kenshuu": {
+          "description": "計画的な研修の実施（年間研修計画の策定・実施）",
+          "tenant_status_key": "annual_training_plan"
+        },
+        "houkatsu_renkei": {
+          "description": "地域包括支援センターと困難事例対応について助言を得る体制",
+          "tenant_status_key": "houkatsu_renkei"
+        },
         "kongan_jirei_ratio": {
           "type": "要介護3以上の割合",
-          "threshold": 0.40,
-          "exclude": ["地域包括支援センターからの紹介ケース"],
+          "threshold": 0.4,
+          "exclude": [
+            "地域包括支援センターからの紹介ケース"
+          ],
           "hourei_konkyo": "老企第36号 第3",
           "tenant_status_key": "kongan_jirei_ratio"
         },
-        "no_gensan": {"description": "運営基準減算・特定事業所集中減算を受けていないこと", "tenant_status_key": "no_gensan"},
-        "houtei_kenshuu_kyouryoku": {"description": "実務研修の実習受入等に協力すること", "tenant_status_key": "kenshuu_kyouryoku"}
+        "no_gensan": {
+          "description": "運営基準減算・特定事業所集中減算を受けていないこと",
+          "tenant_status_key": "no_gensan"
+        },
+        "houtei_kenshuu_kyouryoku": {
+          "description": "実務研修の実習受入等に協力すること",
+          "tenant_status_key": "kenshuu_kyouryoku"
+        }
       },
       "documents_required": [
         "常勤専従ケアマネ3名以上の勤務表",
@@ -98,28 +185,117 @@
       "tips": [
         "要介護3以上40%要件は最大ハードル。地域包括紹介ケースは分母から除外可",
         "主任CMの確保が時間がかかる（実務経験5年以上＋専任CM5年以上）"
-      ]
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438100"
+        ],
+        "internal_unit": 519,
+        "official_code": "434002",
+        "official_unit": 519,
+        "official_name": "特定事業所加算（Ⅰ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "434002",
+            "official_name": "特定事業所加算（Ⅰ）",
+            "official_unit": 519,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438100",
+            "receipt_detection_name": "特定事業所加算(I)",
+            "receipt_detection_pattern": "特事Ⅰ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438100",
+            "internal_legacy_name": "特定事業所加算(I)",
+            "internal_legacy_unit": 519,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "tokutei_jigyousho_II": {
       "name": "特定事業所加算(II)",
       "short_name": "特事Ⅱ",
       "unit_per_month": 421,
       "unit_type": "月/利用者",
-      "service_codes": ["438101"],
+      "service_codes": [
+        "438101"
+      ],
       "category": "体制加算",
       "priority_hint": "Ⅰの前段階・要介護3以上40%要件なし・現実的な目標",
       "requirements": {
         "staff": {
-          "joukin_senjuu_cm": {"count": 3, "note": "常勤かつ専従のケアマネ3名以上", "tenant_status_key": "joukin_senjuu_cm_count"},
-          "shunin_cm": {"count": 1, "note": "主任CM1名以上", "tenant_status_key": "shunin_cm_count"}
+          "joukin_senjuu_cm": {
+            "count": 3,
+            "note": "常勤かつ専従のケアマネ3名以上",
+            "tenant_status_key": "joukin_senjuu_cm_count"
+          },
+          "shunin_cm": {
+            "count": 1,
+            "note": "主任CM1名以上",
+            "tenant_status_key": "shunin_cm_count"
+          }
         },
-        "renkei_24h": {"description": "24時間連絡体制", "tenant_status_key": "renkei_24h"},
-        "case_meeting": {"description": "週1回以上のケース会議", "tenant_status_key": "case_meeting_weekly"},
-        "kenshuu": {"description": "計画的な研修", "tenant_status_key": "annual_training_plan"},
-        "houkatsu_renkei": {"description": "地域包括との連携", "tenant_status_key": "houkatsu_renkei"},
-        "no_gensan": {"description": "運営基準減算・特定事業所集中減算なし", "tenant_status_key": "no_gensan"},
-        "houtei_kenshuu_kyouryoku": {"description": "実習受入等に協力", "tenant_status_key": "kenshuu_kyouryoku"}
+        "renkei_24h": {
+          "description": "24時間連絡体制",
+          "tenant_status_key": "renkei_24h"
+        },
+        "case_meeting": {
+          "description": "週1回以上のケース会議",
+          "tenant_status_key": "case_meeting_weekly"
+        },
+        "kenshuu": {
+          "description": "計画的な研修",
+          "tenant_status_key": "annual_training_plan"
+        },
+        "houkatsu_renkei": {
+          "description": "地域包括との連携",
+          "tenant_status_key": "houkatsu_renkei"
+        },
+        "no_gensan": {
+          "description": "運営基準減算・特定事業所集中減算なし",
+          "tenant_status_key": "no_gensan"
+        },
+        "houtei_kenshuu_kyouryoku": {
+          "description": "実習受入等に協力",
+          "tenant_status_key": "kenshuu_kyouryoku"
+        }
       },
       "documents_required": [
         "常勤専従ケアマネ3名の勤務表",
@@ -135,202 +311,1111 @@
       },
       "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
       "interaction": {
-        "exclusive_with": ["tokutei_jigyousho_I", "tokutei_jigyousho_III"],
-        "combinable_with": ["tokutei_jigyousho_IV", "tokutei_jigyousho_A", "tokutei_jigyousho_iryou_kaigo"]
+        "exclusive_with": [
+          "tokutei_jigyousho_I",
+          "tokutei_jigyousho_III"
+        ],
+        "combinable_with": [
+          "tokutei_jigyousho_IV",
+          "tokutei_jigyousho_A",
+          "tokutei_jigyousho_iryou_kaigo"
+        ]
       },
-      "tips": ["ⅠとⅡの差分=主任CM1名と要介護3以上40%要件の有無"]
+      "tips": [
+        "ⅠとⅡの差分=主任CM1名と要介護3以上40%要件の有無"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438101"
+        ],
+        "internal_unit": 421,
+        "official_code": "434003",
+        "official_unit": 421,
+        "official_name": "特定事業所加算（Ⅱ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "434003",
+            "official_name": "特定事業所加算（Ⅱ）",
+            "official_unit": 421,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438101",
+            "receipt_detection_name": "特定事業所加算(II)",
+            "receipt_detection_pattern": "特事Ⅱ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438101",
+            "internal_legacy_name": "特定事業所加算(II)",
+            "internal_legacy_unit": 421,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "tokutei_jigyousho_III": {
       "name": "特定事業所加算(III)",
       "short_name": "特事Ⅲ",
       "unit_per_month": 323,
       "unit_type": "月/利用者",
-      "service_codes": ["438102"],
+      "service_codes": [
+        "438102"
+      ],
       "category": "体制加算",
       "priority_hint": "小規模事業所向け（常勤専従CM2名）",
       "requirements": {
         "staff": {
-          "joukin_senjuu_cm": {"count": 2, "tenant_status_key": "joukin_senjuu_cm_count"},
-          "shunin_cm": {"count": 1, "tenant_status_key": "shunin_cm_count"}
+          "joukin_senjuu_cm": {
+            "count": 2,
+            "tenant_status_key": "joukin_senjuu_cm_count"
+          },
+          "shunin_cm": {
+            "count": 1,
+            "tenant_status_key": "shunin_cm_count"
+          }
         },
-        "renkei_24h": {"description": "24時間連絡体制", "tenant_status_key": "renkei_24h"},
-        "case_meeting": {"description": "週1回以上のケース会議", "tenant_status_key": "case_meeting_weekly"},
-        "kenshuu": {"description": "計画的な研修", "tenant_status_key": "annual_training_plan"},
-        "houkatsu_renkei": {"description": "地域包括との連携", "tenant_status_key": "houkatsu_renkei"},
-        "no_gensan": {"description": "運営基準減算・特定事業所集中減算なし", "tenant_status_key": "no_gensan"},
-        "houtei_kenshuu_kyouryoku": {"description": "実習受入等に協力", "tenant_status_key": "kenshuu_kyouryoku"}
+        "renkei_24h": {
+          "description": "24時間連絡体制",
+          "tenant_status_key": "renkei_24h"
+        },
+        "case_meeting": {
+          "description": "週1回以上のケース会議",
+          "tenant_status_key": "case_meeting_weekly"
+        },
+        "kenshuu": {
+          "description": "計画的な研修",
+          "tenant_status_key": "annual_training_plan"
+        },
+        "houkatsu_renkei": {
+          "description": "地域包括との連携",
+          "tenant_status_key": "houkatsu_renkei"
+        },
+        "no_gensan": {
+          "description": "運営基準減算・特定事業所集中減算なし",
+          "tenant_status_key": "no_gensan"
+        },
+        "houtei_kenshuu_kyouryoku": {
+          "description": "実習受入等に協力",
+          "tenant_status_key": "kenshuu_kyouryoku"
+        }
       },
       "interaction": {
-        "exclusive_with": ["tokutei_jigyousho_I", "tokutei_jigyousho_II"]
+        "exclusive_with": [
+          "tokutei_jigyousho_I",
+          "tokutei_jigyousho_II"
+        ]
       },
-      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3"
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438102"
+        ],
+        "internal_unit": 323,
+        "official_code": "434004",
+        "official_unit": 323,
+        "official_name": "特定事業所加算（Ⅲ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "434004",
+            "official_name": "特定事業所加算（Ⅲ）",
+            "official_unit": 323,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438102",
+            "receipt_detection_name": "特定事業所加算(III)",
+            "receipt_detection_pattern": "特事Ⅲ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438102",
+            "internal_legacy_name": "特定事業所加算(III)",
+            "internal_legacy_unit": 323,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "tokutei_jigyousho_IV": {
       "name": "特定事業所加算(IV)",
       "short_name": "特事Ⅳ",
       "unit_per_month": 100,
       "unit_type": "月/利用者",
-      "service_codes": ["438103"],
+      "service_codes": [
+        "438103"
+      ],
       "category": "上乗せ加算",
       "priority_hint": "Ⅰ/Ⅱ/Ⅲ取得済なら追加で取りやすい",
       "requirements": {
         "base": "特定事業所加算(I)(II)(III)のいずれかを算定していること",
-        "taiin_taisho_kasan": {"count_per_year": 1, "note": "退院・退所加算 年間1件以上", "tenant_status_key": "taiin_taisho_jisseki"},
-        "terminal_care_management_kasan": {"count_per_year": 1, "note": "ターミナルケアマネジメント加算 年間1件以上", "tenant_status_key": "terminal_care_jisseki"}
+        "taiin_taisho_kasan": {
+          "count_per_year": 1,
+          "note": "退院・退所加算 年間1件以上",
+          "tenant_status_key": "taiin_taisho_jisseki"
+        },
+        "terminal_care_management_kasan": {
+          "count_per_year": 1,
+          "note": "ターミナルケアマネジメント加算 年間1件以上",
+          "tenant_status_key": "terminal_care_jisseki"
+        }
       },
       "documents_required": [
         "退院退所加算算定実績（年間）",
         "ターミナルケアマネジメント加算算定実績（年間）"
       ],
       "interaction": {
-        "requires": ["tokutei_jigyousho_I", "tokutei_jigyousho_II", "tokutei_jigyousho_III"]
+        "requires": [
+          "tokutei_jigyousho_I",
+          "tokutei_jigyousho_II",
+          "tokutei_jigyousho_III"
+        ]
       },
       "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
-      "tips": ["退院時の病院訪問とターミナルケースを意識的に記録に残すだけで100単位/月の上乗せ"]
+      "tips": [
+        "退院時の病院訪問とターミナルケースを意識的に記録に残すだけで100単位/月の上乗せ"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "not_found",
+        "audit_note": "R7.4確定版に対応コードを抽出できなかった（alpha.5.7時点で要追加調査）",
+        "internal_service_codes": [
+          "438103"
+        ],
+        "internal_unit": 100,
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": null,
+            "official_name": "特定事業所加算(IV)",
+            "official_unit": null,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "not_found",
+            "official_code_status": "not_found"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438103",
+            "receipt_detection_name": "特定事業所加算(IV)",
+            "receipt_detection_pattern": "特事Ⅳ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438103",
+            "internal_legacy_name": "特定事業所加算(IV)",
+            "internal_legacy_unit": 100,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "pattern_based_unverified",
+          "proposed_action": "keep_pattern_based_unverified",
+          "audit_note": "R7.4確定版に対応コードを抽出できなかった（alpha.5.7時点で要追加調査）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "pattern_based_unverified"
     },
-
     "tokutei_jigyousho_A": {
       "name": "特定事業所加算(A)",
       "short_name": "特事A",
       "unit_per_month": 114,
       "unit_type": "月/利用者",
-      "service_codes": ["438104"],
+      "service_codes": [
+        "438104"
+      ],
       "category": "上乗せ加算",
       "requirements": {
         "base": "特定事業所加算(I)(II)(III)のいずれかを算定していること",
-        "tahoujin_jouhou_teikyou": {"description": "他法人の居宅介護支援事業所のCMに対し情報提供・助言を行った実績（過去1年間に1回以上）", "tenant_status_key": "tahoujin_jouhou_teikyou"}
+        "tahoujin_jouhou_teikyou": {
+          "description": "他法人の居宅介護支援事業所のCMに対し情報提供・助言を行った実績（過去1年間に1回以上）",
+          "tenant_status_key": "tahoujin_jouhou_teikyou"
+        }
       },
       "interaction": {
-        "requires": ["tokutei_jigyousho_I", "tokutei_jigyousho_II", "tokutei_jigyousho_III"]
+        "requires": [
+          "tokutei_jigyousho_I",
+          "tokutei_jigyousho_II",
+          "tokutei_jigyousho_III"
+        ]
       },
       "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
-      "tips": ["地域のケアマネ勉強会の主催・事例検討会への参加で実績を作る"]
+      "tips": [
+        "地域のケアマネ勉強会の主催・事例検討会への参加で実績を作る"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438104"
+        ],
+        "internal_unit": 114,
+        "official_code": "434006",
+        "official_unit": 114,
+        "official_name": "特定事業所加算（Ａ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "434006",
+            "official_name": "特定事業所加算（Ａ）",
+            "official_unit": 114,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438104",
+            "receipt_detection_name": "特定事業所加算(A)",
+            "receipt_detection_pattern": "特事A",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438104",
+            "internal_legacy_name": "特定事業所加算(A)",
+            "internal_legacy_unit": 114,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "nyuin_jouhou_renkei_I": {
       "name": "入院時情報連携加算(I)",
       "short_name": "入院連携Ⅰ",
       "unit_per_month": 250,
       "unit_type": "月/回",
-      "service_codes": ["438200"],
+      "service_codes": [
+        "438200"
+      ],
       "category": "個別加算",
       "requirements": {
         "timing": "入院後3日以内に医療機関へ情報提供",
         "method": "訪問による情報提供"
       },
-      "documents_required": ["入院日記録", "情報提供記録（訪問日時・提供内容）"],
-      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+      "documents_required": [
+        "入院日記録",
+        "情報提供記録（訪問日時・提供内容）"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438200"
+        ],
+        "internal_unit": 250,
+        "official_code": "436125",
+        "official_unit": 250,
+        "official_name": "入院時情報連携加算（Ⅰ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436125",
+            "official_name": "入院時情報連携加算（Ⅰ）",
+            "official_unit": 250,
+            "official_calc_unit": "月/回",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438200",
+            "receipt_detection_name": "入院時情報連携加算(I)",
+            "receipt_detection_pattern": "入院連携Ⅰ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438200",
+            "internal_legacy_name": "入院時情報連携加算(I)",
+            "internal_legacy_unit": 250,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "nyuin_jouhou_renkei_II": {
       "name": "入院時情報連携加算(II)",
       "short_name": "入院連携Ⅱ",
       "unit_per_month": 200,
       "unit_type": "月/回",
-      "service_codes": ["438201"],
+      "service_codes": [
+        "438201"
+      ],
       "category": "個別加算",
       "requirements": {
         "timing": "入院後7日以内に医療機関へ情報提供",
         "method": "訪問・FAX・メール等いずれも可"
       },
-      "documents_required": ["入院日記録", "情報提供記録"],
-      "interaction": {"exclusive_with": ["nyuin_jouhou_renkei_I"]},
+      "documents_required": [
+        "入院日記録",
+        "情報提供記録"
+      ],
+      "interaction": {
+        "exclusive_with": [
+          "nyuin_jouhou_renkei_I"
+        ]
+      },
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": ["入院を知る仕組み（サービス事業所・家族からの連絡ルート）が鍵"]
+      "tips": [
+        "入院を知る仕組み（サービス事業所・家族からの連絡ルート）が鍵"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438201"
+        ],
+        "internal_unit": 200,
+        "official_code": "436129",
+        "official_unit": 200,
+        "official_name": "入院時情報連携加算（Ⅱ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436129",
+            "official_name": "入院時情報連携加算（Ⅱ）",
+            "official_unit": 200,
+            "official_calc_unit": "月/回",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438201",
+            "receipt_detection_name": "入院時情報連携加算(II)",
+            "receipt_detection_pattern": "入院連携Ⅱ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438201",
+            "internal_legacy_name": "入院時情報連携加算(II)",
+            "internal_legacy_unit": 200,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "taiin_taisho_kasan_I_i": {
       "name": "退院・退所加算(I)イ",
       "short_name": "退院Ⅰイ",
       "unit_per_visit": 450,
       "unit_type": "回/退院退所1回につき",
-      "service_codes": ["438301"],
+      "service_codes": [
+        "438301"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "病院等の職員と1回面談（カンファレンス以外）"},
-      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+      "requirements": {
+        "type": "病院等の職員と1回面談（カンファレンス以外）"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438301"
+        ],
+        "internal_unit": 450,
+        "official_code": "436132",
+        "official_unit": 450,
+        "official_name": "退院・退所加算（Ⅰ）イ",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436132",
+            "official_name": "退院・退所加算（Ⅰ）イ",
+            "official_unit": 450,
+            "official_calc_unit": "回/退院退所1回につき",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438301",
+            "receipt_detection_name": "退院・退所加算(I)イ",
+            "receipt_detection_pattern": "退院Ⅰイ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438301",
+            "internal_legacy_name": "退院・退所加算(I)イ",
+            "internal_legacy_unit": 450,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "taiin_taisho_kasan_I_ro": {
       "name": "退院・退所加算(I)ロ",
       "short_name": "退院Ⅰロ",
       "unit_per_visit": 600,
       "unit_type": "回/退院退所1回につき",
-      "service_codes": ["438302"],
+      "service_codes": [
+        "438302"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "病院等が開催するカンファレンスに1回参加"},
-      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+      "requirements": {
+        "type": "病院等が開催するカンファレンスに1回参加"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438302"
+        ],
+        "internal_unit": 600,
+        "official_code": "436143",
+        "official_unit": 600,
+        "official_name": "退院・退所加算（Ⅰ）ロ",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436143",
+            "official_name": "退院・退所加算（Ⅰ）ロ",
+            "official_unit": 600,
+            "official_calc_unit": "回/退院退所1回につき",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438302",
+            "receipt_detection_name": "退院・退所加算(I)ロ",
+            "receipt_detection_pattern": "退院Ⅰロ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438302",
+            "internal_legacy_name": "退院・退所加算(I)ロ",
+            "internal_legacy_unit": 600,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "taiin_taisho_kasan_II_i": {
       "name": "退院・退所加算(II)イ",
       "short_name": "退院Ⅱイ",
       "unit_per_visit": 600,
       "unit_type": "回/退院退所1回につき",
-      "service_codes": ["438303"],
+      "service_codes": [
+        "438303"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "病院等の職員と2回面談（カンファレンス以外）"},
-      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+      "requirements": {
+        "type": "病院等の職員と2回面談（カンファレンス以外）"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438303"
+        ],
+        "internal_unit": 600,
+        "official_code": "436144",
+        "official_unit": 600,
+        "official_name": "退院・退所加算（Ⅱ）イ",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436144",
+            "official_name": "退院・退所加算（Ⅱ）イ",
+            "official_unit": 600,
+            "official_calc_unit": "回/退院退所1回につき",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438303",
+            "receipt_detection_name": "退院・退所加算(II)イ",
+            "receipt_detection_pattern": "退院Ⅱイ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438303",
+            "internal_legacy_name": "退院・退所加算(II)イ",
+            "internal_legacy_unit": 600,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "taiin_taisho_kasan_II_ro": {
       "name": "退院・退所加算(II)ロ",
       "short_name": "退院Ⅱロ",
       "unit_per_visit": 750,
       "unit_type": "回/退院退所1回につき",
-      "service_codes": ["438304"],
+      "service_codes": [
+        "438304"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "病院等が開催するカンファレンスに1回以上参加かつ合計2回面談"},
-      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+      "requirements": {
+        "type": "病院等が開催するカンファレンスに1回以上参加かつ合計2回面談"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438304"
+        ],
+        "internal_unit": 750,
+        "official_code": "436145",
+        "official_unit": 750,
+        "official_name": "退院・退所加算（Ⅱ）ロ",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436145",
+            "official_name": "退院・退所加算（Ⅱ）ロ",
+            "official_unit": 750,
+            "official_calc_unit": "回/退院退所1回につき",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438304",
+            "receipt_detection_name": "退院・退所加算(II)ロ",
+            "receipt_detection_pattern": "退院Ⅱロ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438304",
+            "internal_legacy_name": "退院・退所加算(II)ロ",
+            "internal_legacy_unit": 750,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "taiin_taisho_kasan_III": {
       "name": "退院・退所加算(III)",
       "short_name": "退院Ⅲ",
       "unit_per_visit": 900,
       "unit_type": "回/退院退所1回につき",
-      "service_codes": ["438305"],
+      "service_codes": [
+        "438305"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "3回以上面談（うちカンファレンス1回以上参加）"},
-      "documents_required": ["連携記録（日時・相手・内容・ケアプラン反映）"],
+      "requirements": {
+        "type": "3回以上面談（うちカンファレンス1回以上参加）"
+      },
+      "documents_required": [
+        "連携記録（日時・相手・内容・ケアプラン反映）"
+      ],
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": ["退院前カンファレンス参加依頼をMSWに積極的に働きかけ・面談ごと記録"]
+      "tips": [
+        "退院前カンファレンス参加依頼をMSWに積極的に働きかけ・面談ごと記録"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438305"
+        ],
+        "internal_unit": 900,
+        "official_code": "436146",
+        "official_unit": 900,
+        "official_name": "退院・退所加算（Ⅲ）",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436146",
+            "official_name": "退院・退所加算（Ⅲ）",
+            "official_unit": 900,
+            "official_calc_unit": "回/退院退所1回につき",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438305",
+            "receipt_detection_name": "退院・退所加算(III)",
+            "receipt_detection_pattern": "退院Ⅲ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438305",
+            "internal_legacy_name": "退院・退所加算(III)",
+            "internal_legacy_unit": 900,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "tsuuin_jouhou_renkei": {
       "name": "通院時情報連携加算",
       "short_name": "通院連携",
       "unit_per_month": 50,
       "monthly_limit": 1,
       "unit_type": "月/利用者",
-      "service_codes": ["438400"],
+      "service_codes": [
+        "438400"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "利用者の通院に同行し、医師等に情報提供＋情報を得てケアプランに反映"},
+      "requirements": {
+        "type": "利用者の通院に同行し、医師等に情報提供＋情報を得てケアプランに反映"
+      },
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": ["月1回まで・状態変化時の通院同行を習慣化"]
+      "tips": [
+        "月1回まで・状態変化時の通院同行を習慣化"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438400"
+        ],
+        "internal_unit": 50,
+        "official_code": "436135",
+        "official_unit": 50,
+        "official_name": "通院時情報連携加算",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436135",
+            "official_name": "通院時情報連携加算",
+            "official_unit": 50,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438400",
+            "receipt_detection_name": "通院時情報連携加算",
+            "receipt_detection_pattern": "通院連携",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438400",
+            "internal_legacy_name": "通院時情報連携加算",
+            "internal_legacy_unit": 50,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "kinkyu_kyotaku_conference": {
       "name": "緊急時等居宅カンファレンス加算",
       "short_name": "緊急カンファ",
       "unit_per_visit": 200,
       "monthly_limit": 2,
       "unit_type": "回/カンファ1回につき",
-      "service_codes": ["438500"],
+      "service_codes": [
+        "438500"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "医師の求めにより、利用者の居宅で緊急カンファレンス実施"},
-      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+      "requirements": {
+        "type": "医師の求めにより、利用者の居宅で緊急カンファレンス実施"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438500"
+        ],
+        "internal_unit": 200,
+        "official_code": "436133",
+        "official_unit": 200,
+        "official_name": "緊急時等居宅カンファレンス加算",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436133",
+            "official_name": "緊急時等居宅カンファレンス加算",
+            "official_unit": 200,
+            "official_calc_unit": "回/カンファ1回につき",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438500",
+            "receipt_detection_name": "緊急時等居宅カンファレンス加算",
+            "receipt_detection_pattern": "緊急カンファ",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438500",
+            "internal_legacy_name": "緊急時等居宅カンファレンス加算",
+            "internal_legacy_unit": 200,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "terminal_care_management": {
       "name": "ターミナルケアマネジメント加算",
       "short_name": "ターミナル",
       "unit_per_visit": 400,
       "unit_type": "回/利用者死亡日",
-      "service_codes": ["438600"],
+      "service_codes": [
+        "438600"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "末期の悪性腫瘍等で、死亡日・死亡日前14日以内に2日以上の訪問等"},
+      "requirements": {
+        "type": "末期の悪性腫瘍等で、死亡日・死亡日前14日以内に2日以上の訪問等"
+      },
       "documents_required": [
         "訪問記録（本人意向・家族意向・多職種共有内容）",
         "末期悪性腫瘍等の医師診断書"
@@ -339,18 +1424,85 @@
       "tips": [
         "看取り期の利用者に訪問頻度を意識的に上げる",
         "特事Ⅳ要件でもあるため年1件以上算定を目標化"
-      ]
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438600"
+        ],
+        "internal_unit": 400,
+        "official_code": "436100",
+        "official_unit": 400,
+        "official_name": "ターミナルケアマネジメント加算",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "436100",
+            "official_name": "ターミナルケアマネジメント加算",
+            "official_unit": 400,
+            "official_calc_unit": "回/利用者死亡日",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438600",
+            "receipt_detection_name": "ターミナルケアマネジメント加算",
+            "receipt_detection_pattern": "ターミナル",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438600",
+            "internal_legacy_name": "ターミナルケアマネジメント加算",
+            "internal_legacy_unit": 400,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "shokai_kasan": {
       "name": "初回加算",
       "short_name": "初回",
       "unit_per_month": 300,
       "unit_type": "月/利用者",
-      "service_codes": ["438700"],
+      "service_codes": [
+        "438700"
+      ],
       "category": "個別加算",
-      "requirements": {"type": "新規にケアプランを作成した場合（要介護認定の新規・区分変更時）"},
-      "exclusion": ["要介護の更新は対象外"],
+      "requirements": {
+        "type": "新規にケアプランを作成した場合（要介護認定の新規・区分変更時）"
+      },
+      "exclusion": [
+        "要介護の更新は対象外"
+      ],
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
       "requirement_logic": {
         "logic_status": "checked",
@@ -358,43 +1510,195 @@
         "description": "初回加算: 当月の新規ケアプラン作成 AND 要介護認定が新規または区分変更",
         "operator": "all",
         "children": [
-          {"type": "condition", "fact": "tenant_status.shinki_careplan_count.value",
-           "op": ">=", "value": 1,
-           "depends_on_service_code_mapping": false,
-           "label": "当月の新規ケアプラン作成1件以上"},
-          {"operator": "any", "label": "認定区分変更ルート(A:新規認定 or B:区分変更)", "children": [
-            {"type": "condition", "fact": "tenant_status.shinki_ninnsho_count.value",
-             "op": ">=", "value": 1,
-             "depends_on_service_code_mapping": false,
-             "label": "Aルート: 要介護認定の新規"},
-            {"type": "condition", "fact": "tenant_status.kubun_henkou_count.value",
-             "op": ">=", "value": 1,
-             "depends_on_service_code_mapping": false,
-             "label": "Bルート: 区分変更"}
-          ]}
+          {
+            "type": "condition",
+            "fact": "tenant_status.shinki_careplan_count.value",
+            "op": ">=",
+            "value": 1,
+            "depends_on_service_code_mapping": false,
+            "label": "当月の新規ケアプラン作成1件以上"
+          },
+          {
+            "operator": "any",
+            "label": "認定区分変更ルート(A:新規認定 or B:区分変更)",
+            "children": [
+              {
+                "type": "condition",
+                "fact": "tenant_status.shinki_ninnsho_count.value",
+                "op": ">=",
+                "value": 1,
+                "depends_on_service_code_mapping": false,
+                "label": "Aルート: 要介護認定の新規"
+              },
+              {
+                "type": "condition",
+                "fact": "tenant_status.kubun_henkou_count.value",
+                "op": ">=",
+                "value": 1,
+                "depends_on_service_code_mapping": false,
+                "label": "Bルート: 区分変更"
+              }
+            ]
+          }
         ]
-      }
+      },
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438700"
+        ],
+        "internal_unit": 300,
+        "official_code": "434001",
+        "official_unit": 300,
+        "official_name": "初回加算",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "434001",
+            "official_name": "初回加算",
+            "official_unit": 300,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438700",
+            "receipt_detection_name": "初回加算",
+            "receipt_detection_pattern": "初回",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438700",
+            "internal_legacy_name": "初回加算",
+            "internal_legacy_unit": 300,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "tokutei_jigyousho_iryou_kaigo": {
       "name": "特定事業所医療介護連携加算",
       "short_name": "医療介護連携",
       "unit_per_month": 125,
       "unit_type": "月/利用者",
-      "service_codes": ["438800"],
+      "service_codes": [
+        "438800"
+      ],
       "category": "上乗せ加算",
       "requirements": {
-        "taiin_taisho_jisseki": {"description": "退院・退所加算の算定実績（前々年度1月〜前年度12月に年35件以上）", "tenant_status_key": "taiin_taisho_annual_count"},
-        "terminal_care_management_jisseki": {"description": "ターミナルケアマネジメント加算 年5件以上", "tenant_status_key": "terminal_care_annual_count"},
+        "taiin_taisho_jisseki": {
+          "description": "退院・退所加算の算定実績（前々年度1月〜前年度12月に年35件以上）",
+          "tenant_status_key": "taiin_taisho_annual_count"
+        },
+        "terminal_care_management_jisseki": {
+          "description": "ターミナルケアマネジメント加算 年5件以上",
+          "tenant_status_key": "terminal_care_annual_count"
+        },
         "base": "特定事業所加算(I)(II)(III)のいずれかを算定"
       },
       "interaction": {
-        "requires": ["tokutei_jigyousho_I", "tokutei_jigyousho_II", "tokutei_jigyousho_III"]
+        "requires": [
+          "tokutei_jigyousho_I",
+          "tokutei_jigyousho_II",
+          "tokutei_jigyousho_III"
+        ]
       },
       "hourei_konkyo": "大臣基準告示 / 老企第36号",
-      "tips": ["高ハードル・病院との太いパイプが必要・将来的な目標"]
+      "tips": [
+        "高ハードル・病院との太いパイプが必要・将来的な目標"
+      ],
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "code_mismatch",
+        "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+        "internal_service_codes": [
+          "438800"
+        ],
+        "internal_unit": 125,
+        "official_code": "434005",
+        "official_unit": 125,
+        "official_name": "特定事業所医療介護連携加算",
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": "434005",
+            "official_name": "特定事業所医療介護連携加算",
+            "official_unit": 125,
+            "official_calc_unit": "月/利用者",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "code_mismatch",
+            "official_code_status": "needs_review"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": "438800",
+            "receipt_detection_name": "特定事業所医療介護連携加算",
+            "receipt_detection_pattern": "医療介護連携",
+            "receipt_detection_source": "legacy_code",
+            "receipt_detection_status": "legacy_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": "438800",
+            "internal_legacy_name": "特定事業所医療介護連携加算",
+            "internal_legacy_unit": 125,
+            "legacy_origin": "社内マスタ起源（公式照合前）",
+            "keep_for_backward_compatibility": true,
+            "migration_note": "公式コードと不一致。alpha.5.8+でマスタ訂正レビュー後に検討"
+          },
+          "overall_mapping_status": "needs_review",
+          "proposed_action": "needs_master_review",
+          "audit_note": "単位は一致するがサービスコードが不一致。社内コード体系は公式と異なる可能性。マスタ訂正候補（alpha.5.8+）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "needs_review"
     },
-
     "shougu_kaizen_kasan_2026_06": {
       "name": "処遇改善加算（2026年6月臨時改定・新規対象）",
       "short_name": "処遇改善",
@@ -425,10 +1729,66 @@
         "example_40_users_youkaigo_1_2": "1,076 × 40 × 12 × 0.021 = 約108,480円/年（基本報酬のみベース）",
         "note": "全額を職員賃金改善に充当"
       },
-      "hourei_konkyo": "2026年6月臨時介護報酬改定"
+      "hourei_konkyo": "2026年6月臨時介護報酬改定",
+      "service_code_mapping_status": "pattern_based_unverified",
+      "service_code_audit": {
+        "match_type": "not_found",
+        "audit_note": "R7.4確定版に対応コードを抽出できなかった（alpha.5.7時点で要追加調査）",
+        "internal_service_codes": [],
+        "internal_unit": 0.021,
+        "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+        "source_kind": "definitive",
+        "revision_status": "current_definitive",
+        "source_checked_date": "2026-05-10",
+        "audit_version": "alpha.5.7",
+        "alpha_5_7_1_source_anchor_corrected_to_r7_4_definitive": {
+          "previous_source_id": "WAM_R7_4_DEFINITIVE_2025_02_01",
+          "previous_status": "ERRONEOUSLY_TREATED_AS_DEFINITIVE",
+          "corrected_to_source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+          "corrected_to_revision_status": "current_definitive",
+          "diff_from_previous_pdf": "no_diff (PDF contents identical for 訪問看護21 + 通所介護29 加算行)",
+          "corrected_at": "2026-05-10",
+          "note": "alpha.5.7 で誤って current_definitive 扱いされていた 2025-02-01 PDF は親ページが「（その2）」（案）。alpha.5.7.1 で 2025-03-28 確定版に差し替え。"
+        },
+        "alpha_5_8_three_layer_model": {
+          "official_code_model": {
+            "official_service_code": null,
+            "official_name": "処遇改善加算（2026年6月臨時改定・新規対象）",
+            "official_unit": null,
+            "official_calc_unit": "%/基本報酬+各種加算合計",
+            "official_service_type": "kyotaku_shien",
+            "source_id": "WAM_R7_4_DEFINITIVE_2025_03_28",
+            "source_kind": "definitive",
+            "revision_status": "current_definitive",
+            "effective_from": "2025-08-01",
+            "effective_to": "2026-05-31",
+            "official_match_type": "not_found",
+            "official_code_status": "not_found"
+          },
+          "receipt_detection_model": {
+            "receipt_detection_code": null,
+            "receipt_detection_name": "処遇改善加算（2026年6月臨時改定・新規対象）",
+            "receipt_detection_pattern": "処遇改善",
+            "receipt_detection_source": "receipt_pattern",
+            "receipt_detection_status": "pattern_detection_only"
+          },
+          "internal_legacy_model": {
+            "internal_legacy_code": null,
+            "internal_legacy_name": "処遇改善加算（2026年6月臨時改定・新規対象）",
+            "internal_legacy_unit": 0.021,
+            "legacy_origin": "社内マスタにコード未登録",
+            "keep_for_backward_compatibility": false,
+            "migration_note": "コード未登録。PDFパターン検出のみで運用"
+          },
+          "overall_mapping_status": "pattern_based_unverified",
+          "proposed_action": "future_candidate_only",
+          "audit_note": "R7.4確定版に対応コードを抽出できなかった（alpha.5.7時点で要追加調査）",
+          "alpha_5_8_three_layer_introduced_at": "2026-05-10"
+        }
+      },
+      "overall_mapping_status": "pattern_based_unverified"
     }
   },
-
   "gensan": {
     "unei_kijun_gensan": {
       "name": "運営基準減算",
@@ -437,7 +1797,9 @@
       "trigger": "モニタリング月1回未実施・サービス担当者会議未開催等",
       "escalation": "2か月以上継続で算定不可",
       "hourei_konkyo": "指定居宅介護支援基準",
-      "tips": ["最も多い指摘事項。毎月15日頃に未訪問リスト作成→月末完了の仕組み化"]
+      "tips": [
+        "最も多い指摘事項。毎月15日頃に未訪問リスト作成→月末完了の仕組み化"
+      ]
     },
     "tokutei_shuuchuu_gensan": {
       "name": "特定事業所集中減算",
@@ -445,14 +1807,19 @@
       "unit_per_month": -200,
       "unit_type": "月/利用者",
       "trigger": "半期判定で紹介率最高法人が80%以上",
-      "target_services": ["訪問介護", "通所介護", "福祉用具貸与"],
+      "target_services": [
+        "訪問介護",
+        "通所介護",
+        "福祉用具貸与"
+      ],
       "exclusion": "正当な理由がある場合は除外",
       "hantei_kikan": "前期4-9月 / 後期10-3月",
       "hourei_konkyo": "大臣基準告示",
-      "tips": ["半期ごとに紹介率集計・80%超予兆時は他法人も提示"]
+      "tips": [
+        "半期ごとに紹介率集計・80%超予兆時は他法人も提示"
+      ]
     }
   },
-
   "_relationships": {
     "tokutei_jigyousho_combinations": {
       "I_or_II_or_III": "排他（いずれか1つ）",
@@ -462,7 +1829,6 @@
       "note": "理論最大組み合わせ: Ⅰ + Ⅳ + A + 医療介護連携 = 519+100+114+125 = 858単位/月/利用者"
     }
   },
-
   "_year_schedule": {
     "_note": "居宅介護支援関連の年間タスク",
     "april": "介護報酬改定確認・体制届出（改定年度）",

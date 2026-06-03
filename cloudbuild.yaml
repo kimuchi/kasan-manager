@@ -1,0 +1,42 @@
+# =====================================================
+# Cloud Build パイプライン: Docker イメージのビルド & Artifact Registry への push
+#
+# Cloud Run へのデプロイは含みません（環境変数 GEMINI_API_KEY を Cloud Build の履歴に
+# 残さないため、デプロイは bin/deploy-cloudrun.js から `gcloud run deploy` で別途実行）。
+#
+# 必要な substitutions:
+#   _REGION   リージョン（例: asia-northeast1）
+#   _REPO     Artifact Registry リポジトリ名
+#   _SERVICE  Cloud Run サービス名（イメージ名にも流用）
+#   _TAG      イメージタグ（YYYYMMDDHHMMSS 形式を想定）
+# =====================================================
+substitutions:
+  _REGION: asia-northeast1
+  _REPO: kasan-manager
+  _SERVICE: kasan-manager
+  _TAG: latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$_TAG
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:latest
+      - .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE
+
+images:
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$_TAG
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:latest

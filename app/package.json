@@ -1,0 +1,55 @@
+{
+  "name": "kasan-manager-web",
+  "version": "0.3.0",
+  "description": "加算マネージャー Web版（Cloud Run対応）— 介護保険・障害福祉の加算取得支援AIツール",
+  "main": "src/server.js",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "kasan-judge": "bin/judge-kasan.js",
+    "kasan-import-receipt": "bin/import-receipt-pdf.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "judge": "node bin/judge-kasan.js",
+    "import-receipt": "node bin/import-receipt-pdf.js",
+    "cpos:bootstrap": "node bin/cpos-bootstrap.js",
+    "cpos:analyze": "node bin/cpos-analyze.js",
+    "validate:json": "node bin/validate-json.js",
+    "setup:gcp": "node bin/setup-gcp.js",
+    "setup:domain": "node bin/setup-domain.js",
+    "deploy:cloudrun": "node bin/deploy-cloudrun.js",
+    "deploy:cloudrun:local": "node bin/deploy-cloudrun.js local",
+    "logs": "node bin/logs.js",
+    "test:smoke": "node bin/smoke-test.js",
+    "test:integration": "node bin/integration-test.js",
+    "test:python": "cd .. && python3 -m pytest tests/",
+    "review:generate:packet": "cd .. && python3 scripts/generate_alpha5_9_master_review_packet.py",
+    "review:generate:gate": "cd .. && python3 scripts/generate_alpha5_10_reviewer_decision_gate.py",
+    "review:generate:workbook": "cd .. && python3 scripts/generate_alpha5_11_reviewer_workbook.py",
+    "review:generate:hardening": "cd .. && python3 scripts/generate_alpha5_12_reviewer_workflow_hardening.py",
+    "review:generate:reducer": "cd .. && python3 scripts/generate_alpha5_13_review_workload_reducer.py",
+    "review:export:decisions": "cd .. && python3 scripts/export_alpha5_11_workbook_decisions.py"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^8.5.0",
+    "@google-cloud/secret-manager": "^6.1.2",
+    "@google-cloud/storage": "^7.19.0",
+    "@google/generative-ai": "^0.21.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "cross-spawn": "^7.0.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "firebase-admin": "^13.9.0",
+    "marked": "^18.0.3",
+    "multer": "^2.0.1",
+    "pdf-parse": "^1.1.1"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

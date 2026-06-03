@@ -1,0 +1,25 @@
+{
+  "office_code": "DEMO-0006",
+  "service_key": "kyotaku_shien",
+  "status_version": "v2026.05.06-alpha.5.2",
+  "sample_policy": "public_demo_synthetic",
+  "facts": {
+    "tenant_status.shinki_careplan_count.value": 2,
+    "tenant_status.shinki_ninnsho_count.value": 1,
+    "tenant_status.kubun_henkou_count.value": 0
+  },
+  "evidence_metadata": {
+    "tenant_status.shinki_careplan_count.value": {
+      "evidence_label": "新規ケアプラン作成件数",
+      "last_checked_date": "2026-05-06"
+    },
+    "tenant_status.shinki_ninnsho_count.value": {
+      "evidence_label": "要介護認定の新規件数",
+      "last_checked_date": "2026-05-06"
+    }
+  },
+  "notes": [
+    "公開デモ用の架空サンプルです。",
+    "実事業所の届出状況・職員情報・利用者情報ではありません。"
+  ]
+}

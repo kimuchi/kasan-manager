@@ -1,0 +1,478 @@
+{
+  "_meta": {
+    "service_key": "kyotaku_shien",
+    "display_name": "居宅介護支援",
+    "domain": "kaigo",
+    "payer": "kaigo_hoken",
+    "service_code_prefix": "43",
+    "version": "2026.6",
+    "effective_from": "2024-04-01",
+    "updated": "2026-05-06",
+    "revision_tag": "R6_2024_04_plus_2026_06_shougu",
+    "source": "指定居宅介護支援等の事業の人員及び運営に関する基準(H11厚令38) / 指定居宅介護支援に要する費用の額の算定に関する基準(R6厚告72) / 大臣基準告示 / 老企第36号 / 2026年6月臨時介護報酬改定(処遇改善加算対象拡大)",
+    "related_skill_files": [
+      "skills/regulatory/KYOTAKU_SHIEN.md",
+      "skills/regulatory/KASAN_YOKEN_DAITAI.md",
+      "skills/regulatory/KAISHAKU_TSUUCHI.md"
+    ],
+    "source_status": "implemented"
+  },
+
+  "kihon_houshu": {
+    "_note": "基本報酬。45件未満=(I)、45件以上=(II)。ICT活用or事務職員配置で50件まで緩和",
+    "kyotaku_shien_I": {
+      "name": "居宅介護支援費(I)",
+      "condition": "ケアマネ1人当たり取扱件数 45件未満（緩和適用時は50件未満）",
+      "tanka": {
+        "youkaigo_1_2": 1076,
+        "youkaigo_3_4_5": 1398
+      },
+      "unit_type": "月/利用者"
+    },
+    "kyotaku_shien_II": {
+      "name": "居宅介護支援費(II)",
+      "condition": "ケアマネ1人当たり取扱件数 45件以上（緩和適用時は50件以上）",
+      "tanka": {
+        "youkaigo_1_2_45to60": 522,
+        "youkaigo_3_4_5_45to60": 677,
+        "youkaigo_1_2_60_over": 313,
+        "youkaigo_3_4_5_60_over": 406
+      },
+      "unit_type": "月/利用者"
+    },
+    "teigensei_kanwa": {
+      "name": "逓減制の緩和（45→50件）",
+      "or_conditions": [
+        {"key": "ICT", "description": "ケアプラン作成支援AI・AIケアプラン点検等の活用（実業務での活用が必要）"},
+        {"key": "JIMU", "description": "常勤換算1人以上の事務職員を配置"}
+      ],
+      "hourei_konkyo": "R6改定 / 老企第36号"
+    }
+  },
+
+  "kasans": {
+    "tokutei_jigyousho_I": {
+      "name": "特定事業所加算(I)",
+      "short_name": "特事Ⅰ",
+      "unit_per_month": 519,
+      "unit_type": "月/利用者",
+      "service_codes": ["438100"],
+      "category": "体制加算",
+      "priority_hint": "最重要・年200-500万円規模・要件ハードル高",
+      "requirements": {
+        "staff": {
+          "joukin_senjuu_cm": {"count": 3, "note": "常勤かつ専従の介護支援専門員3名以上", "tenant_status_key": "joukin_senjuu_cm_count"},
+          "shunin_cm": {"count": 2, "note": "主任介護支援専門員2名以上", "tenant_status_key": "shunin_cm_count"}
+        },
+        "renkei_24h": {"description": "利用者・家族からの連絡に常時対応できる24時間連絡体制", "tenant_status_key": "renkei_24h"},
+        "case_meeting": {"description": "週1回以上のケース会議（全ケアマネ参加）", "tenant_status_key": "case_meeting_weekly"},
+        "kenshuu": {"description": "計画的な研修の実施（年間研修計画の策定・実施）", "tenant_status_key": "annual_training_plan"},
+        "houkatsu_renkei": {"description": "地域包括支援センターと困難事例対応について助言を得る体制", "tenant_status_key": "houkatsu_renkei"},
+        "kongan_jirei_ratio": {
+          "type": "要介護3以上の割合",
+          "threshold": 0.40,
+          "exclude": ["地域包括支援センターからの紹介ケース"],
+          "hourei_konkyo": "老企第36号 第3",
+          "tenant_status_key": "kongan_jirei_ratio"
+        },
+        "no_gensan": {"description": "運営基準減算・特定事業所集中減算を受けていないこと", "tenant_status_key": "no_gensan"},
+        "houtei_kenshuu_kyouryoku": {"description": "実務研修の実習受入等に協力すること", "tenant_status_key": "kenshuu_kyouryoku"}
+      },
+      "documents_required": [
+        "常勤専従ケアマネ3名以上の勤務表",
+        "主任CM2名の研修修了証",
+        "24時間連絡体制マニュアル",
+        "週次ケース会議議事録(過去12か月分)",
+        "年間研修計画書・実施記録",
+        "地域包括との連携記録",
+        "要介護3以上40%割合算出根拠資料(月次・地域包括紹介除外計算)",
+        "減算なし証明（自主点検記録）",
+        "実習受入実績"
+      ],
+      "roi_estimation": {
+        "revenue_per_user_per_month": 519,
+        "note": "519単位 × 10円 × 利用者数/月 × 12ヶ月（地域単価補正前）",
+        "example_40_users": "519 × 10 × 40 × 12 = 約249万円/年（地域単価1.0時）"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
+      "tips": [
+        "要介護3以上40%要件は最大ハードル。地域包括紹介ケースは分母から除外可",
+        "主任CMの確保が時間がかかる（実務経験5年以上＋専任CM5年以上）"
+      ]
+    },
+
+    "tokutei_jigyousho_II": {
+      "name": "特定事業所加算(II)",
+      "short_name": "特事Ⅱ",
+      "unit_per_month": 421,
+      "unit_type": "月/利用者",
+      "service_codes": ["438101"],
+      "category": "体制加算",
+      "priority_hint": "Ⅰの前段階・要介護3以上40%要件なし・現実的な目標",
+      "requirements": {
+        "staff": {
+          "joukin_senjuu_cm": {"count": 3, "note": "常勤かつ専従のケアマネ3名以上", "tenant_status_key": "joukin_senjuu_cm_count"},
+          "shunin_cm": {"count": 1, "note": "主任CM1名以上", "tenant_status_key": "shunin_cm_count"}
+        },
+        "renkei_24h": {"description": "24時間連絡体制", "tenant_status_key": "renkei_24h"},
+        "case_meeting": {"description": "週1回以上のケース会議", "tenant_status_key": "case_meeting_weekly"},
+        "kenshuu": {"description": "計画的な研修", "tenant_status_key": "annual_training_plan"},
+        "houkatsu_renkei": {"description": "地域包括との連携", "tenant_status_key": "houkatsu_renkei"},
+        "no_gensan": {"description": "運営基準減算・特定事業所集中減算なし", "tenant_status_key": "no_gensan"},
+        "houtei_kenshuu_kyouryoku": {"description": "実習受入等に協力", "tenant_status_key": "kenshuu_kyouryoku"}
+      },
+      "documents_required": [
+        "常勤専従ケアマネ3名の勤務表",
+        "主任CM1名の研修修了証",
+        "24時間連絡体制マニュアル",
+        "週次ケース会議議事録",
+        "年間研修計画書",
+        "地域包括連携記録"
+      ],
+      "roi_estimation": {
+        "revenue_per_user_per_month": 421,
+        "example_40_users": "421 × 10 × 40 × 12 = 約202万円/年（地域単価1.0時）"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
+      "interaction": {
+        "exclusive_with": ["tokutei_jigyousho_I", "tokutei_jigyousho_III"],
+        "combinable_with": ["tokutei_jigyousho_IV", "tokutei_jigyousho_A", "tokutei_jigyousho_iryou_kaigo"]
+      },
+      "tips": ["ⅠとⅡの差分=主任CM1名と要介護3以上40%要件の有無"]
+    },
+
+    "tokutei_jigyousho_III": {
+      "name": "特定事業所加算(III)",
+      "short_name": "特事Ⅲ",
+      "unit_per_month": 323,
+      "unit_type": "月/利用者",
+      "service_codes": ["438102"],
+      "category": "体制加算",
+      "priority_hint": "小規模事業所向け（常勤専従CM2名）",
+      "requirements": {
+        "staff": {
+          "joukin_senjuu_cm": {"count": 2, "tenant_status_key": "joukin_senjuu_cm_count"},
+          "shunin_cm": {"count": 1, "tenant_status_key": "shunin_cm_count"}
+        },
+        "renkei_24h": {"description": "24時間連絡体制", "tenant_status_key": "renkei_24h"},
+        "case_meeting": {"description": "週1回以上のケース会議", "tenant_status_key": "case_meeting_weekly"},
+        "kenshuu": {"description": "計画的な研修", "tenant_status_key": "annual_training_plan"},
+        "houkatsu_renkei": {"description": "地域包括との連携", "tenant_status_key": "houkatsu_renkei"},
+        "no_gensan": {"description": "運営基準減算・特定事業所集中減算なし", "tenant_status_key": "no_gensan"},
+        "houtei_kenshuu_kyouryoku": {"description": "実習受入等に協力", "tenant_status_key": "kenshuu_kyouryoku"}
+      },
+      "interaction": {
+        "exclusive_with": ["tokutei_jigyousho_I", "tokutei_jigyousho_II"]
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3"
+    },
+
+    "tokutei_jigyousho_IV": {
+      "name": "特定事業所加算(IV)",
+      "short_name": "特事Ⅳ",
+      "unit_per_month": 100,
+      "unit_type": "月/利用者",
+      "service_codes": ["438103"],
+      "category": "上乗せ加算",
+      "priority_hint": "Ⅰ/Ⅱ/Ⅲ取得済なら追加で取りやすい",
+      "requirements": {
+        "base": "特定事業所加算(I)(II)(III)のいずれかを算定していること",
+        "taiin_taisho_kasan": {"count_per_year": 1, "note": "退院・退所加算 年間1件以上", "tenant_status_key": "taiin_taisho_jisseki"},
+        "terminal_care_management_kasan": {"count_per_year": 1, "note": "ターミナルケアマネジメント加算 年間1件以上", "tenant_status_key": "terminal_care_jisseki"}
+      },
+      "documents_required": [
+        "退院退所加算算定実績（年間）",
+        "ターミナルケアマネジメント加算算定実績（年間）"
+      ],
+      "interaction": {
+        "requires": ["tokutei_jigyousho_I", "tokutei_jigyousho_II", "tokutei_jigyousho_III"]
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
+      "tips": ["退院時の病院訪問とターミナルケースを意識的に記録に残すだけで100単位/月の上乗せ"]
+    },
+
+    "tokutei_jigyousho_A": {
+      "name": "特定事業所加算(A)",
+      "short_name": "特事A",
+      "unit_per_month": 114,
+      "unit_type": "月/利用者",
+      "service_codes": ["438104"],
+      "category": "上乗せ加算",
+      "requirements": {
+        "base": "特定事業所加算(I)(II)(III)のいずれかを算定していること",
+        "tahoujin_jouhou_teikyou": {"description": "他法人の居宅介護支援事業所のCMに対し情報提供・助言を行った実績（過去1年間に1回以上）", "tenant_status_key": "tahoujin_jouhou_teikyou"}
+      },
+      "interaction": {
+        "requires": ["tokutei_jigyousho_I", "tokutei_jigyousho_II", "tokutei_jigyousho_III"]
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第3",
+      "tips": ["地域のケアマネ勉強会の主催・事例検討会への参加で実績を作る"]
+    },
+
+    "nyuin_jouhou_renkei_I": {
+      "name": "入院時情報連携加算(I)",
+      "short_name": "入院連携Ⅰ",
+      "unit_per_month": 250,
+      "unit_type": "月/回",
+      "service_codes": ["438200"],
+      "category": "個別加算",
+      "requirements": {
+        "timing": "入院後3日以内に医療機関へ情報提供",
+        "method": "訪問による情報提供"
+      },
+      "documents_required": ["入院日記録", "情報提供記録（訪問日時・提供内容）"],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+
+    "nyuin_jouhou_renkei_II": {
+      "name": "入院時情報連携加算(II)",
+      "short_name": "入院連携Ⅱ",
+      "unit_per_month": 200,
+      "unit_type": "月/回",
+      "service_codes": ["438201"],
+      "category": "個別加算",
+      "requirements": {
+        "timing": "入院後7日以内に医療機関へ情報提供",
+        "method": "訪問・FAX・メール等いずれも可"
+      },
+      "documents_required": ["入院日記録", "情報提供記録"],
+      "interaction": {"exclusive_with": ["nyuin_jouhou_renkei_I"]},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": ["入院を知る仕組み（サービス事業所・家族からの連絡ルート）が鍵"]
+    },
+
+    "taiin_taisho_kasan_I_i": {
+      "name": "退院・退所加算(I)イ",
+      "short_name": "退院Ⅰイ",
+      "unit_per_visit": 450,
+      "unit_type": "回/退院退所1回につき",
+      "service_codes": ["438301"],
+      "category": "個別加算",
+      "requirements": {"type": "病院等の職員と1回面談（カンファレンス以外）"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+
+    "taiin_taisho_kasan_I_ro": {
+      "name": "退院・退所加算(I)ロ",
+      "short_name": "退院Ⅰロ",
+      "unit_per_visit": 600,
+      "unit_type": "回/退院退所1回につき",
+      "service_codes": ["438302"],
+      "category": "個別加算",
+      "requirements": {"type": "病院等が開催するカンファレンスに1回参加"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+
+    "taiin_taisho_kasan_II_i": {
+      "name": "退院・退所加算(II)イ",
+      "short_name": "退院Ⅱイ",
+      "unit_per_visit": 600,
+      "unit_type": "回/退院退所1回につき",
+      "service_codes": ["438303"],
+      "category": "個別加算",
+      "requirements": {"type": "病院等の職員と2回面談（カンファレンス以外）"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+
+    "taiin_taisho_kasan_II_ro": {
+      "name": "退院・退所加算(II)ロ",
+      "short_name": "退院Ⅱロ",
+      "unit_per_visit": 750,
+      "unit_type": "回/退院退所1回につき",
+      "service_codes": ["438304"],
+      "category": "個別加算",
+      "requirements": {"type": "病院等が開催するカンファレンスに1回以上参加かつ合計2回面談"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+
+    "taiin_taisho_kasan_III": {
+      "name": "退院・退所加算(III)",
+      "short_name": "退院Ⅲ",
+      "unit_per_visit": 900,
+      "unit_type": "回/退院退所1回につき",
+      "service_codes": ["438305"],
+      "category": "個別加算",
+      "requirements": {"type": "3回以上面談（うちカンファレンス1回以上参加）"},
+      "documents_required": ["連携記録（日時・相手・内容・ケアプラン反映）"],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": ["退院前カンファレンス参加依頼をMSWに積極的に働きかけ・面談ごと記録"]
+    },
+
+    "tsuuin_jouhou_renkei": {
+      "name": "通院時情報連携加算",
+      "short_name": "通院連携",
+      "unit_per_month": 50,
+      "monthly_limit": 1,
+      "unit_type": "月/利用者",
+      "service_codes": ["438400"],
+      "category": "個別加算",
+      "requirements": {"type": "利用者の通院に同行し、医師等に情報提供＋情報を得てケアプランに反映"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": ["月1回まで・状態変化時の通院同行を習慣化"]
+    },
+
+    "kinkyu_kyotaku_conference": {
+      "name": "緊急時等居宅カンファレンス加算",
+      "short_name": "緊急カンファ",
+      "unit_per_visit": 200,
+      "monthly_limit": 2,
+      "unit_type": "回/カンファ1回につき",
+      "service_codes": ["438500"],
+      "category": "個別加算",
+      "requirements": {"type": "医師の求めにより、利用者の居宅で緊急カンファレンス実施"},
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+
+    "terminal_care_management": {
+      "name": "ターミナルケアマネジメント加算",
+      "short_name": "ターミナル",
+      "unit_per_visit": 400,
+      "unit_type": "回/利用者死亡日",
+      "service_codes": ["438600"],
+      "category": "個別加算",
+      "requirements": {"type": "末期の悪性腫瘍等で、死亡日・死亡日前14日以内に2日以上の訪問等"},
+      "documents_required": [
+        "訪問記録（本人意向・家族意向・多職種共有内容）",
+        "末期悪性腫瘍等の医師診断書"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": [
+        "看取り期の利用者に訪問頻度を意識的に上げる",
+        "特事Ⅳ要件でもあるため年1件以上算定を目標化"
+      ]
+    },
+
+    "shokai_kasan": {
+      "name": "初回加算",
+      "short_name": "初回",
+      "unit_per_month": 300,
+      "unit_type": "月/利用者",
+      "service_codes": ["438700"],
+      "category": "個別加算",
+      "requirements": {"type": "新規にケアプランを作成した場合（要介護認定の新規・区分変更時）"},
+      "exclusion": ["要介護の更新は対象外"],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "requirement_logic": {
+        "logic_status": "checked",
+        "logic_version": "v1",
+        "description": "初回加算: 当月の新規ケアプラン作成 AND 要介護認定が新規または区分変更",
+        "operator": "all",
+        "children": [
+          {"type": "condition", "fact": "tenant_status.shinki_careplan_count.value",
+           "op": ">=", "value": 1,
+           "depends_on_service_code_mapping": false,
+           "label": "当月の新規ケアプラン作成1件以上"},
+          {"operator": "any", "label": "認定区分変更ルート(A:新規認定 or B:区分変更)", "children": [
+            {"type": "condition", "fact": "tenant_status.shinki_ninnsho_count.value",
+             "op": ">=", "value": 1,
+             "depends_on_service_code_mapping": false,
+             "label": "Aルート: 要介護認定の新規"},
+            {"type": "condition", "fact": "tenant_status.kubun_henkou_count.value",
+             "op": ">=", "value": 1,
+             "depends_on_service_code_mapping": false,
+             "label": "Bルート: 区分変更"}
+          ]}
+        ]
+      }
+    },
+
+    "tokutei_jigyousho_iryou_kaigo": {
+      "name": "特定事業所医療介護連携加算",
+      "short_name": "医療介護連携",
+      "unit_per_month": 125,
+      "unit_type": "月/利用者",
+      "service_codes": ["438800"],
+      "category": "上乗せ加算",
+      "requirements": {
+        "taiin_taisho_jisseki": {"description": "退院・退所加算の算定実績（前々年度1月〜前年度12月に年35件以上）", "tenant_status_key": "taiin_taisho_annual_count"},
+        "terminal_care_management_jisseki": {"description": "ターミナルケアマネジメント加算 年5件以上", "tenant_status_key": "terminal_care_annual_count"},
+        "base": "特定事業所加算(I)(II)(III)のいずれかを算定"
+      },
+      "interaction": {
+        "requires": ["tokutei_jigyousho_I", "tokutei_jigyousho_II", "tokutei_jigyousho_III"]
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": ["高ハードル・病院との太いパイプが必要・将来的な目標"]
+    },
+
+    "shougu_kaizen_kasan_2026_06": {
+      "name": "処遇改善加算（2026年6月臨時改定・新規対象）",
+      "short_name": "処遇改善",
+      "unit_type": "%/基本報酬+各種加算合計",
+      "rate": 0.021,
+      "category": "処遇改善",
+      "applied_from": "2026-06",
+      "requirements": {
+        "chingin_kaizen_keikaku": "賃金改善計画書の作成・提出（加算額全額を職員賃金改善に充当）",
+        "career_path_I": "任用要件と賃金体系の整備",
+        "career_path_II": "資質向上のための研修計画の策定・実施",
+        "shokuba_kankyou": "賃金改善以外の処遇改善（研修機会・職場環境）",
+        "mieru_ka": "加算取得状況・賃金改善内容のHP等での公表"
+      },
+      "documents_required": [
+        "賃金改善計画書（2026年5月中作成）",
+        "キャリアパス書類（任用要件・賃金体系）",
+        "年間研修計画",
+        "就業規則の処遇改善手当規定",
+        "見える化要件の公表記録"
+      ],
+      "todoke_kigen": {
+        "deadline": "2026-06-15",
+        "note": "遅延時は届出月翌月から適用"
+      },
+      "roi_estimation": {
+        "formula": "(基本報酬合計 + 各種加算合計) × 0.021",
+        "example_40_users_youkaigo_1_2": "1,076 × 40 × 12 × 0.021 = 約108,480円/年（基本報酬のみベース）",
+        "note": "全額を職員賃金改善に充当"
+      },
+      "hourei_konkyo": "2026年6月臨時介護報酬改定"
+    }
+  },
+
+  "gensan": {
+    "unei_kijun_gensan": {
+      "name": "運営基準減算",
+      "type": "減算",
+      "rate": 0.5,
+      "trigger": "モニタリング月1回未実施・サービス担当者会議未開催等",
+      "escalation": "2か月以上継続で算定不可",
+      "hourei_konkyo": "指定居宅介護支援基準",
+      "tips": ["最も多い指摘事項。毎月15日頃に未訪問リスト作成→月末完了の仕組み化"]
+    },
+    "tokutei_shuuchuu_gensan": {
+      "name": "特定事業所集中減算",
+      "type": "減算",
+      "unit_per_month": -200,
+      "unit_type": "月/利用者",
+      "trigger": "半期判定で紹介率最高法人が80%以上",
+      "target_services": ["訪問介護", "通所介護", "福祉用具貸与"],
+      "exclusion": "正当な理由がある場合は除外",
+      "hantei_kikan": "前期4-9月 / 後期10-3月",
+      "hourei_konkyo": "大臣基準告示",
+      "tips": ["半期ごとに紹介率集計・80%超予兆時は他法人も提示"]
+    }
+  },
+
+  "_relationships": {
+    "tokutei_jigyousho_combinations": {
+      "I_or_II_or_III": "排他（いずれか1つ）",
+      "IV": "I/II/III のいずれかと併算定可",
+      "A": "I/II/III のいずれかと併算定可",
+      "iryou_kaigo": "I/II/III のいずれかと併算定可",
+      "note": "理論最大組み合わせ: Ⅰ + Ⅳ + A + 医療介護連携 = 519+100+114+125 = 858単位/月/利用者"
+    }
+  },
+
+  "_year_schedule": {
+    "_note": "居宅介護支援関連の年間タスク",
+    "april": "介護報酬改定確認・体制届出（改定年度）",
+    "may": "処遇改善加算計画書作成（2026年6月新規対象）",
+    "june_15": "★処遇改善加算届出期限（2026-06-15）",
+    "june_july": "特定事業所集中減算 前期判定（4-9月分）",
+    "july": "処遇改善加算 実績報告書提出期限",
+    "october": "体制変更届（10月適用分は前月15日まで）",
+    "december_january": "特定事業所集中減算 後期判定（10-3月分）",
+    "feb_march": "次年度加算届出準備・研修計画策定",
+    "monthly": "モニタリング（月1回）・ケアプラン更新管理"
+  }
+}

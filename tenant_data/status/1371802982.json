@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "schema": "tenant_status",
+    "schema_version": "1.0",
+    "office_code": "1371802982",
+    "office_name": "ホットステーションSUN（訪問介護）",
+    "office_note": "福祉用具貸与と混在。連立方程式で分離必要",
+    "service_key": "houmon_kaigo",
+    "tenant_id": "care-planning",
+    "as_of": "2026-04-28",
+    "owner": "事務長",
+    "updated": "2026-05-06"
+  },
+  "inquiry": {
+    "saseki_status": {
+      "count": 4,
+      "members": ["サ責A", "サ責B", "サ責C", "サ責D"],
+      "jitumu_keiken_youken": "クリア済（介護福祉士3年以上 or 実務者研修5年以上）",
+      "status": "clear"
+    },
+    "helper_count": 22,
+    "remaining_5_items": [
+      {"id": "M1", "item": "ヘルパー22名の資格別人数（介護福祉士・実務者研修・初任者研修・基礎研修等の内訳）", "linked_kasan_req": "tokutei_jigyousho_I.kaigo_fukushishi_ratio", "status": "waiting"},
+      {"id": "M2", "item": "月次会議議事録（過去12か月）の保管場所・内容確認", "linked_kasan_req": "tokutei_jigyousho_I.case_meeting", "status": "waiting"},
+      {"id": "M3", "item": "サービス提供責任者への定期的健康診断記録", "linked_kasan_req": "tokutei_jigyousho_I.kenshin", "status": "waiting"},
+      {"id": "M4", "item": "重要事項説明書の緊急時対応記載確認", "linked_kasan_req": "tokutei_jigyousho_I.kinkyu_taiou_meiji", "status": "waiting"},
+      {"id": "M5", "item": "サ責→ヘルパー文書による事前指示・事後報告の運用記録", "linked_kasan_req": "tokutei_jigyousho_I.shiji_houkoku", "status": "waiting"}
+    ]
+  },
+  "requirement_status": {
+    "saseki_qualifications": {"status": "clear", "evidence": "事務長確認2026-04-28"},
+    "helper_qualifications": {"status": "waiting", "linked_inquiry": "M1"},
+    "shiji_houkoku_record": {"status": "waiting", "linked_inquiry": "M5"},
+    "monthly_meeting_record": {"status": "waiting", "linked_inquiry": "M2"},
+    "saseki_health_check": {"status": "waiting", "linked_inquiry": "M3"},
+    "explanation_doc_emergency": {"status": "waiting", "linked_inquiry": "M4"},
+    "juudosha_ratio": {"status": "unknown"},
+    "saseki_uwanose_count": {"status": "unknown"},
+    "kinzoku_7nen_ratio": {"status": "unknown"},
+    "chusankan_user_count": {"status": "not_clear", "note": "荒川区は特別区1級地のため対象外"}
+  },
+  "history": [
+    {"date": "2026-04-28", "event": "事務長によるサ責4名の実務経験要件クリア確認", "owner": "事務長"},
+    {"date": "2026-04-28", "event": "M1-M5の確認依頼を事務長へ送信", "owner": "事務長"}
+  ]
+}

@@ -1,0 +1,61 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.pnpm-store/
+
+# Build / runtime
+dist/
+build/
+.cache/
+*.tsbuildinfo
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Uploads (do not commit user data)
+app/uploads/
+uploads/
+tmp/
+
+# Local persistence fallback (Firestore 非設定時のユーザーデータ。コミットしない)
+.localstore/
+app/.localstore/
+
+# Cloud Build / GCP secrets
+service-account-*.json
+gcp-credentials*.json
+*.key.json
+
+# Python (existing tooling)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.venv/
+venv/
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/

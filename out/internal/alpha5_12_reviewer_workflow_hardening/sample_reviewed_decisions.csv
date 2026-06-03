@@ -1,0 +1,18 @@
+﻿service,kasan_key,reviewer_decision,reason,required_evidence,reviewer_name,reviewed_at,final_approved_by,implementation_allowed,reviewer_role,review_note,legal_review_clearance,legal_review_reference,legal_review_note,implementation_priority,implementation_risk_acknowledged
+tsusho_kaigo,chujudosha_care_taisei,add_receipt_alias,公式コード 155306 と社内コード 156271 の単位は一致するため alias 登録で対応,WAM_R7_8_DEFINITIVE_2025_03_28 PDF p131 で確認,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,alias 登録で PDF 検出を保ちつつ公式コード照合を充足できる,not_required,,,medium,yes
+tsusho_kaigo,nyuyoku_II,approve_official_code_addition,公式コード 155303 を master に追加,WAM_R7_8_DEFINITIVE PDF p131,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,単位差はなくコードのみ訂正,not_required,,,low,yes
+tsusho_kaigo,koukuu_kinou_I,DEFINITELY_INVALID_DECISION,,,sample_業務担当A,2026-05-15,,yes,business_reviewer,,,,,,
+tsusho_kaigo,eiyou_kaizen,approve_official_code_addition,公式コードに合わせる,,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,,,,,,yes
+houmon_kaigo,shokai_kasan,correct_internal_legacy_code,社内コード 116200 を公式 114001 に置換,WAM_R7_8_DEFINITIVE PDF,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,高リスクだが risk_ack 未確認のため blocked になる想定,not_required,,,medium,no
+houmon_kaigo,seikatsu_kinou_renkei_I,,,,,,,,,,,,,,
+houmon_kaigo,seikatsu_kinou_renkei_II,approve_official_code_addition,検討中,,sample_業務担当A,2026-05-15,,pending,business_reviewer,,,,,,
+houmon_kango_kaigo,fukusu_mei_houmon_kango_kasan_I_under30,escalate_legal_review,基本コードへの付加加算構造の解釈確認が必要,老企第36号 解釈通知の確認待ち,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,,pending,,,,yes
+houmon_kango_kaigo,fukusu_mei_houmon_kango_kasan_I_over30,mark_structural_mismatch,独立コードなし・structural として明示,現行通知では明確な独立コード未確認,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,,,,,,yes
+houmon_kango_kaigo,fukusu_mei_houmon_kango_kasan_II_under30,approve_official_code_addition,法令確認者の clearance を経て公式コード 134200 として登録,令和8年法令解釈通知 (sample reference) を法令確認者が確認,sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,法令確認者から clearance=cleared を取得済（sample fixture）,cleared,令和8年5月XX日 老企第XXX号 (sample reference),法令確認者: sample_法令確認者B が解釈通知を確認,high,yes
+houmon_kaigo,shougu_kaizen_kasan,approve_official_code_addition,本来は defer すべき,X,X,2026-05-15,X,yes,business_reviewer,,,,,,yes
+kyotaku_shien,shougu_kaizen_kasan_2026_06,defer_until_r8_definitive,R8.6.1 確定版が出るまで保留,(R8.6.1 確定版PDFが出るまで),sample_業務担当A,2026-05-15,sample_最終承認者X,yes,business_reviewer,R8.6.1 確定版 PDF 公開前は defer,not_required,,,defer,yes
+
+# alpha.5.12 sample reviewed decisions fixture
+# generated_at: 2026-05-10
+# 12 行で alpha.5.10 gate の全分岐を網羅
+# 各値は架空・公開デモ用。実 reviewer 入力ではない。

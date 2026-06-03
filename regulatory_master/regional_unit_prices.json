@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "description": "介護保険サービスの地域単価表。級地 × サービス区分の組み合わせで yen/単位 を返す。",
+    "source": "厚生労働省告示 介護給付費等単位数表に基づく地域区分（令和3年4月施行・令和6年4月改定で継続）",
+    "reviewed_at": "2026-01",
+    "note": "10円 × (1 + 上乗せ率 × 人件費割合)。地域区分の市区町村割当は別途調査が必要。",
+    "default_grade": "other"
+  },
+  "grades": {
+    "1": { "label": "1級地", "upper_rate": 0.20, "example_regions": "東京23区中心" },
+    "2": { "label": "2級地", "upper_rate": 0.16, "example_regions": "東京・神奈川の一部" },
+    "3": { "label": "3級地", "upper_rate": 0.15, "example_regions": "千葉・埼玉の一部" },
+    "4": { "label": "4級地", "upper_rate": 0.12, "example_regions": "中核都市の一部" },
+    "5": { "label": "5級地", "upper_rate": 0.10, "example_regions": "県庁所在地など" },
+    "6": { "label": "6級地", "upper_rate": 0.06, "example_regions": "地方都市" },
+    "7": { "label": "7級地", "upper_rate": 0.03, "example_regions": "町村部" },
+    "other": { "label": "その他", "upper_rate": 0.00, "example_regions": "それ以外の地域" }
+  },
+  "service_labor_ratios": {
+    "_comment": "人件費割合。サービスごとの厚労省告示値。",
+    "houmon_kaigo": 0.70,
+    "houmon_nyuyoku": 0.70,
+    "kyotaku_shien": 0.70,
+    "houmon_kango_kaigo": 0.55,
+    "houmon_kango_iryou": 0.55,
+    "houmon_rehab": 0.55,
+    "tsusho_kaigo": 0.45,
+    "tsusho_rehab": 0.45,
+    "tanki_nyusho": 0.45,
+    "shokibo_takino": 0.45,
+    "tokuyo": 0.45,
+    "shogai_kyotaku": 0.70,
+    "_default": 0.45
+  }
+}

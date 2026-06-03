@@ -1,0 +1,350 @@
+{
+  "_meta": {
+    "service_key": "tsusho_kaigo",
+    "display_name": "通所介護",
+    "domain": "kaigo",
+    "payer": "kaigo_hoken",
+    "service_code_prefix": "15",
+    "version": "2026.4",
+    "effective_from": "2024-04-01",
+    "updated": "2026-05-06",
+    "revision_tag": "R6_2024_04",
+    "source": "指定居宅サービス等の事業の人員・設備・運営基準(H11厚令37) / 指定居宅サービスに要する費用の額の算定に関する基準(H12厚告19) / 大臣基準告示 / 老企第25号 / 老企第36号",
+    "related_skill_files": [
+      "skills/regulatory/TSUSHO_KAIGO.md",
+      "skills/regulatory/KASAN_YOKEN_DAITAI.md",
+      "skills/regulatory/KAISHAKU_TSUUCHI.md"
+    ],
+    "source_status": "implemented"
+  },
+  "kasans": {
+    "chujudosha_care_taisei": {
+      "name": "中重度者ケア体制加算",
+      "short_name": "中重度加算",
+      "unit_per_day": 45,
+      "unit_type": "日/算定対象者全員",
+      "service_codes": ["156271"],
+      "category": "体制加算",
+      "priority_hint": "取得価値大・要件ボーダー注意",
+      "requirements": {
+        "user_ratio": {
+          "type": "要介護3以上の割合",
+          "threshold": 0.30,
+          "period_options": [
+            {"key": "A", "name": "前年度方式", "period": "前年度(4月〜翌2月の11か月)", "note": "3月は除外"},
+            {"key": "B", "name": "前3か月方式", "period": "届出月の前3か月", "note": "新規事業所・再開事業所も可"}
+          ],
+          "denominator": "延人員数",
+          "exclude_from_denominator": ["予防給付", "総合事業"],
+          "rule": "(A)(B)のいずれか有利な方で30%以上。両方下回ったら翌月から算定不可"
+        },
+        "staff_add": {
+          "type": "常勤換算加配",
+          "base": "指定基準に定める看護職員・介護職員の員数",
+          "additional": 2,
+          "eligible_types": ["看護職員", "介護職員"],
+          "note": "同一法人の訪問看護ステーションからの兼務可"
+        },
+        "staff_continuous": {
+          "type": "時間帯配置",
+          "description": "サービス提供時間帯を通じて、専ら当該通所介護の提供に当たる看護職員を1名以上配置",
+          "exclusive": true,
+          "exclusive_note": "機能訓練指導員との兼務はその時間帯に同時にカウント不可。休憩時間中は別の看護職員が配置されている必要あり"
+        }
+      },
+      "documents_required": [
+        "職員配置一覧表(時間帯別)",
+        "看護職員の勤務表(実績)",
+        "要介護3以上の割合算出根拠資料(月次)",
+        "届出書(中重度者ケア体制加算)"
+      ],
+      "roi_estimation": {
+        "revenue_per_user_per_day": 45,
+        "note": "全利用者(要介護1-5)×利用日数×45単位×10.27円",
+        "typical_cost_added": "看護職員追加配置の人件費",
+        "break_even_formula": "(算定対象者延べ × 45 × 10.27/100) > 追加人件費/月"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(14)",
+      "tips": [
+        "要件①は前年度・前3月のいずれか有利な方で可",
+        "要件③は「専ら」解釈に注意。機能訓練指導員兼務の看護師は別時間枠にする",
+        "スポット看護師(タイミー等)でも法令上は可(直接雇用のマッチングのため)",
+        "同一法人の訪看ステーションから兼務派遣可(同一敷地内・人員基準維持が条件)"
+      ],
+      "requirement_logic": {
+        "logic_status": "checked",
+        "logic_version": "v3",
+        "description": "中重度者ケア体制加算: 要介護3以上30%以上 AND 看護介護職員2名以上加配 AND 看護職員時間帯配置（alpha.5.3 staff_summary / alpha.5.4 user_summary 代替ルート追加）",
+        "operator": "all",
+        "children": [
+          {"operator": "any", "label": "要介護3以上30%以上", "children": [
+            {"type": "condition", "fact": "receipt_pdf.yokaigo_3plus_ratio",
+             "op": ">=", "value": 0.30,
+             "depends_on_service_code_mapping": false,
+             "label": "PDF evidence上、要介護3以上が30%以上"},
+            {"type": "condition", "fact": "user_summary.care_level_3_or_higher_ratio",
+             "op": ">=", "value": 0.30,
+             "depends_on_service_code_mapping": false,
+             "label": "利用者集計: 要介護3以上が30%以上"}
+          ]},
+          {"operator": "any", "label": "看護・介護職員を常勤換算2名以上加配", "children": [
+            {"type": "condition", "fact": "tenant_status.kango_kaigo_2nin_kahai.status",
+             "op": "==", "value": "clear",
+             "depends_on_service_code_mapping": false,
+             "label": "tenant_status: 看護・介護職員2名以上加配"},
+            {"type": "condition", "fact": "staff_summary.kango_kaigo_total_fte",
+             "op": ">=", "value": 2,
+             "depends_on_service_code_mapping": false,
+             "label": "職員データ集計: 看護・介護職員常勤換算2.0以上"}
+          ]},
+          {"type": "condition", "fact": "tenant_status.kango_jikantai_haichi.status",
+           "op": "==", "value": "clear",
+           "depends_on_service_code_mapping": false,
+           "label": "サービス提供時間帯を通じて専従看護職員1名以上配置"}
+        ]
+      }
+    },
+    "kobetsu_kinou_I_i": {
+      "name": "個別機能訓練加算Ⅰ(イ)",
+      "short_name": "機能訓練Ⅰイ",
+      "unit_per_day": 56,
+      "service_codes": ["155051"],
+      "category": "加算",
+      "requirements": {
+        "staff": {
+          "type": "機能訓練指導員",
+          "count": 1,
+          "deployment": "配置時間帯を通じて専従で1名以上",
+          "eligible_qualifications": [
+            "理学療法士",
+            "作業療法士",
+            "言語聴覚士",
+            "看護師",
+            "准看護師",
+            "柔道整復師",
+            "あん摩マッサージ指圧師",
+            "鍼灸師(実務経験6か月以上)"
+          ]
+        },
+        "plan": "多職種共同で個別機能訓練計画作成",
+        "home_visit_initial": "利用者居宅を訪問して生活状況確認後に計画作成",
+        "home_visit_review": "3か月に1回以上、居宅訪問+家族へ進捗説明+見直し",
+        "frequency": "計画に基づき概ね週1回以上実施",
+        "record": "機能訓練実施記録(毎回)"
+      },
+      "documents_required": [
+        "個別機能訓練計画書(多職種共同)",
+        "居宅訪問記録",
+        "機能訓練実施記録"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(10)"
+    },
+    "kobetsu_kinou_I_ro": {
+      "name": "個別機能訓練加算Ⅰ(ロ)",
+      "short_name": "機能訓練Ⅰロ",
+      "unit_per_day": 76,
+      "service_codes": ["155053"],
+      "category": "加算",
+      "requirements": {
+        "staff": {
+          "type": "機能訓練指導員",
+          "count": 2,
+          "deployment": "配置時間帯を通じて専従で2名以上",
+          "full_time_equivalent_min": 1.0,
+          "eligible_qualifications": "個別機能訓練加算Ⅰ(イ)と同じ",
+          "note": "2名のうち1名は常勤換算1.0以上であること"
+        },
+        "plan": "多職種共同で個別機能訓練計画作成",
+        "home_visit_initial": "居宅訪問+計画作成",
+        "home_visit_review": "3か月に1回以上",
+        "frequency": "週1回以上",
+        "record": "機能訓練実施記録"
+      },
+      "documents_required": [
+        "個別機能訓練計画書",
+        "居宅訪問記録",
+        "機能訓練実施記録",
+        "機能訓練指導員2名の勤務表"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号 第2の7(10)"
+    },
+    "kobetsu_kinou_II_life": {
+      "name": "個別機能訓練加算Ⅱ",
+      "short_name": "機能訓練Ⅱ(LIFE)",
+      "unit_per_month": 20,
+      "service_codes": ["155052"],
+      "category": "LIFE加算",
+      "requirements": {
+        "base": "個別機能訓練加算Ⅰ(イ)または(ロ)を算定",
+        "life_submission": "個別機能訓練計画の内容等の情報をLIFEに提出(6か月に1回以上)",
+        "pdca": "LIFEフィードバックを活用したPDCA実施",
+        "coverage": "算定対象者全員分のLIFE提出が必要"
+      },
+      "documents_required": [
+        "LIFE提出記録",
+        "PDCA実施記録"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+    "kagakuteki_kaigo": {
+      "name": "科学的介護推進体制加算",
+      "short_name": "LIFE加算",
+      "unit_per_month": 40,
+      "service_codes": ["156361"],
+      "category": "LIFE加算",
+      "requirements": {
+        "life_submission": "利用者ごとの心身の状況等をLIFEに提出(6か月に1回以上)",
+        "pdca": "LIFEフィードバック活用",
+        "coverage": "算定対象者全員分"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+    "nyuyoku_I": {
+      "name": "入浴介助加算Ⅰ",
+      "short_name": "入浴Ⅰ",
+      "unit_per_day": 40,
+      "service_codes": ["155301"],
+      "category": "加算",
+      "requirements": {
+        "implementation": "入浴介助を適切に行える人員配置及び設備により実施",
+        "training": "入浴介助に関する研修実施"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+    "nyuyoku_II": {
+      "name": "入浴介助加算Ⅱ",
+      "short_name": "入浴Ⅱ",
+      "unit_per_day": 55,
+      "service_codes": ["155302"],
+      "category": "加算",
+      "requirements": {
+        "base": "入浴介助加算Ⅰの要件を満たす",
+        "home_visit": "医師・PT・OT・介護福祉士・ケアマネ・看護職員等が居宅を訪問し浴室環境を評価",
+        "plan": "利用者の自宅での入浴自立を目的とした個別の入浴計画を作成",
+        "record": "入浴計画に基づく実施記録"
+      },
+      "documents_required": [
+        "居宅訪問記録(浴室評価)",
+        "個別入浴計画書",
+        "入浴実施記録"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": [
+        "Ⅰ→Ⅱの差分は+15単位/日",
+        "居宅訪問は個別機能訓練加算の居宅訪問と同時実施で効率化可能"
+      ]
+    },
+    "koukuu_kinou_I": {
+      "name": "口腔機能向上加算Ⅰ",
+      "short_name": "口腔Ⅰ",
+      "unit_per_visit": 150,
+      "monthly_limit": 2,
+      "service_codes": ["155501"],
+      "category": "加算",
+      "requirements": {
+        "staff": {
+          "eligible_qualifications": ["言語聴覚士", "歯科衛生士", "看護職員"],
+          "note": "いずれか1名。歯科衛生士は外部委嘱可"
+        },
+        "screening": "口腔機能スクリーニング実施",
+        "plan": "口腔機能改善管理指導計画作成",
+        "implementation": "月2回限度で口腔機能向上サービス実施",
+        "record": "口腔機能向上サービスの記録"
+      },
+      "documents_required": [
+        "口腔機能スクリーニング記録",
+        "口腔機能改善管理指導計画",
+        "実施記録(月2回まで)"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号",
+      "tips": ["看護職員で実施可能。歯科衛生士が必須という誤解が多い"]
+    },
+    "koukuu_kinou_II_life": {
+      "name": "口腔機能向上加算Ⅱ",
+      "short_name": "口腔Ⅱ(LIFE)",
+      "unit_per_visit": 160,
+      "monthly_limit": 2,
+      "service_codes": ["155502"],
+      "category": "LIFE加算",
+      "requirements": {
+        "base": "口腔機能向上加算Ⅰの要件",
+        "life_submission": "LIFEに情報提出"
+      }
+    },
+    "eiyou_assessment": {
+      "name": "栄養アセスメント加算",
+      "short_name": "栄養アセス",
+      "unit_per_month": 50,
+      "service_codes": ["156116"],
+      "category": "加算",
+      "requirements": {
+        "staff": {
+          "eligible_qualifications": ["管理栄養士"],
+          "note": "外部連携可(栄養ケア・ステーション等)"
+        },
+        "assessment": "栄養状態のアセスメント実施",
+        "life_submission": "LIFE提出"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+    "eiyou_kaizen": {
+      "name": "栄養改善加算",
+      "short_name": "栄養改善",
+      "unit_per_visit": 200,
+      "monthly_limit": 2,
+      "service_codes": ["156112"],
+      "category": "加算",
+      "requirements": {
+        "staff": {
+          "eligible_qualifications": ["管理栄養士"],
+          "note": "自事業所または外部連携(栄養ケア・ステーション)"
+        },
+        "screening": "低栄養状態のスクリーニング",
+        "plan": "栄養ケア計画の作成(多職種共同)",
+        "implementation": "月2回限度で栄養改善サービス実施",
+        "record": "栄養改善サービスの記録"
+      },
+      "documents_required": [
+        "栄養スクリーニング記録",
+        "栄養ケア計画書",
+        "栄養改善サービス実施記録"
+      ],
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+    "adl_iji": {
+      "name": "ADL維持等加算",
+      "short_name": "ADL維持",
+      "unit_per_month": 30,
+      "category": "LIFE加算",
+      "requirements": {
+        "period": "前年度または前3か月の利用者について、6か月以上継続利用者が10名以上",
+        "adl_evaluation": "Barthel Index等によるADL評価を6か月前後で比較",
+        "adl_gain": "ADL利得の平均値が一定値以上(算定要件の詳細要確認)",
+        "life_submission": "LIFEにADL情報を提出"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    },
+    "ninchi_kasan": {
+      "name": "認知症加算",
+      "short_name": "認知症加算",
+      "unit_per_day": 60,
+      "category": "体制加算",
+      "requirements": {
+        "user_ratio": {
+          "type": "日常生活自立度Ⅲ以上の割合",
+          "threshold": 0.20,
+          "period_options": [
+            {"key": "A", "name": "前年度方式", "period": "前年度(3月除く11か月)"},
+            {"key": "B", "name": "前3か月方式", "period": "届出月の前3か月"}
+          ]
+        },
+        "staff_add": {
+          "description": "指定基準に定める人員に加え、専従の認知症介護実践者研修等修了者を1名以上配置",
+          "qualification": "認知症介護実践者研修修了者"
+        },
+        "staff_continuous": "サービス提供時間帯を通じて配置"
+      },
+      "hourei_konkyo": "大臣基準告示 / 老企第36号"
+    }
+  }
+}

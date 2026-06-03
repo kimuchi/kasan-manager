@@ -1,0 +1,210 @@
+{
+  "_meta": {
+    "version": "v2026.05.06-alpha.5.4",
+    "description": "不足証跡fact pathを公開向け日本語labelに変換するための辞書。法令根拠そのものではなく、確認資料の一般的表現。",
+    "policy": "実社名・実資料名・内部資料名は記載しない",
+    "next_action_policy": "「次アクション」は事業所内の確認・整備行動の一般的表現。算定可否を保証する助言ではない。"
+  },
+  "default_priority": "中",
+  "default_next_action": "事業所内で資料の有無を確認する",
+  "labels": {
+    "tenant_status.saseki_qualifications.status": {
+      "label": "サービス提供責任者の資格・実務経験",
+      "recommended_documents": ["サ責資格証", "実務経験証明書"],
+      "priority": "高",
+      "next_action": "サ責候補者の資格証・実務経験を整理する"
+    },
+    "tenant_status.helper_qualifications.kaigo_fukushishi_ratio": {
+      "label": "ヘルパーの介護福祉士比率",
+      "recommended_documents": ["ヘルパー資格証一覧", "勤務表"],
+      "priority": "高",
+      "next_action": "ヘルパー在籍者の資格区分を集計する"
+    },
+    "tenant_status.helper_qualifications.fukushishi_jitsumusha_kiso_ratio": {
+      "label": "ヘルパーの介護福祉士+実務者+基礎研修修了者比率",
+      "recommended_documents": ["ヘルパー資格証一覧", "研修修了証"],
+      "priority": "高",
+      "next_action": "実務者研修・基礎研修の修了状況を整理する"
+    },
+    "tenant_status.juudosha_ratio.value": {
+      "label": "重度者(要介護4-5/認知症Ⅲ以上等)の利用者割合",
+      "recommended_documents": ["利用者状態一覧", "ケアプラン"],
+      "priority": "高",
+      "next_action": "利用者の要介護度・認知症日常生活自立度を集計する"
+    },
+    "tenant_status.mitorikiki_jisseki_count.value": {
+      "label": "看取り期対応実績件数",
+      "recommended_documents": ["看取り対応記録", "ターミナルケア記録"],
+      "priority": "中",
+      "next_action": "看取り期・ターミナルケア対応の記録を集約する"
+    },
+    "tenant_status.shiji_houkoku_record.status": {
+      "label": "サ責→ヘルパー指示・報告書",
+      "recommended_documents": ["指示書サンプル", "報告書サンプル"],
+      "priority": "高",
+      "next_action": "サ責からヘルパーへの指示書・報告書の運用を整備する"
+    },
+    "tenant_status.monthly_meeting_record.status": {
+      "label": "月次会議議事録",
+      "recommended_documents": ["定例会議議事録", "研修記録"],
+      "priority": "高",
+      "next_action": "月次会議の開催実績と議事録を整理する"
+    },
+    "tenant_status.saseki_health_check.status": {
+      "label": "サ責健康診断記録",
+      "recommended_documents": ["健康診断結果票", "健康管理台帳"],
+      "priority": "中",
+      "next_action": "サ責の健康診断実施状況を確認する"
+    },
+    "tenant_status.explanation_doc_emergency.status": {
+      "label": "重要事項説明書 緊急時対応記載",
+      "recommended_documents": ["重要事項説明書 改訂版"],
+      "priority": "中",
+      "next_action": "重要事項説明書に緊急時対応の記載があるか確認する"
+    },
+    "tenant_status.saseki_uwanose_count.status": {
+      "label": "常勤サービス提供責任者の上乗せ配置",
+      "recommended_documents": ["勤務表", "雇用契約書"],
+      "priority": "高",
+      "next_action": "サ責の上乗せ配置状況を整理する"
+    },
+    "tenant_status.kango_kaigo_2nin_kahai.status": {
+      "label": "看護・介護職員の常勤換算2名以上加配",
+      "recommended_documents": ["勤務表", "資格証", "配置表"],
+      "priority": "高",
+      "next_action": "看護・介護職員の常勤換算を集計する"
+    },
+    "tenant_status.kango_jikantai_haichi.status": {
+      "label": "看護職員の時間帯配置",
+      "recommended_documents": ["勤務表", "看護職員配置表"],
+      "priority": "高",
+      "next_action": "看護職員の時間帯配置を確認する"
+    },
+    "tenant_status.shinki_careplan_count.value": {
+      "label": "新規ケアプラン作成件数",
+      "recommended_documents": ["ケアプラン台帳"],
+      "priority": "中",
+      "next_action": "新規ケアプラン作成件数を集計する"
+    },
+    "tenant_status.shinki_ninnsho_count.value": {
+      "label": "要介護認定の新規件数",
+      "recommended_documents": ["介護保険被保険者証(新規認定)"],
+      "priority": "中",
+      "next_action": "新規認定者の件数を確認する"
+    },
+    "tenant_status.kubun_henkou_count.value": {
+      "label": "区分変更件数",
+      "recommended_documents": ["区分変更申請記録"],
+      "priority": "中",
+      "next_action": "区分変更申請の件数を確認する"
+    },
+    "tenant_status.kinkyu_houmon_todoke.status": {
+      "label": "緊急時訪問看護加算 届出",
+      "recommended_documents": ["緊急時訪問看護加算届出書"],
+      "priority": "高",
+      "next_action": "緊急時訪問看護加算の届出書類を確認する"
+    },
+    "tenant_status.joji_taiou_taisei.status": {
+      "label": "24時間連絡体制",
+      "recommended_documents": ["オンコール体制マニュアル", "担当看護師リスト"],
+      "priority": "高",
+      "next_action": "24時間連絡体制の整備状況を確認する"
+    },
+    "tenant_status.kinkyu_kango_setsumei_doui.status": {
+      "label": "担当看護師指定・利用者への文書説明・同意",
+      "recommended_documents": ["担当看護師指定書", "利用者同意書"],
+      "priority": "高",
+      "next_action": "担当看護師の指定書・利用者同意書を整備する"
+    },
+    "staff_summary.helper_kaigo_fukushishi_ratio": {
+      "label": "ヘルパーの介護福祉士比率（職員データ集計）",
+      "recommended_documents": ["ヘルパー資格証一覧", "勤務表"],
+      "priority": "高",
+      "next_action": "ヘルパー在籍者の介護福祉士比率を確認する"
+    },
+    "staff_summary.helper_fukushishi_jitsumusha_kiso_ratio": {
+      "label": "ヘルパーの介護福祉士等比率（職員データ集計）",
+      "recommended_documents": ["研修修了証", "勤務表"],
+      "priority": "高",
+      "next_action": "実務者研修・基礎研修の修了状況を反映する"
+    },
+    "staff_summary.kango_kaigo_total_fte": {
+      "label": "看護・介護職員の常勤換算合計（職員データ集計）",
+      "recommended_documents": ["勤務表", "雇用契約書"],
+      "priority": "高",
+      "next_action": "看護・介護職員の常勤換算を更新する"
+    },
+    "staff_summary.kango_joukin_count": {
+      "label": "常勤看護職員数（職員データ集計）",
+      "recommended_documents": ["勤務表", "看護職員配置表"],
+      "priority": "高",
+      "next_action": "常勤看護職員の配置状況を確認する"
+    },
+    "staff_summary.shunin_cm_count": {
+      "label": "主任介護支援専門員の配置数（職員データ集計）",
+      "recommended_documents": ["主任ケアマネ資格証", "勤務表"],
+      "priority": "高",
+      "next_action": "主任ケアマネの配置状況を確認する"
+    },
+    "staff_summary.kinou_kunren_qualified": {
+      "label": "機能訓練指導員の有資格者配置（職員データ集計）",
+      "recommended_documents": ["資格証（PT/OT/ST/看護師/柔整師/あマ指師/鍼灸師/介護福祉士）"],
+      "priority": "高",
+      "next_action": "機能訓練指導員の有資格者の配置を確認する"
+    },
+    "user_summary.care_level_3_or_higher_ratio": {
+      "label": "要介護3以上の利用者割合（利用者集計）",
+      "recommended_documents": ["利用者状態一覧（集計表）", "ケアプラン台帳（集計）"],
+      "priority": "高",
+      "next_action": "対象期間内の要介護3以上の利用者割合の集計根拠を確認する"
+    },
+    "user_summary.care_level_4_or_higher_ratio": {
+      "label": "要介護4以上の利用者割合（利用者集計）",
+      "recommended_documents": ["利用者状態一覧（集計表）"],
+      "priority": "中",
+      "next_action": "対象期間内の要介護4以上の利用者割合の集計根拠を確認する"
+    },
+    "user_summary.severe_user_ratio": {
+      "label": "重度者の利用者割合（利用者集計）",
+      "recommended_documents": ["利用者状態一覧（集計表）", "認知症日常生活自立度集計"],
+      "priority": "高",
+      "next_action": "対象期間内の重度者割合の集計根拠を確認する"
+    },
+    "user_summary.terminal_care_related_count": {
+      "label": "看取り期対応関連件数（利用者集計）",
+      "recommended_documents": ["看取り対応記録（集計表）"],
+      "priority": "中",
+      "next_action": "看取り期対応実績の集計根拠を確認する"
+    },
+    "user_summary.medical_dependency_count": {
+      "label": "医療依存度のある利用者数（利用者集計）",
+      "recommended_documents": ["医療処置記録（集計表）"],
+      "priority": "中",
+      "next_action": "医療依存度のある利用者数の集計根拠を確認する"
+    },
+    "user_summary.dementia_related_count": {
+      "label": "認知症関連状態の利用者数（利用者集計）",
+      "recommended_documents": ["認知症日常生活自立度集計"],
+      "priority": "中",
+      "next_action": "認知症関連状態の集計根拠を確認する"
+    },
+    "user_summary.discharge_support_related_count": {
+      "label": "退院退所支援関連件数（利用者集計）",
+      "recommended_documents": ["退院退所連携記録（集計表）"],
+      "priority": "中",
+      "next_action": "退院退所支援対応の集計根拠を確認する"
+    },
+    "user_summary.emergency_response_related_count": {
+      "label": "緊急時対応関連件数（利用者集計）",
+      "recommended_documents": ["緊急時対応記録（集計表）"],
+      "priority": "中",
+      "next_action": "緊急時対応の集計根拠を確認する"
+    },
+    "user_summary.users_total": {
+      "label": "対象期間内の利用者総数（利用者集計）",
+      "recommended_documents": ["利用者一覧（集計表）"],
+      "priority": "中",
+      "next_action": "対象期間内の利用者総数の集計根拠を確認する"
+    }
+  }
+}

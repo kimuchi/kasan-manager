@@ -1,0 +1,705 @@
+// CareLinker 加算チェッカー: Markdown レポート生成 (Node.js port)
+// 元実装: scripts/judge_kasan.py の render_markdown()
+
+import {
+  STATUS_LABELS,
+  STATUS_MARKS,
+  UNKNOWN_TAXONOMY,
+  USER_INFO_KEYS,
+  STAFF_INFO_KEYS,
+  collectUnknownClassified,
+  top5Actions,
+} from './judge.js';
+
+const DISCLAIMER = `> **⚠️ 重要なお断り**: 本レポートは加算算定可否を**法的に保証するものではありません**。
+> 取得候補・確認待ち項目・必要書類・増収目安を提示する**支援ツール**です。
+> 実際の届出・算定は各自治体の指導課・監査担当および顧問の社労士等に確認してください。`;
+
+const RENDERER_VERSION = 'v2026.05.06-alpha.5.4-nodejs';
+
+export function unitText(j) {
+  if (j.unit_per_month) return `${j.unit_per_month}単位/月`;
+  if (j.unit_per_day) return `${j.unit_per_day}単位/日`;
+  if (j.unit_per_visit) return `${j.unit_per_visit}単位/回`;
+  if (j.rate != null) return `所定単位×${Math.round(j.rate * 100)}%`;
+  return '-';
+}
+
+export function estimateYearlyYen(j, usersAssumed = 40) {
+  const fmt = (n) => n.toLocaleString('en-US');
+  if (j.unit_per_month) {
+    const v = j.unit_per_month * 10 * usersAssumed * 12;
+    return `約${fmt(v)}円/年（${usersAssumed}名想定）`;
+  }
+  if (j.unit_per_day) {
+    const v = j.unit_per_day * 10 * usersAssumed * 22 * 12;
+    return `約${fmt(v)}円/年（月22日×${usersAssumed}名想定）`;
+  }
+  if (j.unit_per_visit) {
+    const v = j.unit_per_visit * 10 * usersAssumed * 4 * 12;
+    return `約${fmt(v)}円/年（月4回×${usersAssumed}名想定）`;
+  }
+  if (j.rate) return `所定単位の${Math.round(j.rate * 100)}%（規模により大）`;
+  return '-';
+}
+
+const DSL_LABEL = {
+  clear: '✅ clear',
+  not_clear: '❌ not_clear',
+  partially_clear: '🟡 partially_clear',
+  blocked_by_missing_evidence: '📭 不足証跡あり',
+  blocked_by_unverified_mapping: '🔒 サービスコード照合未完了のため保留',
+  not_evaluated_source_required: '⏳ 根拠未確認',
+  not_evaluated_logic_unchecked: '⏳ ロジック未確認',
+  not_applicable: '🚫 当サービス対象外',
+  unknown: '❔ unknown',
+};
+
+const MAPPING_PUBLIC_LABEL = {
+  pattern_based_unverified: '暫定パターンによる推定（公式サービスコード表との完全照合は継続更新対象）',
+  checked: '公式サービスコード表で確認済',
+  source_required: '公式根拠未確認（使用前確認必須）',
+};
+
+function joinPercent(v, digits = 1) {
+  if (v == null) return '-';
+  return `${(v * 100).toFixed(digits)}%`;
+}
+
+const COMPLETENESS_LABEL = {
+  complete: '✅ 完全',
+  partial: '🟡 一部',
+  missing: '❌ 未登録',
+};
+
+const COMPLETENESS_IMPACT = {
+  facility: { label: '事業所マスタ', impact: '事業所判定の前提', action: 'CPOS の事業所マスタを更新' },
+  users: { label: '利用者マスタ', impact: '要介護度割合の精度に影響', action: 'CPOS で利用者マスタを更新' },
+  staffing: { label: '常勤換算', impact: '職員配置要件が判定不可', action: 'CPOS で常勤換算を登録' },
+  qualifiedPersons: { label: '有資格者名簿', impact: '配置要件の OR 条件判定が不完全', action: 'CPOS で有資格者を登録' },
+  billing: { label: '請求', impact: '現在算定中加算の検出に一部不足', action: 'CPOS の請求 PDF を取込または手入力' },
+  provision: { label: '給付管理', impact: '限度額・利用実績との照合不可', action: 'CPOS で給付管理を登録' },
+  records: { label: '記録', impact: '加算根拠記録の有無を判定不可', action: 'CPOS で記録の整備を進める' },
+};
+
+function renderCposSection(L, meta) {
+  L.push('## 🔗 CPOS データ整備状況');
+  L.push('');
+  L.push('> 本レポートは CPOS の analysis-source API から取得したデータで作成されています（PII 非含有・集計値のみ）。');
+  L.push(`> 事業所: \`${meta.facilityId || '-'}\`${meta.facilityName ? `（${meta.facilityName}）` : ''} / 対象月: \`${meta.serviceMonth || '-'}\``);
+  L.push(`> 取得元: ${meta.source || 'cpos.analysis-source'} / schemaVersion: \`${meta.schemaVersion || '-'}\``);
+  if (meta.includePii) {
+    L.push('> ⚠️ includePii=true で取得しています。個人情報の取り扱いに注意してください。');
+  }
+  L.push('');
+
+  const dc = meta.dataCompleteness || {};
+  if (Object.keys(dc).length) {
+    L.push('| データ | 状態 | 分析への影響 | 次のアクション |');
+    L.push('|---|---|---|---|');
+    for (const [k, state] of Object.entries(dc)) {
+      const m = COMPLETENESS_IMPACT[k] || { label: k, impact: '-', action: '-' };
+      const label = COMPLETENESS_LABEL[state] || state;
+      L.push(`| ${m.label} | ${label} | ${m.impact} | ${m.action} |`);
+    }
+    L.push('');
+  }
+
+  const allWarnings = [
+    ...(meta.warnings || []),
+    ...(meta.staffSummaryWarnings || []),
+    ...(meta.claimSummaryWarnings || []),
+    ...(meta.provisionSummaryWarnings || []),
+  ];
+  if (allWarnings.length) {
+    L.push('**CPOS 側の警告:**');
+    for (const w of allWarnings) L.push(`- ⚠️ ${w}`);
+    L.push('');
+  }
+
+  if (meta.hasExternalPtOtSt) {
+    L.push('- ℹ️ 外部 PT/OT/ST の関与あり（機能訓練指導員・個別機能訓練の OR ルートとして検討可）');
+    L.push('');
+  }
+
+  L.push('---');
+  L.push('');
+}
+
+export function renderMarkdown(result) {
+  const sd = result.service_def || {};
+  const mm = result.master_meta || {};
+  const L = [];
+
+  L.push('# CareLinker 加算チェッカー 判定レポート');
+  L.push('');
+  L.push(
+    `> **${sd.display_name}** | 事業所コード \`${result.office_code || '(未指定)'}\` | 生成日時 \`${result.executed_at}\``,
+  );
+  L.push(
+    `> マスタ版 \`${mm.version}\` / 改定タグ \`${mm.revision_tag}\` / 適用開始 \`${mm.effective_from}\``,
+  );
+  L.push('');
+
+  const officeCode = result.office_code || '';
+  const isDemoContext =
+    officeCode.startsWith('DEMO-') ||
+    result.demo_tenant_status_loaded ||
+    result.staff_data_loaded ||
+    result.user_summary_loaded;
+  if (isDemoContext) {
+    L.push(
+      '> **🧪 公開デモ用の架空サンプル**: 本レポートは公開デモ用の架空事業所コード・架空職員サマリ・架空証跡データを使用しています。実事業所のデータではありません。',
+    );
+    L.push('');
+  }
+  L.push(DISCLAIMER);
+  L.push('');
+
+  if (result.evidence_applied) {
+    L.push('> **📄 PDF取込モード**: 本レポートはレセプトPDFから抽出した算定中加算を反映しています。');
+    L.push('> - PDFで検出された加算は **「算定中の推定」** です（要件充足を保証するものではありません）');
+    L.push(
+      '> - PDFから検出されないことは **「未算定」を意味しません**（帳票形式・抽出ロジック未対応の可能性）',
+    );
+    L.push(
+      '> - **個人情報は保存していません**（被保険者番号・氏名・住所・電話番号は意図的に非抽出）',
+    );
+    L.push('');
+  }
+
+  if (result.draft_warning) {
+    L.push('## ⚠️ Draft サービス警告');
+    L.push('');
+    L.push(result.draft_warning);
+    L.push('');
+    L.push('---');
+    L.push('');
+    L.push('## 今後の予定');
+    L.push('');
+    L.push('- マスタ実装（要件・単位・書類のJSON化）');
+    L.push('- 自社事業所での実証 → 顧客向け公開');
+    L.push('');
+    L.push(`_Generated by CareLinker / kasan-manager Node.js port at ${result.executed_at}_`);
+    return L.join('\n');
+  }
+
+  if (result.evidence_applied) {
+    const ev = result.evidence;
+    L.push('## 📄 PDF取込結果サマリ');
+    L.push('');
+    L.push(`- ソースファイル: \`${ev.source_file_name || '-'}\``);
+    L.push(`- 抽出日時: ${ev.extracted_at || '-'}`);
+    L.push(`- 抽出版: \`${ev.extraction_version || '-'}\``);
+    L.push(`- 推定利用者数: **${ev.total_users_estimated || 0}名**`);
+    const cl = ev.care_level_distribution || {};
+    if (Object.keys(cl).length) {
+      // Python の sorted(dict.items()) と同じコードポイント順（要介護1, 要介護2, ... 要介護5）
+      const parts = Object.entries(cl)
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .map(([k, v]) => `${k}: ${v}名`);
+      L.push(`- 要介護度分布: ${parts.join(' / ')}`);
+    }
+    if (ev.yokaigo_3plus_ratio != null) {
+      L.push(`- 要介護3以上割合: **${joinPercent(ev.yokaigo_3plus_ratio)}**`);
+    }
+    if (ev.raw_yokaigo_3plus_ratio != null && ev.yokaigo_3plus_ratio == null) {
+      L.push(
+        `- 要介護3以上割合（参考値・PDFのみで要件clearしない）: **${joinPercent(ev.raw_yokaigo_3plus_ratio)}**`,
+      );
+      L.push(
+        '    - 居宅介護支援の特定事業所加算(I)40%要件は地域包括紹介除外などPDFだけでは確定できないため参考値扱い',
+      );
+    }
+    L.push(`- 抽出信頼度: \`${ev.extraction_confidence || '-'}\``);
+    if (ev.service_code_mapping_status) {
+      const mLabel = MAPPING_PUBLIC_LABEL[ev.service_code_mapping_status] || ev.service_code_mapping_status;
+      L.push(`- サービスコード抽出: ${mLabel}`);
+      L.push('- 帳票形式により抽出精度が変動します');
+    }
+    L.push('');
+    L.push(
+      `> **個人情報を保存していません**: ${(ev.pii_policy && ev.pii_policy.policy_note) || '個人情報非保存設計'}`,
+    );
+    L.push('');
+    if ((ev.warnings || []).length) {
+      L.push('**抽出警告**:');
+      for (const w of ev.warnings) L.push(`- ⚠️ ${w}`);
+      L.push('');
+    }
+    L.push('---');
+    L.push('');
+  }
+
+  const s = result.summary || {};
+  L.push('## 📌 結論サマリ');
+  L.push('');
+  L.push(
+    `**全${result.kasan_count}加算中、取得可能性が高い加算は ${(s.waiting || []).length + (s.clear || []).length} 件**`,
+  );
+  L.push('');
+  L.push('| 状態 | 件数 | 意味 |');
+  L.push('|---|---:|---|');
+  L.push(`| ✅ 取得済/要件クリア | ${(s.clear || []).length} | 既に要件を満たしている／届出済 |`);
+  L.push(`| ⏸ 確認待ち | ${(s.waiting || []).length} | 一部の確認・書類整備で取得可能 |`);
+  L.push(`| ❌ 対象外/不可 | ${(s.not_clear || []).length} | 地域要件等で対象外 |`);
+  L.push(
+    `| ❔ 情報不足 | ${(s.unknown || []).length} | 職員/利用者データ取込・追加実装で判定可 |`,
+  );
+  const naCount = (s.not_applicable || []).length;
+  if (naCount) {
+    L.push(
+      `| 🚫 当サービスでは算定対象外 | ${naCount} | 公式根拠で対象外確定（改善候補・収益機会には含めない） |`,
+    );
+  }
+  if (result.evidence_applied) {
+    const currentlyKeys = Object.entries(result.judgements || {})
+      .filter(([, j]) => j.pdf_detected)
+      .map(([k]) => k);
+    const confirmed = (s.currently_claimed || []).length;
+    const unconfirmed = (s.claimed_but_requirements_unknown || []).length;
+    L.push(
+      `| 📄 PDFで算定中として検出 | ${currentlyKeys.length} | レセプトPDFから算定中と推定された加算 |`,
+    );
+    L.push(`| 　└ うち要件確認済 | ${confirmed} | 要件マスタとも整合（自信度高） |`);
+    L.push(`| 　└ うち要件未確認 | ${unconfirmed} | 算定中だが要件マスタは未確認 |`);
+    const notInPdfTotal = Object.values(result.judgements || {}).filter(
+      (j) => !j.pdf_detected && j.priority_hint,
+    ).length;
+    L.push(
+      `| 📄❔ PDFから未検出だが取得候補 | ${notInPdfTotal} | PDF未検出≠未算定。要追加確認 |`,
+    );
+  }
+  L.push('');
+
+  if (result.evidence_applied) {
+    L.push('## 📄 PDFで算定中として検出された加算');
+    L.push('');
+    L.push(
+      '> **重要**: PDF検出は「算定中の推定」です。要件充足を保証するものではありません。要件マスタとの整合性は別途確認が必要です。',
+    );
+    L.push('');
+    const currently = Object.entries(result.judgements || {}).filter(([, j]) => j.pdf_detected);
+    if (currently.length) {
+      L.push('| 加算 | PDF検出件数 | 要件状態 |');
+      L.push('|---|---:|---|');
+      for (const [k, j] of currently) {
+        const reqState = STATUS_LABELS[j.algorithm_judgement] || '-';
+        L.push(`| ${j.name} (\`${k}\`) | ${j.pdf_count || 0}件 | ${reqState} |`);
+      }
+    } else {
+      L.push('（PDFから算定中加算を検出できませんでした）');
+    }
+    L.push('');
+
+    L.push('## 📄❔ PDFから未検出だが取得候補の加算');
+    L.push('');
+    L.push(
+      '> **重要**: PDFから検出されないことは「未算定」を断定するものではありません。サービスコード未収載・帳票形式違い・PDF抽出ロジック未対応の場合があります。',
+    );
+    L.push('');
+    const notInPdf = Object.entries(result.judgements || {}).filter(
+      ([, j]) => !j.pdf_detected && j.priority_hint,
+    );
+    if (notInPdf.length) {
+      for (const [k, j] of notInPdf.slice(0, 10)) {
+        L.push(`- 📄❔ **${j.name}** (\`${k}\`) — ${j.priority_hint || ''}`);
+      }
+    } else {
+      L.push('（該当なし）');
+    }
+    L.push('');
+    L.push('---');
+    L.push('');
+  }
+
+  L.push('## 🎯 すぐ確認すべき項目 TOP5');
+  L.push('');
+  const actions = top5Actions(result);
+  if (actions.length) {
+    actions.forEach((a, i) => L.push(`${i + 1}. ${a}`));
+  } else {
+    L.push(
+      '（事業所ステータスを `tenant_data/status/<office>.json` に登録すると、確認すべき項目が表示されます）',
+    );
+  }
+  L.push('');
+
+  L.push('## 🗓️ 今月やること');
+  L.push('');
+  if (result.tenant_status_loaded) {
+    const history = (result.tenant_status && result.tenant_status.history) || [];
+    L.push('- 確認待ち項目の回答を依頼先（記載のowner）から回収');
+    L.push('- waiting加算のうち、必要書類が整備済のものを今月中に届出');
+    L.push('- マスタ更新（changelog.md）の有無をチェック');
+    if (history.length) {
+      L.push('');
+      L.push('**最近の動き**:');
+      for (const h of history.slice(-3)) L.push(`  - ${h.date}: ${h.event}`);
+    }
+  } else {
+    L.push('- `tenant_data/status/<office_code>.json` を作成し、職員情報・利用者構成・確認進捗を登録');
+    L.push('- 請求明細書PDF（直近3か月）を取り込み、現状算定中の加算を抽出');
+  }
+  L.push('');
+
+  L.push('---');
+  L.push('');
+
+  // CPOS 連携セクション（指示書 §5.7）。CPOS analysis-source 由来のときだけ表示。
+  if (result.cpos_metadata) {
+    renderCposSection(L, result.cpos_metadata);
+  }
+
+  L.push('## 1. 取得可能性が高い加算（waiting + clear）');
+  L.push('');
+  const high = Object.entries(result.judgements || {}).filter(([, j]) =>
+    ['clear', 'waiting'].includes(j.algorithm_judgement),
+  );
+  if (!high.length) {
+    L.push('（該当なし）');
+  } else {
+    L.push('| 加算 | 状態 | 単位 | 増収目安 | 重要度 |');
+    L.push('|---|---|---|---|---|');
+    for (const [, j] of high) {
+      const mark = STATUS_MARKS[j.algorithm_judgement] || '❔';
+      L.push(
+        `| ${j.name} | ${mark} | ${unitText(j)} | ${estimateYearlyYen(j)} | ${(j.priority_hint || '-').slice(0, 40)} |`,
+      );
+    }
+    L.push('');
+    L.push('### 各加算の要件詳細');
+    L.push('');
+    for (const [key, j] of high) {
+      const mark = STATUS_LABELS[j.algorithm_judgement] || '❔';
+      L.push(`#### ${mark} ${j.name} (\`${key}\`)`);
+      L.push('');
+      if (j.priority_hint) L.push(`- 重要度: ${j.priority_hint}`);
+      L.push(`- 単位/レート: **${unitText(j)}**`);
+      L.push(`- 増収目安: ${estimateYearlyYen(j)}`);
+      L.push('- 要件状態:');
+      for (const [rk, rj] of Object.entries(j.requirements_judgement || {})) {
+        const rmark = STATUS_MARKS[rj.status] || '❔';
+        const reason = rj.reason ? ` (確認: ${rj.reason})` : '';
+        L.push(`    - ${rmark} \`${rk}\`${reason}`);
+      }
+      if ((j.tips || []).length) {
+        L.push('- ヒント:');
+        for (const tip of j.tips.slice(0, 3)) L.push(`    - ${tip}`);
+      }
+      L.push('');
+    }
+  }
+
+  L.push('## 2. 対象外・取得不可の加算');
+  L.push('');
+  const notClearList = Object.entries(result.judgements || {}).filter(
+    ([, j]) => j.algorithm_judgement === 'not_clear',
+  );
+  if (!notClearList.length) {
+    L.push('（該当なし）');
+  } else {
+    for (const [key, j] of notClearList) {
+      L.push(`- ❌ **${j.name}** (\`${key}\`)`);
+      for (const [rk, rj] of Object.entries(j.requirements_judgement || {})) {
+        if (rj.status === 'not_clear') {
+          L.push(`    - 対象外理由: \`${rk}\` (${rj.reason || '-'})`);
+        }
+      }
+      for (const tip of j.tips || []) {
+        if (tip.includes('対象外') || tip.includes('中山間') || tip.includes('級地')) {
+          L.push(`    - 補足: ${tip}`);
+        }
+      }
+    }
+  }
+  L.push('');
+
+  L.push('## 3. 確認待ち項目（テナント側）');
+  L.push('');
+  const inquiry = result.tenant_status_inquiry || {};
+  if (!Object.keys(inquiry).length) {
+    L.push('（事業所ステータス未読込）');
+  } else {
+    for (const it of inquiry.remaining_5_items || []) {
+      const mark = STATUS_MARKS[it.status || 'waiting'] || '❔';
+      L.push(`- ${mark} **[${it.id}]** ${it.item}`);
+      if (it.linked_kasan_req) L.push(`    - 紐付け要件: \`${it.linked_kasan_req}\``);
+    }
+    for (const [k, v] of Object.entries(inquiry)) {
+      if (['remaining_5_items', 'saseki_status', 'helper_count'].includes(k)) continue;
+      if (v && typeof v === 'object' && 'current' in v) {
+        // Python の v.get('current', 0) と同じく null/undefined のときは 0 として表示
+        const cur = ((v.current ?? 0) * 100).toFixed(1);
+        const tgt = ((v.target ?? 0) * 100).toFixed(1);
+        L.push(
+          `- ⏸ **${k}**: 現状${cur}% / 目標${tgt}% — ${v.needed_subtraction_for_clear || ''}`,
+        );
+      }
+    }
+    if (inquiry.saseki_status) {
+      const ss = inquiry.saseki_status;
+      const mk = STATUS_MARKS[ss.status || 'unknown'] || '❔';
+      L.push(`- ${mk} **サ責状況**: ${ss.count}名 — ${ss.jitumu_keiken_youken || ''}`);
+    }
+  }
+  L.push('');
+
+  L.push('## 4. ❔ 情報不足の内訳（5分類）');
+  L.push('');
+  const classified = collectUnknownClassified(result);
+  L.push('| 分類 | 件数 | 説明 |');
+  L.push('|---|---:|---|');
+  for (const [cat, desc] of Object.entries(UNKNOWN_TAXONOMY)) {
+    L.push(`| \`${cat}\` | ${classified[cat].length} | ${desc} |`);
+  }
+  L.push('');
+  for (const cat of Object.keys(UNKNOWN_TAXONOMY)) {
+    const items = classified[cat];
+    if (!items.length) continue;
+    L.push(`### ${cat}`);
+    L.push('');
+    for (const it of items.slice(0, 10)) {
+      L.push(`- \`${it.kasan}.${it.req}\` ← ${it.reason || '-'}`);
+    }
+    if (items.length > 10) L.push(`- ... 他 ${items.length - 10} 件`);
+    L.push('');
+  }
+
+  L.push('## 5. 必要書類チェックリスト（waiting加算分）');
+  L.push('');
+  const docsSet = [];
+  for (const [, j] of Object.entries(result.judgements || {})) {
+    if (j.algorithm_judgement === 'waiting') {
+      for (const d of j.documents_required || []) {
+        if (!docsSet.includes(d)) docsSet.push(d);
+      }
+    }
+  }
+  if (!docsSet.length) {
+    L.push('（取得対象加算なし、または書類リスト未定義）');
+  } else {
+    for (const d of docsSet) L.push(`- [ ] ${d}`);
+  }
+  L.push('');
+
+  const rsKeysUnknown = [];
+  for (const [, j] of Object.entries(result.judgements || {})) {
+    for (const [, rj] of Object.entries(j.requirements_judgement || {})) {
+      if (['waiting', 'unknown'].includes(rj.status) && rj.reason) {
+        rsKeysUnknown.push(rj.reason);
+      }
+    }
+  }
+  const rsUnique = [...new Set(rsKeysUnknown)];
+
+  L.push('## 6. 追加確認すべき職員情報');
+  L.push('');
+  const staffKeys = rsUnique.filter((k) => STAFF_INFO_KEYS.has(k));
+  if (!staffKeys.length) L.push('（該当なし）');
+  else for (const k of staffKeys) L.push(`- [ ] ${k}`);
+  L.push('');
+
+  L.push('## 7. 追加確認すべき利用者情報');
+  L.push('');
+  const userKeys = rsUnique.filter((k) => USER_INFO_KEYS.has(k));
+  if (!userKeys.length) L.push('（該当なし）');
+  else for (const k of userKeys) L.push(`- [ ] ${k}`);
+  L.push('');
+
+  L.push('## 8. 増収見込み（waiting/clear加算）');
+  L.push('');
+  L.push('| 加算 | 状態 | 単位/レート | 年間増収目安 |');
+  L.push('|---|---|---|---|');
+  for (const [, j] of Object.entries(result.judgements || {})) {
+    if (['clear', 'waiting'].includes(j.algorithm_judgement)) {
+      const mark = STATUS_MARKS[j.algorithm_judgement];
+      L.push(`| ${j.name} | ${mark} | ${unitText(j)} | ${estimateYearlyYen(j)} |`);
+    }
+  }
+  L.push('');
+  L.push(
+    '> 増収目安は40名想定の超概算（単価10円・地域単価補正なし）。実際は要介護度構成・地域単価・実利用者数で変動します。',
+  );
+  L.push('');
+
+  L.push('## 9. 根拠マスタのバージョン');
+  L.push('');
+  L.push(`- service_key: \`${result.service}\``);
+  L.push(`- version: \`${mm.version}\``);
+  L.push(`- revision_tag: \`${mm.revision_tag}\``);
+  L.push(`- effective_from: \`${mm.effective_from}\``);
+  L.push(`- source_status: \`${mm.source_status}\``);
+  L.push(`- 法令出典: ${mm.source}`);
+  L.push(`- generated_at: \`${result.executed_at}\``);
+  L.push('');
+
+  // DSL 評価セクション
+  const dslResults = result.dsl_results || {};
+  const show = Object.fromEntries(
+    Object.entries(dslResults).filter(([, v]) => ['checked', 'n/a'].includes(v.logic_status)),
+  );
+  if (Object.keys(show).length) {
+    L.push('## 🧠 要件ロジック評価（alpha）');
+    L.push('');
+    L.push('> 公式根拠確認済みの要件のみ、登録済みevidenceに基づいて機械的に評価しています。');
+    L.push(
+      '> 本結果は算定可否を法的に保証するものではありません。算定可否の最終確認は事業所資料・届出状況・自治体確認が必要です。',
+    );
+    L.push('');
+    L.push('| 加算 | PDF検出 | 要件評価 | 達成ルート | 不足証跡 | 注意 |');
+    L.push('|---|---|---|---|---|---|');
+    for (const [kasanKey, dsl] of Object.entries(show)) {
+      const j = (result.judgements || {})[kasanKey] || {};
+      const kasanName = j.name || kasanKey;
+      const pdfState =
+        dsl.status === 'not_applicable'
+          ? '対象外'
+          : j.pdf_detected
+          ? '算定中の推定'
+          : '未検出';
+      const dslLabel = DSL_LABEL[dsl.status] || dsl.status;
+      const route = (dsl.satisfied_route || []).join(' / ') || '-';
+      const missing = (dsl.missing_evidence || []).join(', ') || '-';
+      const held = dsl.mapping_held_conditions || [];
+      const noteCell = held.length
+        ? '🔒 mapping保留'
+        : (dsl.notes || []).some((n) => n.includes('pattern_based_unverified'))
+        ? 'ℹ️ pattern_based_unverified'
+        : '-';
+      L.push(`| ${kasanName} | ${pdfState} | ${dslLabel} | ${route} | ${missing} | ${noteCell} |`);
+    }
+    L.push('');
+    L.push(
+      '> 「不足証跡あり」と表示された加算は、職員情報・利用者状態・書類整備状況等の追加確認が必要です。',
+    );
+    L.push('');
+  }
+
+  const userDisplay = result.user_summary_display || {};
+  if (result.user_summary_loaded && Object.keys(userDisplay).length) {
+    L.push('## 🧑‍🤝‍🧑 利用者データ連携（DEMO alpha）');
+    L.push('');
+    L.push('> DEMO用の架空利用者集計データから組み立てた利用者サマリです。');
+    L.push(
+      '> 個別利用者の氏名・被保険者番号・住所・電話番号・生年月日・家族情報・医療機関名・具体的病名は表示しません（集計値のみ）。',
+    );
+    L.push('> 本セクションの値は **要件確認補助** であり、算定可否を保証するものではありません。');
+    L.push('');
+    L.push('| 集計項目 | 値 |');
+    L.push('|---|---|');
+    const ordered = [
+      'data_source_type', 'source_status',
+      'target_period_start', 'target_period_end',
+      'users_total',
+      'care_level_3_or_higher_count', 'care_level_3_or_higher_ratio',
+      'care_level_4_or_higher_count', 'care_level_4_or_higher_ratio',
+      'severe_user_count', 'severe_user_ratio',
+      'dementia_related_count',
+      'medical_dependency_count',
+      'terminal_care_related_count',
+      'discharge_support_related_count',
+      'emergency_response_related_count',
+    ];
+    for (const k of ordered) {
+      if (k in userDisplay) {
+        const v = userDisplay[k];
+        let vStr;
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          vStr = Object.entries(v).map(([kk, vv]) => `${kk}: ${vv}`).join(' / ');
+        } else if (typeof v === 'number' && !Number.isInteger(v)) {
+          vStr = v.toFixed(3);
+        } else {
+          vStr = v != null ? String(v) : '-';
+        }
+        L.push(`| ${k} | ${vStr} |`);
+      }
+    }
+    for (const distrKey of ['care_level_distribution', 'dementia_care_level_distribution']) {
+      if (distrKey in userDisplay && typeof userDisplay[distrKey] === 'object') {
+        const v = userDisplay[distrKey];
+        const vStr = Object.entries(v).map(([kk, vv]) => `${kk}: ${vv}`).join(' / ');
+        L.push(`| ${distrKey} | ${vStr} |`);
+      }
+    }
+    L.push('');
+    L.push('> 上記サマリは要件DSLでも参照されます（user_summary.* facts）。');
+    L.push(
+      '> source_status は `demo_aggregate_unverified` であり、本番運用前に集計根拠の確認が必要です。',
+    );
+    L.push('');
+  }
+
+  const staffDisplay = result.staff_summary_display || {};
+  if (result.staff_data_loaded && Object.keys(staffDisplay).length) {
+    L.push('## 👥 職員データ連携（DEMO alpha）');
+    L.push('');
+    L.push('> DEMO用の架空staff.jsonから集計した職員サマリです。');
+    L.push('> 個別の氏名・staff_id・資格詳細は表示しません（集計値のみ）。');
+    L.push('> 算定可否を法的に保証するものではありません。');
+    L.push('');
+    L.push('| 集計項目 | 値 |');
+    L.push('|---|---|');
+    const orderedKeys = [
+      'saseki_qualified_count', 'saseki_uwanose_fte',
+      'helper_total_count', 'helper_total_fte',
+      'helper_kaigo_fukushishi_count', 'helper_kaigo_fukushishi_ratio',
+      'helper_fukushishi_jitsumusha_kiso_ratio', 'helper_qualified_any_count',
+      'kango_count', 'kango_fte', 'kango_joukin_count',
+      'kaigo_count', 'kaigo_fte', 'kango_kaigo_total_fte',
+      'kinou_kunren_qualified', 'rihabilitation_count',
+      'cm_count', 'shunin_cm_count', 'cm_total_fte',
+    ];
+    for (const k of orderedKeys) {
+      if (k in staffDisplay) {
+        const v = staffDisplay[k];
+        let vStr;
+        if (typeof v === 'boolean') vStr = v ? '✅ あり' : '❌ なし';
+        else if (typeof v === 'number' && !Number.isInteger(v)) vStr = v.toFixed(2);
+        else vStr = v != null ? String(v) : '-';
+        L.push(`| ${k} | ${vStr} |`);
+      }
+    }
+    for (const [k, v] of Object.entries(staffDisplay)) {
+      if (!orderedKeys.includes(k)) L.push(`| ${k} | ${v} |`);
+    }
+    L.push('');
+    L.push('> 上記サマリは要件DSLの判定にも使用されます（staff_summary.* facts）。');
+    L.push('');
+  }
+
+  const checklist = result.evidence_checklist || [];
+  if (checklist.length) {
+    L.push('## 🧾 不足証跡チェックリスト（alpha）');
+    L.push('');
+    L.push('> 要件ロジック評価で不足している証跡を、確認作業用に整理したものです。');
+    L.push('> 本チェックリストは算定可否を法的に保証するものではありません。');
+    if (result.demo_tenant_status_loaded) {
+      L.push('> DEMO用の架空tenant_statusを使用。実事業所データではありません。');
+    }
+    if (result.staff_data_loaded) {
+      L.push('> DEMO用の架空staff.jsonから集計した職員サマリも参照しています。');
+    }
+    if (result.user_summary_loaded) {
+      L.push(
+        '> DEMO用の架空利用者集計（user_summary）も参照しています（要件確認補助・算定可否は保証しません）。',
+      );
+    }
+    L.push('');
+    L.push('| 加算 | 不足証跡 | 推奨確認資料 | 優先度 | 次アクション |');
+    L.push('|---|---|---|---|---|');
+    for (const it of checklist) {
+      const docs = (it.recommended_documents || []).join('・') || '-';
+      const next = it.next_action || '-';
+      L.push(`| ${it.kasan_name} | ${it.label} | ${docs} | ${it.priority || '-'} | ${next} |`);
+    }
+    L.push('');
+  }
+
+  L.push('---');
+  L.push('');
+  L.push(DISCLAIMER);
+  L.push('');
+  L.push(`_Generated by CareLinker 加算チェッカー / kasan-manager Node.js port / ${RENDERER_VERSION}_`);
+  return L.join('\n');
+}

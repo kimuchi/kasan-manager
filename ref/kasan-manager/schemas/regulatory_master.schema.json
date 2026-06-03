@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "regulatory_master",
+  "description": "加算マスタJSONのスキーマ。事業所固有データ（tenant_id, current_status, current_inquiry, owner, applied_offices等）の混入を検出する。",
+  "type": "object",
+  "required": ["_meta", "kasans"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["service_key", "display_name", "domain", "payer", "version", "effective_from", "source_status"],
+      "properties": {
+        "service_key": {"type": "string", "pattern": "^[a-z_]+$"},
+        "display_name": {"type": "string"},
+        "domain": {"type": "string", "enum": ["kaigo", "medical", "disability"]},
+        "payer": {"type": "string", "enum": ["kaigo_hoken", "medical_hoken", "disability_welfare"]},
+        "version": {"type": "string"},
+        "effective_from": {"type": ["string", "null"]},
+        "updated": {"type": "string"},
+        "revision_tag": {"type": ["string", "null"]},
+        "source_status": {"type": "string", "enum": ["checked", "legally_reviewed", "source_required", "draft", "planned"]}
+      },
+      "not": {
+        "anyOf": [
+          {"required": ["current_inquiry"]},
+          {"required": ["applied_offices"]},
+          {"required": ["owner"]},
+          {"required": ["tenant_id"]}
+        ]
+      }
+    },
+    "kasans": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z0-9_]+$": {
+          "type": "object",
+          "not": {
+            "anyOf": [
+              {"required": ["current_status"]},
+              {"required": ["linked_inquiry_id"]},
+              {"required": ["owner"]}
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -5,13 +5,143 @@
     "domain": "disability",
     "payer": "disability_welfare",
     "service_code_prefix": null,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "effective_from": "2024-04-01",
-    "updated": "2026-05-06",
+    "updated": "2026-05-07",
     "revision_tag": "R6_shogai_2024_04",
     "source": "障害者総合支援法 / 指定障害福祉サービス基準 / 障害福祉サービス等報酬告示 / R6改定",
-    "source_status": "source_required",
-    "_note": "未実装。基本報酬は7段階のスコア方式（労働時間・生産活動・多様な働き方・支援力向上・地域連携・経営改善計画・利用者負担なし等）。賃金向上達成指導員配置加算・施設外就労加算・就労移行支援体制加算・処遇改善加算等を要調査。HOPE運営事業所と連動。"
+    "source_status": "draft",
+    "_note": "代表的な加算のみ。基本報酬のスコア方式は別途。各事業所での運用前に最新の自治体通知を確認してください。"
   },
-  "kasans": {}
+  "kasans": {
+    "fukushi_senmonshoku_haichi_1": {
+      "name": "福祉専門職員配置等加算(I)",
+      "short_name": "福祉専門職I",
+      "unit_per_day": 15,
+      "unit_type": "単位/日",
+      "category": "配置加算",
+      "requirements": {
+        "qualification_ratio": "常勤の生活支援員等のうち、社会福祉士・介護福祉士・精神保健福祉士・公認心理師の合計が35%以上",
+        "deployment": "常勤配置・実雇用が必要"
+      },
+      "documents_required": [
+        "職員資格証コピー",
+        "常勤・非常勤を区別した職員名簿",
+        "加算届出書"
+      ],
+      "tips": [
+        "(II)15%以上、(III)勤続3年以上25%以上の代替ルートあり",
+        "公認心理師は対象資格に含まれる（H30改定以降）"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shokuba_teichaku_shien": {
+      "name": "就労移行支援体制加算",
+      "short_name": "就労移行体制",
+      "unit_per_day": 0,
+      "unit_type": "単位/日（区分により変動）",
+      "category": "成果加算",
+      "requirements": {
+        "outcome": "前年度に就労継続6か月以上を達成した利用者がいる",
+        "rule": "達成者数に応じて単位が変動"
+      },
+      "documents_required": [
+        "就労継続実績報告",
+        "雇用契約書（移行先）の写し",
+        "本人同意書"
+      ],
+      "tips": [
+        "A型では一般就労への移行実績が対象",
+        "退所後6か月の就労継続が要件"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "chingin_kojo_tasshei_shidoin": {
+      "name": "賃金向上達成指導員配置加算",
+      "short_name": "賃金向上指導員",
+      "unit_per_day": 0,
+      "unit_type": "単位/日（規模により変動）",
+      "category": "配置加算",
+      "requirements": {
+        "staff": "賃金向上達成指導員を1名以上配置（生活支援員・職業指導員とは別）",
+        "plan": "賃金向上計画の作成と都道府県への提出",
+        "outcome": "計画に基づく賃金向上の実績"
+      },
+      "documents_required": [
+        "賃金向上計画書",
+        "指導員の雇用契約書",
+        "実績報告書"
+      ],
+      "tips": [
+        "計画は3年単位での評価",
+        "未達の場合は減算リスクあり"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shisetsugai_shurou": {
+      "name": "施設外就労加算",
+      "short_name": "施設外就労",
+      "unit_per_day": 0,
+      "unit_type": "単位/日",
+      "category": "活動加算",
+      "requirements": {
+        "minimum_users": "1ユニットあたり利用者3人以上",
+        "ratio": "事業所全体での施設外就労実施率が一定以上",
+        "contract": "請負契約等の書面",
+        "supervision": "職員による指導・支援体制"
+      },
+      "documents_required": [
+        "施設外就労実施計画",
+        "請負契約書",
+        "活動記録"
+      ],
+      "tips": [
+        "R6改定で要件緩和の動きあり。最新通知を要確認"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shogui_kaizen_1": {
+      "name": "福祉・介護職員等処遇改善加算(I)",
+      "short_name": "処遇改善I",
+      "unit_per_day": 0,
+      "unit_type": "%/総報酬",
+      "category": "処遇改善",
+      "requirements": {
+        "kyaria_path": "キャリアパス要件I・II・IIIすべて満たす",
+        "shokuba_kankyo": "職場環境等要件",
+        "report": "処遇改善計画書・実績報告書の提出"
+      },
+      "documents_required": [
+        "処遇改善計画書",
+        "就業規則・賃金規程",
+        "研修計画"
+      ],
+      "tips": [
+        "R6.6改定で介護職員等処遇改善加算へ統合",
+        "従来のI〜Vの区分は段階的に切り替え"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shokuba_jitsushuu": {
+      "name": "ピアサポート実施加算",
+      "short_name": "ピアサポート",
+      "unit_per_day": 100,
+      "unit_type": "単位/日",
+      "category": "活動加算",
+      "requirements": {
+        "staff": "障害福祉サービスを利用していた経験のある者を配置",
+        "training": "ピアサポート研修の修了",
+        "support_plan": "個別支援計画にピア支援を位置づけ"
+      },
+      "documents_required": [
+        "研修修了証",
+        "ピアサポーター雇用契約書",
+        "個別支援計画"
+      ],
+      "tips": [
+        "R6改定で新設・拡充された加算"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    }
+  }
 }

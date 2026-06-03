@@ -198,9 +198,20 @@ def evaluate_requirement_logic(logic: dict | None, facts: dict, item_meta: dict)
     pattern_unverified_warning = False
     mapping_unverified = False
 
-    # facts側の警告
+    # facts側の警告（service-level）
     smap = (facts.get("receipt_pdf") or {}).get("service_code_mapping_status")
-    if smap == "pattern_based_unverified":
+    service_level_unverified = (smap == "pattern_based_unverified")
+
+    # alpha.5.5: per-kasan mapping_status は item_meta から優先
+    kasan_mapping_status = item_meta.get("service_code_mapping_status")
+    if kasan_mapping_status == "checked":
+        # 公式コード表で照合済 → mapping依存factも信頼してよい
+        mapping_unverified = False
+        notes.append("この加算の service_code_mapping_status は checked（公式サービスコード表で照合済）。")
+    elif kasan_mapping_status == "not_applicable":
+        # mapping_status=not_applicable は applicability と独立に処理（applicability側で別途check）
+        mapping_unverified = False
+    elif service_level_unverified or kasan_mapping_status == "pattern_based_unverified":
         pattern_unverified_warning = True
         mapping_unverified = True
         notes.append(PATTERN_UNVERIFIED_NOTE)

@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="加算マネージャー — 介護保険・障害福祉の加算取得を AI が支援" />
+    <title>加算マネージャー｜CareLinker</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .pw-drop { border: 2px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; cursor: pointer; transition: background .15s, border-color .15s; }
+      .pw-drop.pw-drop-over { border-color: var(--accent); background: var(--accent-soft); }
+      .pw-files, .pw-list { list-style: none; padding: 0; margin: 10px 0; font-size: 14px; }
+      .pw-files li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+      .pw-list li { padding: 5px 0; border-bottom: 1px dashed var(--border); }
+      .pw-badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #eef2fa; color: var(--ink-mute); white-space: nowrap; }
+      .pw-badge.ok { background: #e6f6ec; color: #1d7a46; }
+      .pw-badge.warn { background: #fdf2e2; color: #9a6212; }
+      .pw-badge.skip { background: #f1f1f4; color: #888; }
+      .pw-roster-rows { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+      .pw-roster-row { display: flex; gap: 8px; align-items: center; }
+      .pw-table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin-top: 8px; }
+      .pw-table th, .pw-table td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+      .pw-table th { background: #f4f6fb; }
+      .pw-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 10px 0; }
+      .pw-stat { background: #f7f9fd; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+      .pw-stat .pw-stat-label { font-size: 12px; color: var(--ink-mute); }
+      .pw-stat .pw-stat-value { font-size: 22px; font-weight: 700; color: var(--ink); }
+      .pw-stat .pw-stat-sub { font-size: 11.5px; color: var(--ink-mute); }
+      .pw-user-detail { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+      .pw-user-detail-head { display: flex; justify-content: space-between; align-items: center; }
+      .pw-ud-meta { font-size: 13.5px; margin: 4px 0 8px; color: var(--ink); }
+      .pw-ud-meta code { background: #f1f1f4; padding: 1px 5px; border-radius: 3px; }
+      .le-report { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark">加算</span>
+        <div class="brand-text">
+          <h1>加算マネージャー</h1>
+          <p>介護保険 / 障害福祉 の「取り漏れ」を AI が見つけて、取り方を提案します</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <nav class="docs-nav">
+          <a href="/">← 無料版（ローカル取込）</a>
+          <a href="/docs/USER_GUIDE.md">使い方</a>
+          <a href="#cpos-section" id="cpos-nav-link">CPOS連携</a>
+          <a href="/docs/json/">JSON形式</a>
+          <a href="/docs/DATA_SAFETY.md">データ取扱方針</a>
+        </nav>
+        <div class="status-pill" id="status-pill">
+          <span class="dot"></span>
+          <span id="status-text">接続確認中…</span>
+        </div>
+        <div class="auth-pill" id="auth-pill">
+          <span id="auth-status">未ログイン</span>
+          <button type="button" id="auth-open-btn" class="ghost-btn">ログイン</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ログイン / プラン / アクセスコード パネル（折りたたみ） -->
+    <details id="auth-panel" class="auth-collapsible hidden">
+      <summary class="auth-summary">
+        <span class="auth-summary-icon">👤</span>
+        <span class="auth-summary-text" id="auth-summary-text">ログイン / プラン / アクセスコード</span>
+      </summary>
+
+      <!-- 未ログイン: ログイン UI -->
+      <div id="auth-signin-panel">
+        <p class="lead">
+          ログインすると、有料プラン（アクセスコード）で <strong>判定履歴の保存・レビュー機能</strong> が使えます。
+          無料でも判定機能は同じように使えます。
+        </p>
+        <div class="auth-actions">
+          <button type="button" id="auth-google-btn" class="primary-btn">
+            <span class="btn-icon">🔑</span>
+            <span>Google でログイン</span>
+          </button>
+        </div>
+        <details class="auth-email-toggle">
+          <summary>メール / パスワードでログイン（詳しい人向け）</summary>
+          <div class="grid">
+            <div class="field">
+              <label for="auth_email">メールアドレス</label>
+              <input type="email" id="auth_email" autocomplete="email" placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label for="auth_password">パスワード</label>
+              <input type="password" id="auth_password" autocomplete="current-password" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <div>
+                <button type="button" id="auth-email-signin-btn" class="primary-btn">ログイン</button>
+                <button type="button" id="auth-email-signup-btn" class="ghost-btn">新規登録</button>
+              </div>
+            </div>
+          </div>
+        </details>
+        <p class="hint" id="auth-signin-hint"></p>
+      </div>
+
+      <!-- ログイン済: プロフィール + プラン + 履歴 -->
+      <div id="auth-profile-panel" class="hidden">
+        <div class="auth-profile-meta">
+          <p class="lead">
+            <strong id="auth-display-name">-</strong>
+            <span class="auth-plan-badge" id="auth-plan-badge">無料</span>
+          </p>
+          <p class="hint">
+            メール: <code id="auth-email-display">-</code><br />
+            プラン有効期限: <span id="auth-plan-expires">-</span>
+          </p>
+          <button type="button" id="auth-signout-btn" class="ghost-btn">ログアウト</button>
+        </div>
+
+        <div class="auth-code-redeem">
+          <h3 class="result-h3">🎟 アクセスコード入力</h3>
+          <p class="hint">配布されたアクセスコードを入力すると、その期間だけ有料プラン（履歴・レビュー機能）が有効になります。</p>
+          <div class="cpos-pat-row">
+            <input type="text" id="auth-code-input" placeholder="ABCD-EFGH-JKLM-NPQR" />
+            <button type="button" id="auth-redeem-btn" class="primary-btn">適用</button>
+          </div>
+          <p class="hint" id="auth-redeem-hint"></p>
+        </div>
+
+        <!-- 履歴（有料プラン専用） -->
+        <div id="auth-history-section" class="hidden">
+          <h3 class="result-h3">🗂 解析履歴（直近 50 件）</h3>
+          <div id="auth-history-list" class="judge-checklist"></div>
+        </div>
+
+        <!-- 解析詳細パネル（履歴クリックで開く） -->
+        <div id="analysis-detail-panel" class="hidden analysis-detail">
+          <div class="analysis-detail-header">
+            <h3 class="result-h3">📋 解析詳細</h3>
+            <button type="button" id="analysis-detail-close" class="ghost-btn">× 閉じる</button>
+          </div>
+          <div id="analysis-detail-meta" class="result-meta"></div>
+
+          <div class="tab-bar">
+            <button type="button" class="tab-btn active" data-tab="judgements">加算別 / レビュー</button>
+            <button type="button" class="tab-btn" data-tab="portfolio">📊 ポートフォリオ最適化</button>
+            <button type="button" class="tab-btn" data-tab="master-review">🔍 マスタ整合性</button>
+            <button type="button" class="tab-btn" data-tab="report">📜 Markdown レポート</button>
+            <button type="button" class="tab-btn" data-tab="history">🕘 レビュー履歴</button>
+          </div>
+
+          <div id="tab-judgements" class="tab-panel active">
+            <p class="hint">
+              各加算ごとに「承認」「差戻し」「保留」を記録できます。すべて承認になれば解析全体も自動的に承認状態に集約されます。
+            </p>
+            <div class="judge-filter">
+              <label><input type="checkbox" id="judge-filter-undecided" checked /> 未判定のみ</label>
+              <label><input type="checkbox" id="judge-filter-waiting" /> waiting/unknown のみ</label>
+              <input type="text" id="judge-filter-search" placeholder="加算名で絞り込み…" />
+            </div>
+            <div id="analysis-detail-judgements"></div>
+          </div>
+
+          <div id="tab-portfolio" class="tab-panel">
+            <p class="hint">
+              <strong>あと一歩で取れる加算</strong>を、月額収益（概算）と必要工数で並べた優先度ランキングです。
+              地域単価・実稼働日数の前提は <a href="/docs/PORTFOLIO.md" target="_blank">PORTFOLIO.md</a> を参照してください。
+            </p>
+            <div id="analysis-detail-portfolio"></div>
+          </div>
+
+          <div id="tab-master-review" class="tab-panel">
+            <p class="hint">
+              加算マスタの整合性レビュー結果（<a href="/docs/MASTER_REVIEW.md" target="_blank">alpha.5.9〜.5.13 packets</a>）。
+              現在の解析対象サービスを中心に、加算マスタの三層コードモデル
+              （public/official / receipt detection / internal legacy）と推奨初期判断を表示します。
+            </p>
+            <div id="analysis-detail-master-review"></div>
+          </div>
+
+          <div id="tab-report" class="tab-panel">
+            <pre id="analysis-detail-report"></pre>
+          </div>
+
+          <div id="tab-history" class="tab-panel">
+            <div id="analysis-detail-history"></div>
+          </div>
+        </div>
+
+        <!-- 管理者: アクセスコード発行・一覧 -->
+        <div id="auth-admin-section" class="hidden">
+          <h3 class="result-h3">🛠 管理者: アクセスコード発行</h3>
+          <div class="grid">
+            <div class="field">
+              <label for="admin-code-duration">有効日数</label>
+              <input type="number" id="admin-code-duration" value="30" min="1" max="3650" />
+            </div>
+            <div class="field">
+              <label for="admin-code-note">メモ（任意）</label>
+              <input type="text" id="admin-code-note" placeholder="例: 山田事業所向け 4月分" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button type="button" id="admin-code-issue-btn" class="primary-btn">発行</button>
+            </div>
+          </div>
+          <p class="hint" id="admin-code-hint"></p>
+          <div id="admin-code-list" class="judge-checklist"></div>
+        </div>
+      </div>
+    </details>
+
+    <main>
+      <!-- ============================================================
+           Pro ワークスペース: ネイティブログイン + 書類解析 + 名簿流用 + 管理
+           ============================================================ -->
+      <section class="card" id="pw-root">
+        <h2>🔐 CPOS でログインして書類から判定（履歴・名簿を CPOS に保存）</h2>
+        <p class="lead">
+          ログイン・ユーザー管理・データ保存はすべて <strong>CPOS</strong> 側で行います（加算マネージャ独自の保存はありません）。
+          書類は<strong>ブラウザ内で解析</strong>し、<strong>匿名化・要約した集計値だけ</strong>を CPOS に保存します（生ファイル・氏名は送りません）。
+          CPOS 未利用の事業所向けに、CPOS 上に加算マネージャ専用アカウントを作成することもできます。
+        </p>
+
+        <!-- 未ログイン -->
+        <div id="pw-auth-loggedout">
+          <div class="grid">
+            <div class="field">
+              <label for="pw-email">メールアドレス</label>
+              <input type="email" id="pw-email" autocomplete="email" placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label for="pw-password">パスワード（8文字以上・英字と数字）</label>
+              <input type="password" id="pw-password" autocomplete="current-password" />
+            </div>
+            <div class="field">
+              <label for="pw-name">表示名（任意・新規登録時）</label>
+              <input type="text" id="pw-name" placeholder="例: デイほっと" />
+            </div>
+          </div>
+          <div class="cta-buttons">
+            <button type="button" id="pw-login" class="primary-btn">ログイン</button>
+            <button type="button" id="pw-register" class="ghost-btn">新規登録</button>
+          </div>
+        </div>
+
+        <!-- ログイン済 -->
+        <div id="pw-auth-loggedin" class="hidden">
+          <p class="hint">ログイン中: <strong id="pw-whoami">-</strong>
+            <button type="button" id="pw-logout" class="ghost-btn">ログアウト</button>
+          </p>
+        </div>
+        <p class="hint" id="pw-auth-msg"></p>
+
+        <!-- ワークスペース本体（ログイン時のみ） -->
+        <div id="pw-app" class="hidden">
+          <hr />
+          <h3 class="result-h3">① 施設・対象月</h3>
+          <div class="grid">
+            <div class="field">
+              <label for="pw-facility">施設プロフィール（保存して流用）</label>
+              <select id="pw-facility"></select>
+            </div>
+            <div class="field">
+              <label for="pw-service">サービス種別</label>
+              <select id="pw-service"></select>
+            </div>
+            <div class="field">
+              <label for="pw-month">対象月</label>
+              <input type="month" id="pw-month" />
+            </div>
+          </div>
+          <details class="raw-toggle">
+            <summary>＋ 施設プロフィールを新規保存</summary>
+            <div class="grid">
+              <div class="field"><label for="pw-fac-name">事業所名</label><input type="text" id="pw-fac-name" /></div>
+              <div class="field"><label for="pw-fac-office">事業所番号</label><input type="text" id="pw-fac-office" /></div>
+              <div class="field"><label for="pw-fac-grade">地域区分（級地）</label><input type="text" id="pw-fac-grade" placeholder="例: 2" /></div>
+              <div class="field"><label>&nbsp;</label><button type="button" id="pw-fac-save" class="ghost-btn">施設を保存</button></div>
+            </div>
+            <p class="hint" id="pw-fac-msg"></p>
+          </details>
+
+          <h3 class="result-h3">② 書類を取り込む（フォルダ・ドラッグ&ドロップ・少しずつ追加OK）</h3>
+          <div id="pw-drop" class="pw-drop">
+            <p>📁 ここに <strong>ファイルやフォルダをドラッグ&ドロップ</strong>、またはクリックして選択</p>
+            <p class="hint">PDF / Excel / CSV / 画像。複数回に分けて追加できます。生ファイルは送られません。</p>
+          </div>
+          <div class="cta-buttons" style="margin-top:8px;">
+            <button type="button" id="pw-pick-folder" class="ghost-btn">📁 フォルダを選ぶ</button>
+            <label class="hint"><input type="checkbox" id="pw-ocr" /> スキャンPDF・画像をOCRで読む（低速）</label>
+          </div>
+          <input type="file" id="pw-file-input" multiple class="hidden"
+            accept=".pdf,.xlsx,.xls,.csv,.tsv,.png,.jpg,.jpeg,.tif,.tiff" />
+          <ul id="pw-files" class="pw-files"></ul>
+          <p class="hint" id="pw-collected-note"></p>
+          <div class="cta-buttons">
+            <button type="button" id="pw-add-draft" class="primary-btn">取り込みをドラフトに追加</button>
+            <button type="button" id="pw-new-draft" class="ghost-btn">新しいドラフト</button>
+          </div>
+
+          <h3 class="result-h3">③ 従業員名簿（保存・流用・編集／氏名は保存しません）</h3>
+          <div id="pw-roster-rows" class="pw-roster-rows"></div>
+          <div class="cta-buttons">
+            <button type="button" id="pw-roster-add-row" class="ghost-btn">＋ 職員を追加</button>
+            <input type="text" id="pw-roster-label" placeholder="名簿の名前（例: 本体職員）" />
+            <button type="button" id="pw-roster-save" class="ghost-btn">名簿を保存</button>
+          </div>
+          <p class="hint" id="pw-roster-msg"></p>
+          <ul id="pw-roster-list" class="pw-list"></ul>
+
+          <h3 class="result-h3">④ 解析を実行</h3>
+          <p id="pw-draft-summary" class="hint">ドラフト未作成</p>
+          <button type="button" id="pw-analyze" class="primary-btn" disabled>このドラフトで加算チェック</button>
+          <p class="hint" id="pw-draft-msg"></p>
+          <details class="raw-toggle">
+            <summary>保存済みドラフト（続きから）</summary>
+            <ul id="pw-drafts-list" class="pw-list"></ul>
+          </details>
+          <div id="pw-report" class="le-report" style="margin-top:14px;"></div>
+        </div>
+
+        <!-- 管理者: 有料ユーザー管理 -->
+        <div id="pw-admin" class="hidden">
+          <hr />
+          <h3 class="result-h3">🛠 管理ダッシュボード</h3>
+          <div id="pw-stats" class="pw-stats"></div>
+
+          <h3 class="result-h3">👥 有料ユーザー管理</h3>
+          <table class="pw-table">
+            <thead><tr><th>ユーザー</th><th>方式</th><th>プラン</th><th>解析数</th><th>最終ログイン</th><th>登録日</th><th>操作</th></tr></thead>
+            <tbody id="pw-users"></tbody>
+          </table>
+          <p class="hint" id="pw-admin-msg"></p>
+
+          <!-- ユーザー詳細パネル -->
+          <div id="pw-user-detail" class="pw-user-detail hidden">
+            <div class="pw-user-detail-head">
+              <h3 class="result-h3" id="pw-ud-title">ユーザー詳細</h3>
+              <button type="button" id="pw-ud-close" class="ghost-btn">× 閉じる</button>
+            </div>
+            <div id="pw-ud-meta" class="pw-ud-meta"></div>
+            <div id="pw-ud-counts" class="pw-stats"></div>
+            <h4 class="result-h3">サービス別 解析回数</h4>
+            <ul id="pw-ud-by-service" class="pw-list"></ul>
+            <h4 class="result-h3">直近の解析（最大10件）</h4>
+            <table class="pw-table">
+              <thead><tr><th>日時</th><th>サービス</th><th>由来</th><th>状態</th><th>加算数</th><th>clear/wait/unknown</th></tr></thead>
+              <tbody id="pw-ud-analyses"></tbody>
+            </table>
+            <h4 class="result-h3">アクセスコード履歴</h4>
+            <ul id="pw-ud-codes" class="pw-list"></ul>
+            <h4 class="result-h3">監査ログ（直近）</h4>
+            <ul id="pw-ud-audits" class="pw-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <details id="cpos-section" class="cpos-collapsible hidden">
+        <summary class="cpos-summary">
+          <span class="cpos-summary-icon">🔐</span>
+          <span class="cpos-summary-text">CPOS と連携して分析する（任意・クリックで開く）</span>
+          <span class="cpos-summary-aux"><a href="/docs/CPOS_TOKEN.md">手順</a></span>
+        </summary>
+
+        <!-- 未接続パネル: PAT 入力 -->
+        <div id="cpos-disconnected-panel" class="hidden">
+          <p class="lead">
+            あなた個人の <strong>CPOS API トークン</strong>（cpos_pat_...）を入力すると、
+            あなたの権限内の事業所データを CPOS から取得して分析できます。
+          </p>
+
+          <ol class="cpos-steps">
+            <li>
+              <strong>CPOS にログイン</strong>（Google アカウント）して
+              <a id="cpos-issue-link" href="#" target="_blank" rel="noopener">PAT（個人トークン）画面</a>
+              を開く
+              <span class="cpos-steps-hint">※ CPOS URL を下に入力するとリンクが自動で有効になります</span>
+            </li>
+            <li>加算マネージャ用の個人 API トークン（PAT）を発行して、表示された <code>cpos_pat_...</code> をコピー</li>
+            <li>下の「CPOS API トークン」欄に貼り付けて「保存して接続確認」を押す</li>
+          </ol>
+
+          <ul class="cpos-policy-list">
+            <li>🔒 トークンはこのアプリの DB に保存されません</li>
+            <li>🔒 暗号化された <strong>HTTP-only Cookie</strong> としてあなたのブラウザにのみ保存されます</li>
+            <li>🔒 ブラウザの localStorage / sessionStorage は使いません</li>
+            <li>🔒 CPOS へのアクセスはサーバ間でのみ実施。ブラウザから直接 CPOS を叩きません</li>
+            <li>👉 詳しくは <a href="/docs/CPOS_TOKEN.md" target="_blank">CPOS PAT 接続ガイド</a> /
+              <a href="/docs/DATA_SAFETY.md" target="_blank">データ取扱方針</a></li>
+          </ul>
+          <div class="grid">
+            <div class="field">
+              <label for="cpos_base_url">CPOS URL</label>
+              <input type="text" id="cpos_base_url" placeholder="例: https://cpos.example.jp" />
+            </div>
+            <div class="field cpos-pat-field">
+              <label for="cpos_pat">CPOS API トークン（cpos_pat_...）</label>
+              <div class="cpos-pat-row">
+                <input type="password" id="cpos_pat" placeholder="cpos_pat_..." autocomplete="off" />
+                <button type="button" id="cpos_pat_toggle" class="ghost-btn" title="表示／非表示の切り替え">表示</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button id="cpos-connect-btn" class="primary-btn cpos-btn">
+                <span class="btn-icon">🔌</span>
+                <span>保存して接続確認</span>
+              </button>
+            </div>
+          </div>
+          <p class="hint" id="cpos-connect-hint"></p>
+        </div>
+
+        <!-- 接続済みパネル -->
+        <div id="cpos-connected-panel" class="hidden">
+          <div class="cpos-connected-meta">
+            <p class="lead" id="cpos-connected-summary"></p>
+            <ul class="cpos-token-info">
+              <li>トークン: <code id="cpos-token-preview"></code></li>
+              <li>権限: <span id="cpos-token-scopes">-</span></li>
+              <li>事業所範囲: <span id="cpos-token-facilities">-</span></li>
+              <li>有効期限: <span id="cpos-token-expires">-</span></li>
+            </ul>
+          </div>
+          <div class="grid">
+            <div class="field">
+              <label for="cpos_facility">事業所</label>
+              <select id="cpos_facility">
+                <option value="">— 事業所を選択 —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cpos_month">対象月（YYYY-MM）</label>
+              <input type="month" id="cpos_month" />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button id="cpos-analyze-btn" class="primary-btn cpos-btn">
+                <span class="btn-icon">▶</span>
+                <span>CPOS データで判定する</span>
+              </button>
+            </div>
+          </div>
+          <p class="hint">
+            <button type="button" id="cpos-disconnect-btn" class="ghost-btn">接続解除（cookie 削除）</button>
+            <button type="button" id="cpos-test-btn" class="ghost-btn">接続テスト</button>
+          </p>
+        </div>
+      </details>
+
+      <section class="card">
+        <h2>1. 分析するサービスを選ぶ</h2>
+        <p class="lead">介護保険の通所介護・訪問介護のほか、障害福祉の就労継続支援などにも対応しています。</p>
+        <div class="field">
+          <label for="service">対象サービス</label>
+          <select id="service" required>
+            <option value="">— 読み込み中 —</option>
+          </select>
+          <p class="hint" id="service-hint">サービスを選ぶと、対応する加算マスタを参照して分析します。</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. 事業所の情報を入力する</h2>
+        <p class="lead">分かる範囲で OK です。空欄でも分析できますが、入力するほど精度が上がります。</p>
+        <div class="grid">
+          <div class="field">
+            <label for="office_name">事業所名（任意）</label>
+            <input type="text" id="office_name" placeholder="例: デイサービスほっと" />
+          </div>
+          <div class="field">
+            <label for="office_code">事業所コード（任意）</label>
+            <input type="text" id="office_code" placeholder="例: DEMO-0004" />
+          </div>
+          <div class="field">
+            <label for="region">所在地・地域単価区分（任意）</label>
+            <input type="text" id="region" placeholder="例: 東京都荒川区" />
+          </div>
+          <div class="field">
+            <label for="region_grade">級地（地域単価）</label>
+            <select id="region_grade">
+              <option value="">— 読み込み中 —</option>
+            </select>
+            <p class="hint" id="region-grade-hint">介護報酬の地域区分。ポートフォリオ最適化の収益見積もりに使われます。</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="staff_summary">職員構成（任意）</label>
+          <textarea id="staff_summary" rows="3" placeholder="例: 常勤介護福祉士4名、看護師1名、機能訓練指導員は柔整師1名"></textarea>
+        </div>
+        <div class="field">
+          <label for="user_summary">利用者構成（任意）</label>
+          <textarea id="user_summary" rows="3" placeholder="例: 利用者40名、要介護3以上67%、認知症自立度Ⅱ以上が35%"></textarea>
+        </div>
+        <div class="field">
+          <label for="current_kasans">現在算定中の加算（任意）</label>
+          <textarea id="current_kasans" rows="2" placeholder="例: サービス提供体制強化加算Ⅱ、入浴介助加算Ⅰ、処遇改善加算Ⅰ"></textarea>
+        </div>
+        <div class="field">
+          <label for="concerns">気になっていること・確認したい加算（任意）</label>
+          <textarea id="concerns" rows="2" placeholder="例: 口腔機能向上加算が取れるか / 福祉専門職員配置等加算は何級まで取れるか"></textarea>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. ファイルをアップロード（任意）</h2>
+        <p class="lead">レセプトPDFや、職員/利用者集計の JSON を添付すると、決定的判定が動きます。</p>
+
+        <div class="upload-grid">
+          <div class="field">
+            <label for="pdf" class="upload-area small">
+              <span class="upload-icon">📄</span>
+              <span class="upload-main">介護給付費明細書PDF</span>
+              <span class="upload-sub">通所介護 / 訪問介護 / 居宅介護支援 / 訪問看護(介護)</span>
+              <span class="upload-sub" id="pdf-name">未選択</span>
+              <input type="file" id="pdf" accept=".pdf" />
+            </label>
+          </div>
+          <div class="field">
+            <label for="tenant_status_json" class="upload-area small">
+              <span class="upload-icon">🗂️</span>
+              <span class="upload-main">tenant_status.json</span>
+              <span class="upload-sub">事業所ステータス（任意）</span>
+              <span class="upload-sub" id="tenant-name">未選択</span>
+              <input type="file" id="tenant_status_json" accept=".json" />
+            </label>
+          </div>
+          <div class="field">
+            <label for="staff_json" class="upload-area small">
+              <span class="upload-icon">👥</span>
+              <span class="upload-main">staff.json</span>
+              <span class="upload-sub">職員集計（公開デモ用）</span>
+              <span class="upload-sub" id="staff-name">未選択</span>
+              <input type="file" id="staff_json" accept=".json" />
+            </label>
+          </div>
+          <div class="field">
+            <label for="user_summary_json" class="upload-area small">
+              <span class="upload-icon">🧑‍🤝‍🧑</span>
+              <span class="upload-main">user_summary.json</span>
+              <span class="upload-sub">利用者集計（公開デモ用）</span>
+              <span class="upload-sub" id="user-name">未選択</span>
+              <input type="file" id="user_summary_json" accept=".json" />
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="attachments" class="upload-area">
+            <span class="upload-icon">⬆</span>
+            <span class="upload-main">その他の参考ファイル（最大5件）</span>
+            <span class="upload-sub">PDF / CSV / TXT / JSON / Markdown — 1ファイル最大20MB</span>
+            <input type="file" id="attachments" multiple accept=".pdf,.csv,.tsv,.txt,.json,.md" />
+          </label>
+          <ul id="file-list" class="file-list"></ul>
+        </div>
+        <p class="hint">⚠️ 個人情報（被保険者番号・氏名・住所）はアップロード前にマスキングしてください。本ツールはその場で分析のみを行い、ファイルは保存しません。</p>
+      </section>
+
+      <section class="card cta-card">
+        <h2>4. 分析を実行する</h2>
+        <div class="cta-buttons">
+          <button id="analyze-btn" class="primary-btn">
+            <span class="btn-icon">▶</span>
+            <span>判定 + AI で分析する</span>
+          </button>
+          <button id="judge-btn" class="secondary-btn">
+            <span class="btn-icon">⚙</span>
+            <span>判定エンジンのみ実行</span>
+          </button>
+        </div>
+        <p class="hint" id="analyze-hint">
+          「判定 + AI」: 加算マスタ判定 + Gemini で取り方アクションを生成（10〜30秒）<br />
+          「判定エンジンのみ」: マスタ + DSL のみで素早く判定（数秒）
+        </p>
+      </section>
+
+      <section id="judge-section" class="card hidden">
+        <h2>📋 決定的判定エンジン結果</h2>
+        <div id="judge-meta" class="result-meta"></div>
+        <div id="judge-summary" class="judge-summary"></div>
+        <h3 class="result-h3">📑 加算別判定一覧</h3>
+        <div id="judge-table-wrap" class="judge-table-wrap"></div>
+        <h3 class="result-h3">🧾 不足証跡チェックリスト</h3>
+        <div id="judge-checklist"></div>
+        <details class="raw-toggle">
+          <summary>Markdown レポートを表示</summary>
+          <pre id="judge-markdown"></pre>
+        </details>
+      </section>
+
+      <section id="result-section" class="card result-card hidden">
+        <h2>🤖 Gemini 補完分析</h2>
+        <div id="result-meta" class="result-meta"></div>
+        <div id="result-summary" class="result-summary"></div>
+        <div id="result-revenue" class="result-revenue"></div>
+
+        <h3 class="result-h3">🎯 すぐ着手すべきアクション</h3>
+        <div id="result-actions" class="action-list"></div>
+
+        <h3 class="result-h3">📊 取得候補の加算（AI 提案）</h3>
+        <div id="result-candidates" class="candidate-list"></div>
+
+        <h3 class="result-h3">⚠️ 注意事項</h3>
+        <ul id="result-cautions" class="cautions"></ul>
+
+        <h3 class="result-h3">🧭 前提条件・assumptions</h3>
+        <ul id="result-assumptions" class="assumptions"></ul>
+
+        <details class="raw-toggle">
+          <summary>生レスポンスを表示</summary>
+          <pre id="result-raw"></pre>
+        </details>
+      </section>
+
+      <section id="error-section" class="card error-card hidden">
+        <h2>エラー</h2>
+        <p id="error-text"></p>
+      </section>
+
+      <!-- CPOS 連携が未設定な環境向けの控えめな案内（main の末尾に小さく） -->
+      <p id="cpos-not-ready-notice" class="muted-notice hidden">
+        ℹ️ CPOS 連携を有効にするには、サーバ管理者が <code>KASAN_SESSION_SECRET</code> を設定する必要があります。
+        詳細は <a href="/docs/CPOS_TOKEN.md">CPOS PAT 接続ガイド</a> を参照してください。
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <p>© CareLinker / ケア・プランニング株式会社（東京都荒川区）</p>
+      <p class="disclaimer">
+        本ツールは加算算定可否を法的に保証するものではありません。最終確認は各自治体・社労士等にお願いします。
+      </p>
+      <p id="recaptcha-notice" class="disclaimer hidden">
+        このサイトは reCAPTCHA で保護されており、Google
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">プライバシー ポリシー</a>と
+        <a href="https://policies.google.com/terms" target="_blank" rel="noopener">利用規約</a>が適用されます。
+      </p>
+    </footer>
+
+    <script src="/app.js"></script>
+    <script type="module" src="/pro-workspace.js"></script>
+  </body>
+</html>

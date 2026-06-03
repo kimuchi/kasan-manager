@@ -1,0 +1,30 @@
+# Node
+**/node_modules/
+**/npm-debug.log*
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+**/uploads/
+**/tmp/
+
+# Git / VCS
+.git
+.gitignore
+.github
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# テスト・サンプルデータ（コンテナでは不要）
+tenant_data/
+DESIGN_PHILOSOPHY.md
+README.md
+# docs/ は意図的にコンテナへ含める（/docs/* で配信するため）
+
+# トップレベルの開発用 package.json（app/package.json のみ使う）
+package.json
+package-lock.json

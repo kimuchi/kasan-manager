@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "description": "各加算の算定対象者を絞り込むためのフィルタ定義。user_summary に対して評価される。",
+    "filter_predicate_values": {
+      "all": "users_total を使う（要介護1〜5 全員）",
+      "care_level_min:N": "要介護 N 以上の利用者数（N=1..5）",
+      "dementia_min:LEVEL": "認知症日常生活自立度 LEVEL 以上（I < IIa < IIb < IIIa < IIIb < IV < M）",
+      "dementia_related": "dementia_related_count を使う",
+      "medical_dependency": "medical_dependency_count を使う",
+      "terminal": "terminal_care_related_count を使う",
+      "discharge_support": "discharge_support_related_count を使う",
+      "emergency_response": "emergency_response_related_count を使う",
+      "estimated_ratio:F": "users_total × F (0〜1) で推定（フォールバック）"
+    },
+    "note": "ここに無い kasan_key は predicate=all として扱う（全利用者対象と仮定）。",
+    "reviewed_at": "2026-05-11"
+  },
+  "filters": {
+    "chujudosha_care_taisei": { "predicate": "all", "rationale": "要介護1-5 全員（要件は3以上比率だが加算は全員に算定）" },
+    "ninchi_kasan": { "predicate": "dementia_min:IIIa", "rationale": "認知症日常生活自立度Ⅲ以上の利用者のみ" },
+    "wakanenshou_ninchi": { "predicate": "estimated_ratio:0.05", "rationale": "若年性認知症は通常 5% 程度の想定" },
+    "kobetsu_kinou_I_i": { "predicate": "estimated_ratio:0.7", "rationale": "個別機能訓練計画を作成できる利用者（推定 70%）" },
+    "kobetsu_kinou_I_ro": { "predicate": "estimated_ratio:0.7", "rationale": "個別機能訓練計画を作成できる利用者（推定 70%）" },
+    "kobetsu_kinou_II_life": { "predicate": "estimated_ratio:0.7", "rationale": "個別機能訓練計画 + LIFE 提出対象（推定 70%）" },
+    "kobetsu_kinou": { "predicate": "estimated_ratio:0.7", "rationale": "個別機能訓練計画作成対象（推定 70%）" },
+    "kagakuteki_kaigo": { "predicate": "all", "rationale": "全利用者に LIFE 提出することで算定" },
+    "nyuyoku_I": { "predicate": "estimated_ratio:0.85", "rationale": "入浴サービス利用者（通所利用者の概ね 85%）" },
+    "nyuyoku_II": { "predicate": "estimated_ratio:0.85", "rationale": "入浴サービス利用者（通所利用者の概ね 85%）" },
+    "koukuu_kinou_I": { "predicate": "estimated_ratio:0.4", "rationale": "口腔機能スクリーニング対象（推定 40%）" },
+    "koukuu_kinou_II_life": { "predicate": "estimated_ratio:0.4", "rationale": "口腔機能スクリーニング + LIFE 対象（推定 40%）" },
+    "eiyou_assessment": { "predicate": "all", "rationale": "全利用者に栄養アセスメントを実施" },
+    "eiyou_kaizen": { "predicate": "estimated_ratio:0.25", "rationale": "低栄養リスク有り利用者（推定 25%）" },
+    "juudo_ryoyou_kanri": { "predicate": "medical_dependency", "rationale": "重度の医療的ケアが必要な利用者" },
+    "terminal_care": { "predicate": "terminal", "rationale": "ターミナルケア対象者" },
+    "joukin_ishi": { "predicate": "all", "rationale": "事業所全体に対する加算" },
+    "service_taisei_kyoka_I_a": { "predicate": "all", "rationale": "全利用者に算定" },
+    "service_taisei_kyoka_I_b": { "predicate": "all", "rationale": "全利用者に算定" },
+    "service_taisei_kyoka_II": { "predicate": "all", "rationale": "全利用者に算定" },
+    "service_taisei_kyoka_III": { "predicate": "all", "rationale": "全利用者に算定" },
+    "shoguu_kaizen_I": { "predicate": "all", "rationale": "全サービス報酬に対する加算率" },
+    "shoguu_kaizen_II": { "predicate": "all", "rationale": "全サービス報酬に対する加算率" },
+    "shoguu_kaizen_III": { "predicate": "all", "rationale": "全サービス報酬に対する加算率" },
+    "tokutei_shoguu_I": { "predicate": "all", "rationale": "全サービス報酬に対する加算率" },
+    "tokutei_shoguu_II": { "predicate": "all", "rationale": "全サービス報酬に対する加算率" },
+    "base_up_shien": { "predicate": "all", "rationale": "全サービス報酬に対する加算率" }
+  }
+}

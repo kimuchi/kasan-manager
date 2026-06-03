@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "evidence",
+  "description": "証跡（PDF/CSV/画像等）のメタデータ。本体ファイルはtenant_data/evidence/に保存。alpha.4で通所介護receipt_pdf対応・alpha.4.2で訪問介護対応。",
+  "type": "object",
+  "required": ["_meta", "evidence"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["schema", "office_code", "tenant_id"],
+      "properties": {
+        "schema": {"const": "evidence"},
+        "schema_version": {"type": "string"},
+        "office_code": {"type": "string"},
+        "tenant_id": {"type": "string"},
+        "updated": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "source_type", "service_key", "office_code", "extracted_at"],
+        "properties": {
+          "evidence_id": {"type": "string"},
+          "tenant_id": {"type": "string"},
+          "office_code": {"type": "string"},
+          "service_key": {"type": "string"},
+          "source_type": {"type": "string", "enum": ["receipt_pdf", "shift_csv", "training_record", "meeting_minutes", "health_check", "explanation_doc", "instruction_record", "other"]},
+          "source_file_name": {"type": "string"},
+          "extracted_at": {"type": "string"},
+          "extraction_version": {"type": "string"},
+          "detected_claim_status": {"type": "string", "description": "検出ステータス（例: detected_in_receipt_pdf）"},
+          "detection_scope": {"type": "string", "description": "検出範囲（例: aggregated_claim_items_only）"},
+          "not_detected_policy": {"type": "string", "description": "PDF未検出の解釈方針"},
+          "requirement_policy": {"type": "string", "description": "PDF検出と要件充足確認の関係方針"},
+          "pii_policy": {
+            "type": "object",
+            "description": "個人情報保存方針。receipt_pdfタイプでは保存しない項目を明示する。",
+            "properties": {
+              "保存しない項目": {"type": "array", "items": {"type": "string"}},
+              "保存する項目": {"type": "array", "items": {"type": "string"}},
+              "policy_note": {"type": "string"}
+            }
+          },
+          "total_pages": {"type": "integer"},
+          "total_users_estimated": {"type": "integer"},
+          "care_level_distribution": {"type": "object"},
+          "yokaigo_3plus_ratio": {"type": ["number", "null"]},
+          "current_kasan_counts": {"type": "object"},
+          "current_kasan_ratios": {"type": "object"},
+          "detected_service_codes": {"type": "array", "items": {"type": "string"}},
+          "service_category_counts": {"type": "object", "description": "訪問介護のサービス区分別件数（身体/生活/身体生活/通院乗降/2人介護）"},
+          "time_band_counts": {"type": "object", "description": "時間帯加算件数（早朝/夜間/深夜）"},
+          "unknown_service_codes": {"type": "array", "items": {"type": "string"}, "description": "既知パターン外のサービスコード"},
+          "service_code_groups": {"type": "object"},
+          "raw_yokaigo_3plus_ratio": {"type": ["number", "null"], "description": "PDFのみ参考値の要介護3以上割合。居宅介護支援40%要件は地域包括紹介除外などPDFのみで確定できないため参考値扱い"},
+          "care_management_counts": {"type": "object", "description": "居宅介護支援費(I)/(II)等の件数"},
+          "hospital_coordination_counts": {"type": "object", "description": "入院時情報連携・退院退所加算等の件数"},
+          "terminal_care_counts": {"type": "object", "description": "ターミナルケアマネジメント加算等の件数"},
+          "service_code_mapping_status": {"type": "string", "enum": ["checked", "pattern_based_unverified", "source_required"], "description": "サービスコードマッピングの根拠状態"},
+          "service_code_mapping_source": {"type": "string", "description": "マッピング根拠のソース（公式コード表/社内資料/DEMO fixture/unknown）"},
+          "pattern_confidence_note": {"type": "string", "description": "帳票形式による抽出精度変動の注記"},
+          "warnings": {"type": "array", "items": {"type": "string"}},
+          "extraction_confidence": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+          "linked_kasan": {"type": "array", "items": {"type": "string"}},
+          "linked_requirement": {"type": "string"},
+          "captured_at": {"type": "string"},
+          "valid_period": {"type": "object"},
+          "anonymized": {"type": "boolean"},
+          "file_path": {"type": "string"},
+          "type": {"type": "string"},
+          "id": {"type": "string"}
+        }
+      }
+    }
+  }
+}

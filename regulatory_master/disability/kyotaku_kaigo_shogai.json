@@ -5,13 +5,135 @@
     "domain": "disability",
     "payer": "disability_welfare",
     "service_code_prefix": null,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "effective_from": "2024-04-01",
-    "updated": "2026-05-06",
+    "updated": "2026-05-07",
     "revision_tag": "R6_shogai_2024_04",
-    "source": "障害者の日常生活及び社会生活を総合的に支援するための法律 / 指定障害福祉サービス等の事業の人員、設備及び運営に関する基準 / 障害福祉サービス等報酬告示 / R6改定",
-    "source_status": "source_required",
-    "_note": "未実装。身体介護・家事援助・通院等介助・通院等乗降介助の4区分。特定事業所加算・特別地域加算・初回加算・福祉専門職員配置等加算・喀痰吸引等支援体制加算・処遇改善加算等を要調査。"
+    "source": "障害者総合支援法 / 指定障害福祉サービス等の事業の人員、設備及び運営に関する基準 / 障害福祉サービス等報酬告示 / R6改定",
+    "source_status": "draft",
+    "_note": "代表的な加算のみ。身体介護・家事援助・通院等介助・通院等乗降介助の4区分があり、加算の適用は区分により異なります。"
   },
-  "kasans": {}
+  "kasans": {
+    "tokutei_jigyousho_1": {
+      "name": "特定事業所加算(I)",
+      "short_name": "特定事業所I",
+      "unit_per_day": 0,
+      "unit_type": "%/単位",
+      "category": "体制加算",
+      "requirements": {
+        "ratio_caregiver": "サービス提供責任者及びヘルパー全員に対する研修計画の策定と実施",
+        "qualification_ratio": "介護福祉士30%以上 または 介護福祉士・実務者研修・初任者研修等修了者60%以上",
+        "training": "全ヘルパーへの定期的な研修実施・健康診断",
+        "service_provider": "サービス提供責任者を常勤専従で配置",
+        "weighted_users": "重度障害者等への対応実績"
+      },
+      "documents_required": [
+        "研修計画・実施記録",
+        "資格者一覧",
+        "健康診断記録",
+        "重度者対応実績"
+      ],
+      "tips": [
+        "(II)(III)(IV)(V)で要件が異なる",
+        "重度訪問介護でも特定事業所加算あり"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "fukushi_senmonshoku_haichi": {
+      "name": "福祉専門職員配置等加算",
+      "short_name": "福祉専門職",
+      "unit_per_day": 0,
+      "unit_type": "単位/日（区分により変動）",
+      "category": "配置加算",
+      "requirements": {
+        "qualification_ratio": "サービス提供責任者全員が介護福祉士 または 過半数が常勤"
+      },
+      "documents_required": [
+        "資格証コピー",
+        "勤務形態一覧"
+      ],
+      "tips": [
+        "(I)(II)(III)で要件が段階的"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shokai_kasan": {
+      "name": "初回加算",
+      "short_name": "初回加算",
+      "unit_per_day": 200,
+      "unit_type": "単位/月",
+      "category": "計画加算",
+      "requirements": {
+        "first_visit": "新規利用者へ初回訪問時にサービス提供責任者が同行 または 自らサービス提供"
+      },
+      "documents_required": [
+        "サービス提供記録",
+        "サービス提供責任者の同行記録"
+      ],
+      "tips": [
+        "新規利用者または2か月以上空いた利用者が対象",
+        "サービス提供責任者の関与が必須"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "tokubetsu_chiiki": {
+      "name": "特別地域加算",
+      "short_name": "特別地域",
+      "unit_per_day": 0,
+      "unit_type": "%/単位",
+      "category": "地域加算",
+      "requirements": {
+        "area": "厚生労働大臣が定める特別地域に所在"
+      },
+      "documents_required": [
+        "事業所所在地確認資料"
+      ],
+      "tips": [
+        "地域指定の確認は自治体・厚労省告示で要確認",
+        "離島・中山間地域等が対象"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "kakutan_kyuin_taisei": {
+      "name": "喀痰吸引等支援体制加算",
+      "short_name": "喀痰吸引",
+      "unit_per_day": 100,
+      "unit_type": "単位/日",
+      "category": "医療連携加算",
+      "requirements": {
+        "staff": "喀痰吸引等研修修了者をヘルパーとして配置",
+        "registration": "登録喀痰吸引等事業者または登録特定行為事業者の登録"
+      },
+      "documents_required": [
+        "研修修了証",
+        "登録証の写し",
+        "実施記録"
+      ],
+      "tips": [
+        "重度訪問介護の対象者にも適用可",
+        "都道府県への登録が必要"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    },
+    "shogui_kaizen_1": {
+      "name": "福祉・介護職員等処遇改善加算(I)",
+      "short_name": "処遇改善I",
+      "unit_per_day": 0,
+      "unit_type": "%/総報酬",
+      "category": "処遇改善",
+      "requirements": {
+        "kyaria_path": "キャリアパス要件I・II・IIIすべて満たす",
+        "shokuba_kankyo": "職場環境等要件",
+        "report": "処遇改善計画書・実績報告書の提出"
+      },
+      "documents_required": [
+        "処遇改善計画書",
+        "就業規則・賃金規程"
+      ],
+      "tips": [
+        "R6.6改定で統合"
+      ],
+      "hourei_konkyo": "障害福祉サービス等報酬告示（R6改定）"
+    }
+  }
 }
