@@ -59,6 +59,10 @@ export function mergeDraftData(curData = {}, bundle = {}) {
     fileTypeCounts,
     warnings,
     contributedCount: (curData.contributedCount || 0) + 1,
+    // PR-4: 再判定差分のため、前回分類・追加提出元を合算後も保持する
+    last_classification: curData.last_classification || null,
+    last_analysis_at: curData.last_analysis_at || null,
+    followup_of: curData.followup_of || null,
   };
 }
 

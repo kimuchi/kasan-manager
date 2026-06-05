@@ -21,6 +21,7 @@ import { ocrAvailable, resetOcrAvailabilityCache } from '../src/services/ocr.js'
 import { attachResultClassification, classifyKasan } from '../src/services/result-classifier.js';
 import { guardGeminiAnalysis } from '../src/services/gemini-guard.js';
 import { attachDataRequests } from '../src/services/data-request.js';
+import { computeClassificationDiff } from '../src/services/judge-diff.js';
 import {
   judgeRequirement,
   judgeKasan,
@@ -1880,6 +1881,25 @@ await test('PR-5: 根拠未確認マスタの注記が付与され、AIプロン
   const prompt = summarizeKasansForPrompt(m);
   assert.ok(prompt.includes('根拠未確認'), 'プロンプトに根拠未確認の警告が無い');
   assert.ok(prompt.includes('frequency_must_not_be_stated_without_source'), 'AI出力ポリシーが伝わっていない');
+});
+
+// ── PR-4: 再判定差分 ─────────────────────────────────────
+await test('PR-4: computeClassificationDiff が「判定が固まった」を検出', () => {
+  const prev = {
+    k1: { user_visible_bucket: 'needs_more_data', reason_short: '不足' },
+    k2: { user_visible_bucket: 'almost_ready', reason_short: 'あと一歩' },
+  };
+  const next = {
+    k1: { user_visible_bucket: 'not_recommended', reason_short: '要介護3以上 18.4% < 30%' },
+    k2: { user_visible_bucket: 'almost_ready', reason_short: 'あと一歩' }, // 変化なし
+  };
+  const judgements = { k1: { name: '中重度者ケア体制加算' }, k2: { name: '個別機能訓練Ⅰ(イ)' } };
+  const diff = computeClassificationDiff(prev, next, judgements);
+  assert.equal(diff.length, 1, '変化した1件だけが差分に出る');
+  assert.equal(diff[0].kasan_key, 'k1');
+  assert.equal(diff[0].settled, true, 'needs_more_data→確定側は settled=true');
+  assert.equal(diff[0].to_label, '非推奨/対象外');
+  assert.ok(diff[0].name.includes('中重度者'));
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

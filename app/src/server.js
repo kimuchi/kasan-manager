@@ -25,6 +25,7 @@ import { renderMarkdown } from './services/markdown-report.js';
 import { runExtraction } from './services/receipt-pdf.js';
 import { attachResultClassification } from './services/result-classifier.js';
 import { attachDataRequests } from './services/data-request.js';
+import { computeClassificationDiff, renderDiffLines } from './services/judge-diff.js';
 import { generalLimiter, heavyLimiter, rateLimitConfig } from './middleware/rate-limit.js';
 import { recaptchaMiddleware, recaptchaConfig } from './middleware/recaptcha.js';
 import {
@@ -590,8 +591,87 @@ app.post('/api/drafts/:id/analyze', heavyLimiter, requireAuth, async (req, res) 
       const f = await loadOwned(getFacilityProfile, doc.data.facilityId, req);
       if (f) facility = { id: f.data?.officeCode || f.id, name: f.data?.name };
     }
-    req.body = draftToBundle(doc.data || {}, { facility });
-    return handleLocalAnalyze(req, res);
+    const bundle = draftToBundle(doc.data || {}, { facility });
+    const result = await analyzeLocalBundle(bundle, req);
+
+    // PR-4: 前回判定との差分（判定が固まったか）
+    const prevClassification = doc.data?.last_classification || null;
+    const nextClassification = result.resultJson?.classification || {};
+    const diff = prevClassification
+      ? computeClassificationDiff(prevClassification, nextClassification, result.resultJson?.judgements || {})
+      : [];
+    // 次回比較用に最新分類を保存（他のドラフト項目は保持）
+    await updateDraft(req.params.id, {
+      ...doc.data,
+      last_classification: nextClassification,
+      last_analysis_at: new Date().toISOString(),
+    }).catch(() => {});
+
+    // 差分があればレポート末尾にも「再判定差分」セクションを足す（Proの表示で見える）
+    let reportMarkdown = result.reportMarkdown;
+    if (prevClassification) {
+      reportMarkdown += `\n\n## 🔁 追加提出後の再判定差分\n\n> 「良くなった/悪くなった」ではなく、判定が固まったか（🔒）を重視します。\n\n${renderDiffLines(diff).join('\n')}\n`;
+    }
+    res.json({ ...result, reportMarkdown, rejudge_diff: diff, had_previous: Boolean(prevClassification) });
+  } catch (err) {
+    storeError(res, err);
+  }
+});
+
+// PR-4: 追加提出（/merge の意味を明示したエイリアス）。匿名バンドルをドラフトに合算する。
+app.post('/api/drafts/:id/submit-additional-data', heavyLimiter, requireAuth, async (req, res) => {
+  try {
+    const doc = await loadOwned(getDraft, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    const newData = mergeDraftData(doc.data || {}, req.body?.bundle || req.body || {});
+    const saved = await updateDraft(req.params.id, newData);
+    res.json({ ok: true, draft: flattenDoc(saved) });
+  } catch (err) {
+    storeError(res, err);
+  }
+});
+
+// PR-4: 現ドラフトの不足データ提案を取得（保存はしない）
+app.get('/api/drafts/:id/data-requests', requireAuth, async (req, res) => {
+  try {
+    const doc = await loadOwned(getDraft, req.params.id, req);
+    if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+    let facility = null;
+    if (doc.data?.facilityId) {
+      const f = await loadOwned(getFacilityProfile, doc.data.facilityId, req);
+      if (f) facility = { id: f.data?.officeCode || f.id, name: f.data?.name };
+    }
+    const bundle = draftToBundle(doc.data || {}, { facility });
+    const result = await analyzeLocalBundle(bundle, req, { persist: false });
+    res.json({
+      ok: true,
+      data_requests: result.resultJson?.data_requests || [],
+      classification_summary: result.resultJson?.classification_summary || {},
+    });
+  } catch (err) {
+    storeError(res, err);
+  }
+});
+
+// PR-4: 既存の分析結果から「追加提出用ドラフト」を作る
+app.post('/api/analyses/:id/create-followup-draft', heavyLimiter, requireAuth, async (req, res) => {
+  try {
+    const analysis = await loadOwned(getAnalysis, req.params.id, req).catch(() => null);
+    const a = analysis?.data || {};
+    const b = req.body || {};
+    const data = {
+      label: '追加提出（再判定用）',
+      serviceKey: b.serviceKey || a.service_key || a.service || null,
+      serviceMonth:
+        b.serviceMonth || (typeof a.service_month === 'string' && /^\d{4}-\d{2}$/.test(a.service_month) ? a.service_month : null),
+      facilityId: b.facilityId || a.facility_id || null,
+      followup_of: req.params.id,
+      contributedCount: 0,
+      fileTypeCounts: {},
+      warnings: [],
+    };
+    const d = await createDraft({ organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    res.json({ ok: true, draft: flattenDoc(d) });
   } catch (err) {
     storeError(res, err);
   }
@@ -1197,60 +1277,62 @@ app.post('/api/cpos/facility/analyze', heavyLimiter, requireAuth, recaptchaMiddl
 // クライアント（ブラウザ）が OCR/分類/PII除去/集計まで済ませた analysis-source 互換
 // バンドルを受け取り、CPOS と同一の変換・判定経路で加算チェックする。
 // 生ファイルは送られてこない（集計値・フラグのみ）。MVP は無認証（無料枠）。
-async function handleLocalAnalyze(req, res) {
-  try {
-    const bundle = req.body;
-    if (!bundle || typeof bundle !== 'object') {
-      return res.status(400).json({ error: 'バンドル（JSON）が空です。' });
-    }
-    const normalized = normalizeCposAnalysisPayload(bundle);
-    const validated = normalized.schemaVersion ? validateAnalysisSource(normalized) : normalized;
-    const inputs = await toCposEngineInputs(validated);
-    const serviceKey = inputs.service_key;
+// ローカル/ドラフトのバンドルを解析する共有コア（res は触らず結果を返す）。
+// persist=false のときは保存せず、データ要求の取得など副作用なしの用途に使える。
+async function analyzeLocalBundle(bundle, req, { persist = true } = {}) {
+  if (!bundle || typeof bundle !== 'object') {
+    const e = new Error('バンドル（JSON）が空です。');
+    e.statusCode = 400;
+    throw e;
+  }
+  const normalized = normalizeCposAnalysisPayload(bundle);
+  const validated = normalized.schemaVersion ? validateAnalysisSource(normalized) : normalized;
+  const inputs = await toCposEngineInputs(validated);
+  const serviceKey = inputs.service_key;
 
-    // ローカル抽出の claimEvidence（kasan_key ベース）があればそれを優先して inlineEvidence に使う。
-    // 無ければ CPOS 経路と同じく claimSummary 由来の evidence にフォールバック。
-    const localEvidence =
-      bundle.claimEvidence &&
-      Array.isArray(bundle.claimEvidence.evidence) &&
-      bundle.claimEvidence.evidence.length
-        ? bundle.claimEvidence
-        : inputs.claim_evidence;
+  // ローカル抽出の claimEvidence（kasan_key ベース）があればそれを優先して inlineEvidence に使う。
+  const localEvidence =
+    bundle.claimEvidence &&
+    Array.isArray(bundle.claimEvidence.evidence) &&
+    bundle.claimEvidence.evidence.length
+      ? bundle.claimEvidence
+      : inputs.claim_evidence;
 
-    // データ系統をローカル由来として明示
-    if (inputs.user_summary) inputs.user_summary.data_source_type = 'local_aggregate';
+  if (inputs.user_summary) inputs.user_summary.data_source_type = 'local_aggregate';
 
-    const judgeResult = await runJudge({
-      service: serviceKey,
-      office: inputs.facility?.id || 'local',
-      applyEvidence: true,
-      inlineEvidence: localEvidence,
-    });
-    const inlineFiles = {
-      tenant_status_json: [{ buffer: Buffer.from(JSON.stringify(inputs.tenant_status), 'utf-8') }],
-      staff_json: [{ buffer: Buffer.from(JSON.stringify(inputs.staff_data), 'utf-8') }],
-      user_summary_json: [{ buffer: Buffer.from(JSON.stringify(inputs.user_summary), 'utf-8') }],
-    };
-    const enriched = await applyInlineFiles(judgeResult, serviceKey, inlineFiles);
-    enriched.cpos_metadata = {
-      ...inputs.metadata,
-      source: 'local.engine',
-      serviceMonth: validated.serviceMonth,
-    };
-    const completenessWarnings = deriveCompletenessWarnings(validated);
-    const envelope = buildAnalysisEnvelope({
-      sourceType: 'local_engine',
-      cposMetadata: inputs.metadata,
-      extraWarnings: [...completenessWarnings, ...(Array.isArray(bundle.warnings) ? bundle.warnings : [])],
-    });
-    enriched.analysis_id = envelope.analysis_id;
-    enriched.source_type = envelope.source_type;
-    enriched.review_status = envelope.review_status;
-    enriched.mapping_warnings = envelope.mapping_warnings;
-    attachResultClassification(enriched); // P0-1: 安全な実務分類を付与
-    await attachDataRequests(enriched); // PR-2: 不足データ提案を付与
-    const reportMarkdown = renderMarkdown(enriched);
-    const persistInfo = await persistAnalysisIfPaid({
+  const judgeResult = await runJudge({
+    service: serviceKey,
+    office: inputs.facility?.id || 'local',
+    applyEvidence: true,
+    inlineEvidence: localEvidence,
+  });
+  const inlineFiles = {
+    tenant_status_json: [{ buffer: Buffer.from(JSON.stringify(inputs.tenant_status), 'utf-8') }],
+    staff_json: [{ buffer: Buffer.from(JSON.stringify(inputs.staff_data), 'utf-8') }],
+    user_summary_json: [{ buffer: Buffer.from(JSON.stringify(inputs.user_summary), 'utf-8') }],
+  };
+  const enriched = await applyInlineFiles(judgeResult, serviceKey, inlineFiles);
+  enriched.cpos_metadata = {
+    ...inputs.metadata,
+    source: 'local.engine',
+    serviceMonth: validated.serviceMonth,
+  };
+  const completenessWarnings = deriveCompletenessWarnings(validated);
+  const envelope = buildAnalysisEnvelope({
+    sourceType: 'local_engine',
+    cposMetadata: inputs.metadata,
+    extraWarnings: [...completenessWarnings, ...(Array.isArray(bundle.warnings) ? bundle.warnings : [])],
+  });
+  enriched.analysis_id = envelope.analysis_id;
+  enriched.source_type = envelope.source_type;
+  enriched.review_status = envelope.review_status;
+  enriched.mapping_warnings = envelope.mapping_warnings;
+  attachResultClassification(enriched); // P0-1: 安全な実務分類を付与
+  await attachDataRequests(enriched); // PR-2: 不足データ提案を付与
+  const reportMarkdown = renderMarkdown(enriched);
+  let persistInfo = { persisted: false };
+  if (persist) {
+    persistInfo = await persistAnalysisIfPaid({
       req,
       analysisId: envelope.analysis_id,
       judgeResult: enriched,
@@ -1258,17 +1340,24 @@ async function handleLocalAnalyze(req, res) {
       sourceType: envelope.source_type,
       extra: { service_key: serviceKey, service_month: validated.serviceMonth },
     }).catch((err) => ({ persisted: false, reason: err.message }));
-    res.json({
-      ok: true,
-      ...envelope,
-      persisted: persistInfo.persisted,
-      reportMarkdown,
-      resultJson: enriched,
-      local: { serviceKey, serviceMonth: validated.serviceMonth },
-    });
+  }
+  return {
+    ok: true,
+    ...envelope,
+    persisted: persistInfo.persisted,
+    reportMarkdown,
+    resultJson: enriched,
+    local: { serviceKey, serviceMonth: validated.serviceMonth },
+  };
+}
+
+async function handleLocalAnalyze(req, res) {
+  try {
+    const result = await analyzeLocalBundle(req.body, req);
+    res.json(result);
   } catch (err) {
     console.error('[local] analyze error:', err);
-    res.status(400).json({ error: err.message || 'ローカルバンドルの解析に失敗しました。' });
+    res.status(err.statusCode || 400).json({ error: err.message || 'ローカルバンドルの解析に失敗しました。' });
   }
 }
 

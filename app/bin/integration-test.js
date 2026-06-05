@@ -193,6 +193,44 @@ async function main() {
       assert.equal(r2.status, 400);
     });
 
+    await check('PR-4: 追加提出→再判定で差分(rejudge_diff)が返る', async () => {
+      const c = await api('POST', '/api/drafts', { serviceKey: 'tsusho_kaigo', serviceMonth: '2026-04' });
+      const id = c.j.draft.id;
+      // 初回: 請求のみ（利用者集計なし）→ 中重度者は needs_more_data 等
+      await api('POST', `/api/drafts/${id}/submit-additional-data`, {
+        bundle: {
+          serviceKey: 'tsusho_kaigo',
+          claimEvidence: {
+            _meta: { schema: 'evidence' },
+            evidence: [{ current_kasan_counts: { chujudosha_care_taisei: 3 }, total_pages: 3 }],
+          },
+        },
+      });
+      const a1 = await api('POST', `/api/drafts/${id}/analyze`, {});
+      assert.equal(a1.j.ok, true, JSON.stringify(a1.j));
+      assert.equal(a1.j.had_previous, false, '初回は前回なし');
+      assert.ok(Array.isArray(a1.j.rejudge_diff));
+      // 追加提出: 利用者集計（要介護3以上 18.4%）→ 再判定で確定側へ動く
+      await api('POST', `/api/drafts/${id}/submit-additional-data`, {
+        bundle: {
+          serviceKey: 'tsusho_kaigo',
+          userSummary: {
+            activeUserCount: 38,
+            careLevelDistribution: { youkaigo_1: 20, youkaigo_2: 11, youkaigo_3: 5, youkaigo_4: 2 },
+            care3PlusCount: 7,
+            care3PlusRatio: 0.184,
+          },
+        },
+      });
+      const a2 = await api('POST', `/api/drafts/${id}/analyze`, {});
+      assert.equal(a2.j.had_previous, true, '2回目は前回ありで差分計算される');
+      assert.ok(Array.isArray(a2.j.rejudge_diff));
+      // data-requests エンドポイント（保存なし）
+      const dr = await api('GET', `/api/drafts/${id}/data-requests`);
+      assert.equal(dr.j.ok, true, JSON.stringify(dr.j));
+      assert.ok(Array.isArray(dr.j.data_requests));
+    });
+
     await check('履歴: /api/analyses が保存済み解析を返す', async () => {
       const { j } = await api('GET', '/api/analyses');
       assert.ok(j.jobs.length >= 1);
