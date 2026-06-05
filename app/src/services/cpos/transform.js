@@ -305,7 +305,10 @@ function transformClaimSummary(serviceKey, src = {}, mapping) {
         not_detected_policy: 'CPOS で集計されていない加算は「未算定」を意味しません',
         requirement_policy: 'CPOS 集計は算定中の推定であり、要件充足確認は別途必要',
         pii_policy: { policy_note: 'CPOS から匿名・集計データとして取得' },
-        total_users_estimated: 0,
+        // P0-2: 請求サマリ経路は利用者数を持たない。0 人ではなく「未取得(null)」として扱い、
+        // 下流で 0.0% に化けないようにする（要介護度割合等は user_summary 取得後に判定）。
+        total_users_estimated: null,
+        data_scope: { users: 'not_included', billing: 'aggregated_addon_counts_only' },
         current_kasan_counts: remappedCounts,
         current_kasan_ratios: remappedRatios,
         unmapped_cpos_addons: unmapped,

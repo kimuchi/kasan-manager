@@ -23,6 +23,7 @@ import {
 } from './services/dsl.js';
 import { renderMarkdown } from './services/markdown-report.js';
 import { runExtraction } from './services/receipt-pdf.js';
+import { attachResultClassification } from './services/result-classifier.js';
 import { generalLimiter, heavyLimiter, rateLimitConfig } from './middleware/rate-limit.js';
 import { recaptchaMiddleware, recaptchaConfig } from './middleware/recaptcha.js';
 import {
@@ -1150,6 +1151,7 @@ async function handleCposAnalyze(req, res) {
     enriched.source_type = envelope.source_type;
     enriched.review_status = envelope.review_status;
     enriched.mapping_warnings = envelope.mapping_warnings;
+    attachResultClassification(enriched); // P0-1: 安全な実務分類を付与
     const reportMarkdown = renderMarkdown(enriched);
     // 有料ユーザーなら Firestore + GCS に保存（失敗してもレスポンスは止めない）
     const persistInfo = await persistAnalysisIfPaid({
@@ -1243,6 +1245,7 @@ async function handleLocalAnalyze(req, res) {
     enriched.source_type = envelope.source_type;
     enriched.review_status = envelope.review_status;
     enriched.mapping_warnings = envelope.mapping_warnings;
+    attachResultClassification(enriched); // P0-1: 安全な実務分類を付与
     const reportMarkdown = renderMarkdown(enriched);
     const persistInfo = await persistAnalysisIfPaid({
       req,
@@ -1441,6 +1444,7 @@ app.post(
       judgeResult.review_status = envelope.review_status;
       judgeResult.mapping_warnings = envelope.mapping_warnings;
       if (regionGrade) judgeResult.region_grade = regionGrade;
+      attachResultClassification(judgeResult); // P0-1: 安全な実務分類を付与
       const markdown = renderMarkdown(judgeResult);
       const persistInfo = await persistAnalysisIfPaid({
         req,

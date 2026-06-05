@@ -18,6 +18,8 @@ import {
 } from '../src/services/dsl.js';
 import { analyzeText, calculateConfidence, buildEvidence, runExtraction } from '../src/services/receipt-pdf.js';
 import { ocrAvailable, resetOcrAvailabilityCache } from '../src/services/ocr.js';
+import { attachResultClassification, classifyKasan } from '../src/services/result-classifier.js';
+import { guardGeminiAnalysis } from '../src/services/gemini-guard.js';
 import {
   judgeRequirement,
   judgeKasan,
@@ -1731,6 +1733,97 @@ await test('受領PDF: デジタルテキストは ocr_applied=false でその�
   if (prev === undefined) delete process.env.KASAN_DISABLE_SERVER_OCR;
   else process.env.KASAN_DISABLE_SERVER_OCR = prev;
   resetOcrAvailabilityCache();
+});
+
+// ── PR-1: P0 安全性パッチ ─────────────────────────────────
+await test('P0-2: 請求サマリのみ取込は total_users_estimated=null（0扱いしない）', async () => {
+  const payload = normalizeCposAnalysisPayload({
+    schemaVersion: '1.0',
+    serviceMonth: '2026-04',
+    facility: { id: 'fac_x', serviceTypeCodes: ['15'] },
+    claimSummary: { currentAddOnCounts: { someAddon: 3 } },
+    dataCompleteness: { billing: 'partial', users: 'missing' },
+  });
+  const inputs = await toCposEngineInputs(payload);
+  const ev = inputs.claim_evidence.evidence[0];
+  assert.equal(ev.total_users_estimated, null);
+  assert.equal(ev.data_scope.users, 'not_included');
+});
+
+await test('P0-1: classifyKasan は verified_clear+clear のみ billable_now=true', () => {
+  const ok = classifyKasan('k', { algorithm_judgement: 'clear' }, { status: 'clear' });
+  assert.equal(ok.billable_now, true);
+  assert.equal(ok.user_visible_bucket, 'billable_now');
+
+  const risk = classifyKasan(
+    'k',
+    { algorithm_judgement: 'claimed_but_requirements_unknown', pdf_detected: true },
+    { status: 'blocked_by_missing_evidence' },
+  );
+  assert.equal(risk.billable_now, false);
+  assert.equal(risk.claim_state, 'claimed_detected');
+  assert.equal(risk.user_visible_bucket, 'claimed_evidence_risk');
+
+  const src = classifyKasan('k', { algorithm_judgement: 'clear' }, { status: 'not_evaluated_source_required' });
+  assert.equal(src.billable_now, false);
+});
+
+await test('P0-3: gemini-guard が can_bill_now・増収断定を決定的判定に従属させる', () => {
+  const classification = {
+    k1: { kasan_key: 'k1', billable_now: false, reason_short: '証跡不足', user_visible_bucket: 'needs_more_data' },
+  };
+  const analysis = {
+    estimated_total_revenue_increase: '月額20万〜30万円',
+    candidates: [
+      {
+        kasan_key: 'k1',
+        name: 'X',
+        status: 'deterministic_clear',
+        can_bill_now: true,
+        revenue_estimate: { amount_text: '20万円', confidence: 'high' },
+      },
+      { kasan_key: 'k1', name: 'Y', status: 'ready', can_bill_now: true }, // 禁止値 ready
+    ],
+  };
+  const g = guardGeminiAnalysis(analysis, { classification, classificationSummary: { billable_now: 0 } });
+  assert.equal(g.candidates[0].can_bill_now, false);
+  assert.notEqual(g.candidates[0].status, 'deterministic_clear');
+  assert.equal(g.candidates[0].revenue_estimate.confidence, 'not_calculable');
+  assert.equal(g.candidates[0].revenue_estimate.amount_text, '未算出（必要データ不足）');
+  assert.notEqual(g.candidates[1].status, 'ready'); // 禁止値は丸められる
+  assert.match(g.estimated_total_revenue_increase, /未算出/);
+});
+
+await test('P0: レポートに実務判定サマリ／0名・0.0%の誤表示なし', () => {
+  const result = {
+    service: 'tsusho_kaigo',
+    service_def: { display_name: '通所介護' },
+    master_meta: {},
+    office_code: 'X',
+    executed_at: '2026-06-05T00:00:00',
+    kasan_count: 1,
+    summary: {
+      clear: [], waiting: [], not_clear: [], unknown: ['k'],
+      currently_claimed: [], claimed_but_requirements_unknown: [], not_applicable: [],
+    },
+    evidence_applied: true,
+    evidence: { total_users_estimated: null, current_kasan_counts: {} },
+    judgements: { k: { name: '中重度者ケア体制加算', algorithm_judgement: 'unknown', requirements_judgement: {} } },
+    dsl_results: {
+      k: {
+        status: 'blocked_by_missing_evidence',
+        missing_evidence: ['user_summary.care_level_3_or_higher_ratio'],
+        progress: { achievement: null, gaps: [] },
+      },
+    },
+  };
+  attachResultClassification(result);
+  const md = renderMarkdown(result);
+  assert.ok(md.includes('実務判定サマリ'), '実務判定サマリ見出しが無い');
+  assert.ok(!md.includes('0.0%'), '0.0% を表示してしまっている');
+  assert.ok(!/推定利用者数: \*\*0名\*\*/.test(md), '推定利用者数 0名 を表示してしまっている');
+  assert.ok(md.includes('未取得'), '未取得 表記が無い');
+  assert.equal(result.classification.k.user_visible_bucket, 'needs_more_data');
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

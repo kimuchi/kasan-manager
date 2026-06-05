@@ -7,19 +7,25 @@ import { run as runJudge } from './judge.js';
 import { renderMarkdown } from './markdown-report.js';
 import { runExtraction } from './receipt-pdf.js';
 import { summarizeKasansForPrompt, loadMaster as loadServiceMaster } from './regulator.js';
+import { attachResultClassification } from './result-classifier.js';
+import { guardGeminiAnalysis } from './gemini-guard.js';
 
 const SYSTEM_PROMPT = `あなたは日本の介護保険・障害福祉に精通した加算（報酬加算）分析の専門家です。
-渡された決定的判定エンジンの結果（取得済み・確認待ち・対象外・情報不足の仕分け）と、
-事業所が補足した自由記述・添付ファイル抜粋を組み合わせて、
-「次にとるべきアクション」「取り漏れの可能性が高い加算」「現場で見落とされやすい OR 条件・代替資格・外部連携ルート」
-を構造化された日本語 JSON で返してください。
+ただしあなたの役割は「決定的判定エンジンの結論を上書きすること」ではなく、
+不足データの提案・取得手順の整理・代替ルートの示唆に限定されます。最終的な請求可否は決定的判定が決めます。
 
-姿勢:
-- 決定的判定エンジンが waiting / unknown とした加算には、判定で必要な追加情報・確認手順を必ず添える。
-- 「取れない」で終わらせず、最短で取得できるルートを示す（例: 介護福祉士70%が無理でも勤続10年以上25%ルート）。
+【厳守する禁止事項】
+- 決定的判定が unknown / 情報不足 の加算を「取得可能」「算定可能」「請求できる」と書かない。
+- 「算定中だが要件未確認（claimed_but_requirements_unknown）」を「エビデンスあり」「確認済み」と書かない。
+- 利用者集計が未取得のとき、要介護3以上割合などの割合を 0.0%（や具体的数値）と書かない。「未取得」とする。
+- 増収見込みは、対象者数・単位数・算定日数・地域単価のいずれかが欠ける場合は金額を出さず「未算出」とする。
+- AIの一般知識に基づく提案は can_bill_now=false とし、「請求判断には使えない」と明示する。
+
+【姿勢】
+- 決定的判定が「あと一歩 / 追加データ必要」とした加算には、判定を固めるために提出すべき具体的データ
+  （勤務形態一覧表・利用者集計・LIFE送信履歴・計画書・居宅訪問記録など）を missing_data_requests に列挙する。
 - 公開情報の範囲で答え、最終確認は自治体・社労士に委ねる旨を明記する。
-- 障害福祉では処遇改善・福祉専門職員配置・目標工賃達成指導員・ピアサポート・特定事業所・福祉専門職員配置等加算を意識する。
-- 増収目安は判定エンジンが計算済みの値があればそれを尊重し、独自に上書きしない。`;
+- 各候補には basis_level（deterministic / inferred / general_knowledge）を必ず付け、根拠の強さを正直に示す。`;
 
 const RESPONSE_SCHEMA = {
   type: 'object',
@@ -44,20 +50,51 @@ const RESPONSE_SCHEMA = {
     },
     candidates: {
       type: 'array',
-      description: '取得候補・優先確認候補の加算',
+      description: '取得候補・優先確認候補の加算（請求可否は決定的判定に従属）',
       items: {
         type: 'object',
         properties: {
           kasan_key: { type: 'string' },
           name: { type: 'string' },
-          status: { type: 'string', description: 'ready / waiting / blocked / unknown のいずれか' },
+          status: {
+            type: 'string',
+            description:
+              'deterministic_clear / claimed_evidence_risk / needs_data / ai_general_candidate / not_recommended のいずれか',
+          },
+          basis_level: {
+            type: 'string',
+            description: 'deterministic（決定的判定）/ inferred（推測）/ general_knowledge（一般知識）',
+          },
+          can_bill_now: { type: 'boolean', description: '請求してよいか。決定的に確認できた場合のみ true' },
+          must_not_bill_reason: { type: 'string', description: 'can_bill_now=false の理由（請求してはいけない理由）' },
           unit: { type: 'string' },
           requirement_summary: { type: 'string' },
-          missing_info: { type: 'array', items: { type: 'string' } },
+          missing_data_requests: {
+            type: 'array',
+            description: '判定を固めるために提出すべきデータ',
+            items: {
+              type: 'object',
+              properties: {
+                data_label: { type: 'string' },
+                why_needed: { type: 'string' },
+                acceptable_sources: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['data_label', 'why_needed'],
+            },
+          },
           recommended_actions: { type: 'array', items: { type: 'string' } },
-          revenue_estimate: { type: 'string' },
+          revenue_estimate: {
+            type: 'object',
+            properties: {
+              amount_text: { type: 'string' },
+              calculation_formula: { type: 'string', description: '単位×対象者数×日数×地域単価。無ければ空' },
+              assumptions: { type: 'array', items: { type: 'string' } },
+              confidence: { type: 'string', description: 'high / medium / low / not_calculable' },
+            },
+            required: ['amount_text', 'confidence'],
+          },
         },
-        required: ['name', 'status', 'requirement_summary', 'recommended_actions'],
+        required: ['name', 'status', 'basis_level', 'can_bill_now', 'requirement_summary', 'recommended_actions'],
       },
     },
     cautions: { type: 'array', items: { type: 'string' } },
@@ -222,6 +259,9 @@ export async function analyzeOffice({
     judgeResult.evidence_checklist = buildEvidenceChecklist(dslResults, judgeResult.judgements, labelConfig);
   }
 
+  // P0-1: 実務向けの安全な分類を付与（UI/AI/Markdown 前に必ず実施）
+  attachResultClassification(judgeResult);
+
   // 5. Markdown レポートを生成
   const markdown = renderMarkdown(judgeResult);
 
@@ -237,7 +277,19 @@ export async function analyzeOffice({
         userPrompt,
         responseSchema: RESPONSE_SCHEMA,
       });
-      geminiResult = { model: getModelName(), analysis: json, raw_text: json ? null : text, parse_error: parseError ?? null };
+      // P0-3: Gemini 出力を決定的判定に従属させる（請求可否・増収断定の矯正）
+      const guarded = json
+        ? guardGeminiAnalysis(json, {
+            classification: judgeResult.classification,
+            classificationSummary: judgeResult.classification_summary,
+          })
+        : json;
+      geminiResult = {
+        model: getModelName(),
+        analysis: guarded,
+        raw_text: guarded ? null : text,
+        parse_error: parseError ?? null,
+      };
     } catch (err) {
       geminiError = err.message || String(err);
     }

@@ -102,6 +102,33 @@ function formatGapLine(gap, usersTotal) {
   return `現状 ${fmtNum(gap.actual)} / 目標 ${fmtNum(gap.target)} → **あと ${fmtNum(gap.shortfall)}**`;
 }
 
+// P0: 実務判定サマリ（請求可否ベースの安全な6分類）。result-classifier の結果を表示する。
+const PRACTICAL_BUCKET_LABELS = [
+  ['billable_now', '✅ 請求OK', '要件・証跡が確認でき、請求してよい'],
+  ['claimed_evidence_risk', '⚠️ 算定中だが証跡未確認', '算定中として検出されたが要件充足は未確認'],
+  ['almost_ready', '🟡 あと一歩で取れる', '数値要件まであと少し（達成度を表示）'],
+  ['needs_more_data', '📥 追加データが必要', '判定に必要な証跡・データが不足'],
+  ['not_recommended', '❌ 非推奨/対象外', '確認済みの要件を満たさない'],
+  ['not_applicable', '🚫 当サービス対象外', '公式根拠で対象外確定'],
+];
+
+function renderPracticalSummary(L, result) {
+  const sum = result.classification_summary;
+  if (!sum) return;
+  L.push('## 🧭 実務判定サマリ（請求可否ベース）');
+  L.push('');
+  L.push(
+    '> 「算定中の検出」と「要件確認済み」を分けた、実務向けの安全な分類です。**請求OK は要件・証跡が確認できたものだけ**で、算定中でも要件未確認のものは「算定中だが証跡未確認」に入ります。',
+  );
+  L.push('');
+  L.push('| 実務判定 | 件数 | 意味 |');
+  L.push('|---|---:|---|');
+  for (const [key, label, meaning] of PRACTICAL_BUCKET_LABELS) {
+    L.push(`| ${label} | ${sum[key] || 0} | ${meaning} |`);
+  }
+  L.push('');
+}
+
 // すでに取得済み（現在算定中・要件クリア・対象外）の加算は「あと一歩」表示から除外する
 const ALREADY_OBTAINED_OR_NA = new Set(['currently_claimed', 'clear', 'not_applicable']);
 
@@ -282,7 +309,11 @@ export function renderMarkdown(result) {
     L.push(`- ソースファイル: \`${ev.source_file_name || '-'}\``);
     L.push(`- 抽出日時: ${ev.extracted_at || '-'}`);
     L.push(`- 抽出版: \`${ev.extraction_version || '-'}\``);
-    L.push(`- 推定利用者数: **${ev.total_users_estimated || 0}名**`);
+    L.push(
+      ev.total_users_estimated == null
+        ? '- 推定利用者数: **未取得**（この取込経路では利用者数を持ちません。利用者集計の追加取込で割合判定が可能になります）'
+        : `- 推定利用者数: **${ev.total_users_estimated}名**`,
+    );
     const cl = ev.care_level_distribution || {};
     if (Object.keys(cl).length) {
       // Python の sorted(dict.items()) と同じコードポイント順（要介護1, 要介護2, ... 要介護5）
@@ -403,6 +434,9 @@ export function renderMarkdown(result) {
     L.push('---');
     L.push('');
   }
+
+  // P0: 実務判定サマリ（請求OK / 算定中だが証跡未確認 / あと一歩 / 追加データ必要 / 非推奨 / 対象外）
+  renderPracticalSummary(L, result);
 
   // あと一歩で取得できる加算（達成度・あと何%/何名）— 現在算定中の加算は除外
   renderGapSection(L, result);
