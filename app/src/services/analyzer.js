@@ -8,6 +8,7 @@ import { renderMarkdown } from './markdown-report.js';
 import { runExtraction } from './receipt-pdf.js';
 import { summarizeKasansForPrompt, loadMaster as loadServiceMaster } from './regulator.js';
 import { attachResultClassification } from './result-classifier.js';
+import { attachDataRequests } from './data-request.js';
 import { guardGeminiAnalysis } from './gemini-guard.js';
 
 const SYSTEM_PROMPT = `あなたは日本の介護保険・障害福祉に精通した加算（報酬加算）分析の専門家です。
@@ -261,6 +262,8 @@ export async function analyzeOffice({
 
   // P0-1: 実務向けの安全な分類を付与（UI/AI/Markdown 前に必ず実施）
   attachResultClassification(judgeResult);
+  // PR-2: 不足データ提案を付与
+  await attachDataRequests(judgeResult);
 
   // 5. Markdown レポートを生成
   const markdown = renderMarkdown(judgeResult);

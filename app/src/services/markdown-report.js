@@ -129,6 +129,38 @@ function renderPracticalSummary(L, result) {
   L.push('');
 }
 
+// PR-2: 「追加で提出すると判定が進むデータ」セクション。data-request.js の結果を表示する。
+const REQUEST_PRIORITY_LABEL = { high: '優先度 高', medium: '優先度 中', low: '優先度 低' };
+
+function renderDataRequests(L, result) {
+  const reqs = result.data_requests || [];
+  if (!reqs.length) return;
+  L.push('## 📥 追加で提出すると判定が進むデータ');
+  L.push('');
+  L.push(
+    '> 不足しているデータを加算別に整理しました。提出（ファイル追加・手入力）して再判定すると、取得可否が固まります。',
+  );
+  L.push('');
+  let lastPriority = null;
+  for (const r of reqs) {
+    if (r.priority !== lastPriority) {
+      L.push(`**${REQUEST_PRIORITY_LABEL[r.priority] || r.priority}**`);
+      lastPriority = r.priority;
+    }
+    L.push(`- **${r.data_label}**`);
+    L.push(`    - 対象加算：${r.target_kasans.length}件（${r.why_needed}）`);
+    L.push(`    - 提出方法：${(r.acceptable_sources || []).join(' / ') || '-'}`);
+    const ways = [
+      r.upload_allowed ? 'ファイルを追加' : null,
+      r.manual_input_allowed ? '手入力する（仮判定）' : null,
+    ]
+      .filter(Boolean)
+      .join(' / ');
+    if (ways) L.push(`    - 入力方法：${ways}`);
+  }
+  L.push('');
+}
+
 // すでに取得済み（現在算定中・要件クリア・対象外）の加算は「あと一歩」表示から除外する
 const ALREADY_OBTAINED_OR_NA = new Set(['currently_claimed', 'clear', 'not_applicable']);
 
@@ -440,6 +472,9 @@ export function renderMarkdown(result) {
 
   // あと一歩で取得できる加算（達成度・あと何%/何名）— 現在算定中の加算は除外
   renderGapSection(L, result);
+
+  // PR-2: 追加で提出すると判定が進むデータ
+  renderDataRequests(L, result);
 
   L.push('## 🎯 すぐ確認すべき項目 TOP5');
   L.push('');

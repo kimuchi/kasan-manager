@@ -8,6 +8,42 @@
   "default_priority": "中",
   "default_next_action": "事業所内で資料の有無を確認する",
   "labels": {
+    "user_summary.care_level_3_or_higher_ratio": {
+      "label": "対象期間の要介護3以上割合",
+      "recommended_documents": ["利用者一覧CSV", "受給者台帳Excel", "介護ソフトの利用者集計表"],
+      "priority": "高",
+      "next_action": "対象月の利用者の要介護度内訳を集計する"
+    },
+    "user_summary.care_level_4_or_higher_ratio": {
+      "label": "対象期間の要介護4以上割合",
+      "recommended_documents": ["利用者一覧CSV", "受給者台帳Excel"],
+      "priority": "中",
+      "next_action": "対象月の利用者の要介護度内訳を集計する"
+    },
+    "user_summary.severe_user_ratio": {
+      "label": "重度者（医療的ケア・要介護度等）の割合",
+      "recommended_documents": ["利用者一覧CSV", "看護記録サマリ"],
+      "priority": "高",
+      "next_action": "重度者の該当人数を集計する"
+    },
+    "user_summary.terminal_care_related_count": {
+      "label": "ターミナル・看取り対象者数",
+      "recommended_documents": ["看取り対応記録", "利用者一覧"],
+      "priority": "中",
+      "next_action": "対象期間の看取り対応件数を整理する"
+    },
+    "staff_summary.kango_kaigo_total_fte": {
+      "label": "看護・介護職員の常勤換算数",
+      "recommended_documents": ["勤務形態一覧表", "勤務表（実績）"],
+      "priority": "高",
+      "next_action": "職種別の常勤換算を勤務形態一覧表で算出する"
+    },
+    "staff_summary.helper_kaigo_fukushishi_ratio": {
+      "label": "訪問介護員の介護福祉士割合",
+      "recommended_documents": ["資格者一覧", "勤務形態一覧表"],
+      "priority": "高",
+      "next_action": "ヘルパーの資格別人数を整理する"
+    },
     "tenant_status.saseki_qualifications.status": {
       "label": "サービス提供責任者の資格・実務経験",
       "recommended_documents": ["サ責資格証", "実務経験証明書"],
