@@ -1328,6 +1328,17 @@ async function applyInlineFiles(judgeResult, service, files) {
   judgeResult.user_summary_loaded = Boolean(userInline);
   judgeResult.demo_tenant_status_loaded = Boolean(tenantInline);
 
+  // CPOS / アップロード由来の tenant_status に inquiry（確認待ち項目）があれば
+  // レポートの「§3 確認待ち項目（テナント側）」「🎯 すぐ確認すべき項目 TOP5」へ配線する。
+  // ターミナルの --status 相当: tenant_status をロード済みとして扱う（「🗓️ 今月やること」も整合）。
+  // （CPOS 変換は inquiry を生成済みだが、これまで judgeResult に渡されず死にセクション化していた）
+  if (tenantInline) {
+    judgeResult.tenant_status_loaded = true;
+    if (tenantInline.inquiry && Object.keys(tenantInline.inquiry).length) {
+      judgeResult.tenant_status_inquiry = tenantInline.inquiry;
+    }
+  }
+
   const labelConfig = await loadEvidenceLabels();
   judgeResult.evidence_checklist = buildEvidenceChecklist(dslResults, judgeResult.judgements, labelConfig);
   return judgeResult;
