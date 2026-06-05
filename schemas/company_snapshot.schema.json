@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kasan-manager/schemas/company_snapshot.schema.json",
+  "title": "CompanySnapshot",
+  "description": "法人横断の現状スナップショット。経営判断・横展開のため、配下の事業所スナップショットを束ねる。加算可否は原則 facility_snapshot 単位で判定する。",
+  "type": "object",
+  "required": ["schemaVersion", "company"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "organizationId": { "type": ["string", "null"] },
+    "company": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "facilityCount": { "type": ["number", "null"] }
+      }
+    },
+    "facilities": {
+      "type": "array",
+      "description": "配下の事業所スナップショット（facility_snapshot 形式）",
+      "items": { "$ref": "https://kasan-manager/schemas/facility_snapshot.schema.json" }
+    },
+    "generatedAt": { "type": ["string", "null"] }
+  }
+}

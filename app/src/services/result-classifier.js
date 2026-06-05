@@ -129,11 +129,20 @@ export function attachResultClassification(judgeResult) {
   if (!judgeResult || typeof judgeResult !== 'object') return judgeResult;
   const judgements = judgeResult.judgements || {};
   const dslResults = judgeResult.dsl_results || {};
+  // PR-3: 手入力の仮データだけでは請求OK(billable_now)にしない
+  const manualOnly = judgeResult.manual_quick_input === true;
   const classification = {};
   const summary = Object.fromEntries(BUCKETS.map((b) => [b, 0]));
 
   for (const [kasanKey, j] of Object.entries(judgements)) {
     const c = classifyKasan(kasanKey, j, dslResults[kasanKey] || {});
+    if (manualOnly && c.billable_now) {
+      // 仮データのclearは確定にしない。正式データ提出への入口（追加データ必要）に倒す。
+      c.billable_now = false;
+      c.confidence = 'low';
+      c.user_visible_bucket = 'needs_more_data';
+      c.reason_short = '手入力（仮データ）のため、正式データの提出で請求可否が固まります';
+    }
     classification[kasanKey] = c;
     summary[c.user_visible_bucket] = (summary[c.user_visible_bucket] || 0) + 1;
   }

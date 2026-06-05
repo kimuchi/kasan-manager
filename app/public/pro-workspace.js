@@ -251,6 +251,7 @@ function wireWorkspace() {
 
   $('pw-add-draft').addEventListener('click', addToDraft);
   $('pw-analyze').addEventListener('click', runAnalysis);
+  wireQuickInput();
   $('pw-new-draft').addEventListener('click', async () => {
     state.draft = null;
     state.collected = newCollected();
@@ -263,6 +264,69 @@ function wireWorkspace() {
 function clickFileInput() {
   $('pw-file-input').click();
   return [];
+}
+
+// ---------------- 10問かんたん入力（現状かんたん取得・ルートC） ----------------
+function collectQuickAnswers() {
+  const serviceKey = $('pw-service').value || null;
+  const current = ($('pw-q-current').value || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return {
+    serviceKey,
+    serviceMonth: $('pw-month').value || null,
+    facilityName: $('pw-fac-name')?.value || null,
+    regionGrade: $('pw-fac-grade')?.value || null,
+    activeUserCount: $('pw-q-users').value || null,
+    care3PlusCount: $('pw-q-care3').value || null,
+    bathing: $('pw-q-bathing').value || null,
+    kinouKunren: $('pw-q-kinou').value || null,
+    kango: $('pw-q-kango').value || null,
+    lifeSubmission: $('pw-q-life').value || null,
+    others: $('pw-q-others').value || null,
+    currentKasans: current,
+  };
+}
+
+function wireQuickInput() {
+  const analyzeBtn = $('pw-quick-analyze');
+  const draftBtn = $('pw-quick-to-draft');
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', async () => {
+      const answers = collectQuickAnswers();
+      if (!answers.serviceKey) {
+        flash($('pw-quick-msg'), 'サービス種別を選んでください（①で選択）。');
+        return;
+      }
+      flash($('pw-quick-msg'), '仮判定中…');
+      try {
+        const r = await api('/api/quick-input/analyze', { method: 'POST', body: answers });
+        $('pw-report').innerHTML = renderMarkdownLite(r.reportMarkdown || '(レポートなし)');
+        flash($('pw-quick-msg'), '仮判定を表示しました（低信頼度）。下部の「追加で提出すると判定が進むデータ」を確認してください。');
+      } catch (err) {
+        flash($('pw-quick-msg'), `エラー: ${err.message}`);
+      }
+    });
+  }
+  if (draftBtn) {
+    draftBtn.addEventListener('click', async () => {
+      const answers = collectQuickAnswers();
+      if (!answers.serviceKey) {
+        flash($('pw-quick-msg'), 'サービス種別を選んでください（①で選択）。');
+        return;
+      }
+      try {
+        const r = await api('/api/quick-input/to-draft', { method: 'POST', body: answers });
+        state.draft = r.draft;
+        renderDraftSummary();
+        await refreshDrafts();
+        flash($('pw-quick-msg'), 'ドラフトを作成しました。②や名簿で正式データを追加し、④で再判定できます。');
+      } catch (err) {
+        flash($('pw-quick-msg'), `エラー: ${err.message}`);
+      }
+    });
+  }
 }
 
 // ドラッグ&ドロップのフォルダ展開（webkit getAsFileSystemEntry）

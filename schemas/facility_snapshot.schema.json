@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kasan-manager/schemas/facility_snapshot.schema.json",
+  "title": "FacilitySnapshot",
+  "description": "事業所単位の現状スナップショット（加算判定の入力）。analysis_source を壊さず sourceQuality / documentsSummary を追加した上位互換。",
+  "type": "object",
+  "required": ["schemaVersion", "facility", "serviceMonth", "sourceQuality"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "organizationId": { "type": ["string", "null"] },
+    "company": {
+      "type": "object",
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "facilityCount": { "type": ["number", "null"] }
+      }
+    },
+    "facility": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": ["string", "null"] },
+        "businessNumber": { "type": ["string", "null"] },
+        "serviceKey": { "type": ["string", "null"] },
+        "regionGrade": { "type": ["string", "null"] }
+      }
+    },
+    "serviceMonth": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}$" },
+    "sourceQuality": {
+      "type": "object",
+      "description": "データ系統ごとの状態・出所・信頼度",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "state": { "type": "string", "enum": ["complete", "partial", "missing"] },
+          "source": { "type": ["string", "null"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low", "none"] }
+        }
+      }
+    },
+    "userSummary": { "type": ["object", "null"] },
+    "staffSummary": { "type": ["object", "null"] },
+    "claimEvidence": { "type": ["object", "null"] },
+    "documentsSummary": {
+      "type": "object",
+      "properties": {
+        "lifeSubmission": { "type": ["object", "null"] },
+        "plans": { "type": ["object", "null"] },
+        "contracts": { "type": ["object", "null"] },
+        "homeVisitRecords": { "type": ["object", "null"] }
+      }
+    },
+    "source_type": { "type": ["string", "null"] },
+    "confidence": { "type": ["string", "null"] },
+    "manual_quick_input": { "type": ["boolean", "null"] }
+  }
+}

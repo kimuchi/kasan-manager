@@ -22,6 +22,7 @@ import { attachResultClassification, classifyKasan } from '../src/services/resul
 import { guardGeminiAnalysis } from '../src/services/gemini-guard.js';
 import { attachDataRequests } from '../src/services/data-request.js';
 import { computeClassificationDiff } from '../src/services/judge-diff.js';
+import { quickInputToBundle } from '../src/services/quick-input.js';
 import {
   judgeRequirement,
   judgeKasan,
@@ -1900,6 +1901,37 @@ await test('PR-4: computeClassificationDiff が「判定が固まった」を検
   assert.equal(diff[0].settled, true, 'needs_more_data→確定側は settled=true');
   assert.equal(diff[0].to_label, '非推奨/対象外');
   assert.ok(diff[0].name.includes('中重度者'));
+});
+
+// ── PR-3: 現状かんたん取得（10問入力）─────────────────────
+await test('PR-3: quickInputToBundle が低信頼度の仮データバンドルを生成', () => {
+  const b = quickInputToBundle({
+    serviceKey: 'tsusho_kaigo',
+    serviceMonth: '2026-04',
+    facilityName: 'デイ太陽',
+    activeUserCount: 40,
+    care3PlusCount: 8,
+    currentKasans: ['nyuyoku_I'],
+  });
+  assert.equal(b.serviceKey, 'tsusho_kaigo');
+  assert.equal(b.manual_quick_input, true);
+  assert.equal(b.confidence, 'low');
+  assert.equal(b.userSummary.care3PlusRatio, 0.2);
+  assert.ok(b.claimEvidence.evidence[0].current_kasan_counts.nyuyoku_I === 1);
+  assert.ok(!b.schemaVersion, 'schemaVersion を付けない（仮データ）');
+});
+
+await test('PR-3: 手入力(manual_quick_input)は clear でも billable_now にしない', () => {
+  const judgeResult = {
+    manual_quick_input: true,
+    judgements: { k: { name: 'X', algorithm_judgement: 'clear' } },
+    dsl_results: { k: { status: 'clear', progress: { achievement: 1, gaps: [] } } },
+  };
+  attachResultClassification(judgeResult);
+  const c = judgeResult.classification.k;
+  assert.equal(c.billable_now, false, '仮データはclearでも請求OKにしない');
+  assert.equal(c.user_visible_bucket, 'needs_more_data');
+  assert.equal(judgeResult.classification_summary.billable_now, 0);
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

@@ -26,6 +26,7 @@ import { runExtraction } from './services/receipt-pdf.js';
 import { attachResultClassification } from './services/result-classifier.js';
 import { attachDataRequests } from './services/data-request.js';
 import { computeClassificationDiff, renderDiffLines } from './services/judge-diff.js';
+import { quickInputToBundle } from './services/quick-input.js';
 import { generalLimiter, heavyLimiter, rateLimitConfig } from './middleware/rate-limit.js';
 import { recaptchaMiddleware, recaptchaConfig } from './middleware/recaptcha.js';
 import {
@@ -648,6 +649,39 @@ app.get('/api/drafts/:id/data-requests', requireAuth, async (req, res) => {
       data_requests: result.resultJson?.data_requests || [],
       classification_summary: result.resultJson?.classification_summary || {},
     });
+  } catch (err) {
+    storeError(res, err);
+  }
+});
+
+// PR-3: 10問かんたん入力 → 即時の仮判定（保存なし）。主目的は不足データ提案。
+app.post('/api/quick-input/analyze', heavyLimiter, requireAuth, async (req, res) => {
+  try {
+    const bundle = quickInputToBundle(req.body || {});
+    if (!bundle.serviceKey) {
+      return res.status(400).json({ ok: false, error: 'service_required', message: 'サービス種別を選択してください。' });
+    }
+    const result = await analyzeLocalBundle(bundle, req, { persist: false });
+    res.json({ ...result, quick_input: true });
+  } catch (err) {
+    storeError(res, err);
+  }
+});
+
+// PR-3: 10問かんたん入力 → ドラフト化（後で正式データを追加提出して再判定できる）
+app.post('/api/quick-input/to-draft', heavyLimiter, requireAuth, async (req, res) => {
+  try {
+    const bundle = quickInputToBundle(req.body || {});
+    if (!bundle.serviceKey) {
+      return res.status(400).json({ ok: false, error: 'service_required', message: 'サービス種別を選択してください。' });
+    }
+    let data = mergeDraftData(
+      { label: '10問かんたん入力（仮データ）', serviceKey: bundle.serviceKey, serviceMonth: bundle.serviceMonth },
+      bundle,
+    );
+    data = { ...data, manual_quick_input: true };
+    const d = await createDraft({ organizationId: req.user.organizationId, createdBy: req.user.uid, data });
+    res.json({ ok: true, draft: flattenDoc(d) });
   } catch (err) {
     storeError(res, err);
   }
@@ -1327,6 +1361,8 @@ async function analyzeLocalBundle(bundle, req, { persist = true } = {}) {
   enriched.source_type = envelope.source_type;
   enriched.review_status = envelope.review_status;
   enriched.mapping_warnings = envelope.mapping_warnings;
+  // PR-3: 手入力の仮データ（10問入力）は billable_now にしない
+  enriched.manual_quick_input = Boolean(bundle.manual_quick_input || validated.manual_quick_input);
   attachResultClassification(enriched); // P0-1: 安全な実務分類を付与
   await attachDataRequests(enriched); // PR-2: 不足データ提案を付与
   const reportMarkdown = renderMarkdown(enriched);

@@ -63,6 +63,8 @@ export function mergeDraftData(curData = {}, bundle = {}) {
     last_classification: curData.last_classification || null,
     last_analysis_at: curData.last_analysis_at || null,
     followup_of: curData.followup_of || null,
+    // PR-3: 手入力の仮データ由来フラグ（請求OKに倒さないため、合算後も保持）
+    manual_quick_input: curData.manual_quick_input || safe.manual_quick_input || null,
   };
 }
 
@@ -86,5 +88,6 @@ export function draftToBundle(draftData = {}, { facility = null } = {}) {
     },
     warnings: ['プロ・ドラフトから実行（少しずつ取込んだ集計値）', ...(draftData.warnings || [])],
     fileTypeCounts: draftData.fileTypeCounts || {},
+    manual_quick_input: draftData.manual_quick_input || undefined,
   };
 }

@@ -281,6 +281,28 @@
             <p class="hint" id="pw-fac-msg"></p>
           </details>
 
+          <h3 class="result-h3">🏢 現状かんたん取得</h3>
+          <p class="hint">3つの方法で事業所の現状を集められます。<strong>1) CPOSから取得</strong>（下の「CPOSでログイン」）／<strong>2) フォルダを選んで取得</strong>（下の②）／<strong>3) 10問のかんたん入力</strong>（下記）。</p>
+          <details class="raw-toggle" id="pw-quick-wrap">
+            <summary>🖊 10問のかんたん入力で始める（ファイルが無くてもOK・仮判定）</summary>
+            <p class="hint">手入力は<strong>低信頼度の仮データ</strong>として扱います。これだけでは「請求OK」にはならず、「次に何を提出すれば判定が固まるか」を出すための入口です。</p>
+            <div class="grid">
+              <div class="field"><label>3. 対象月の利用者数</label><input type="number" id="pw-q-users" min="0" /></div>
+              <div class="field"><label>4. 要介護3以上の人数</label><input type="number" id="pw-q-care3" min="0" /></div>
+              <div class="field"><label>5. 入浴実施者数/回数</label><input type="text" id="pw-q-bathing" placeholder="例: 20名 / 週2回" /></div>
+              <div class="field"><label>6. 機能訓練指導員（有無・資格）</label><input type="text" id="pw-q-kinou" placeholder="例: あり（PT）" /></div>
+              <div class="field"><label>7. 看護職員（有無・時間帯）</label><input type="text" id="pw-q-kango" placeholder="例: あり（提供時間帯通じて）" /></div>
+              <div class="field"><label>8. LIFE提出（有無・最終月）</label><input type="text" id="pw-q-life" placeholder="例: あり / 2026-03" /></div>
+              <div class="field"><label>9. 管理栄養士・歯科衛生士・外部連携</label><input type="text" id="pw-q-others" placeholder="例: 管理栄養士あり" /></div>
+              <div class="field"><label>10. 現在算定中の加算（kasan_key カンマ区切り）</label><input type="text" id="pw-q-current" placeholder="例: nyuyoku_I, kobetsu_kinou_I_i" /></div>
+            </div>
+            <div class="cta-buttons">
+              <button type="button" id="pw-quick-analyze" class="primary-btn">この内容で仮判定する</button>
+              <button type="button" id="pw-quick-to-draft" class="ghost-btn">ドラフトにして後で正式データを追加</button>
+            </div>
+            <p class="hint" id="pw-quick-msg"></p>
+          </details>
+
           <h3 class="result-h3">② 書類を取り込む（フォルダ・ドラッグ&ドロップ・少しずつ追加OK）</h3>
           <div id="pw-drop" class="pw-drop">
             <p>📁 ここに <strong>ファイルやフォルダをドラッグ&ドロップ</strong>、またはクリックして選択</p>
