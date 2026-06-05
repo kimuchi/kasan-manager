@@ -31,6 +31,9 @@ const env = {
   KASAN_DEFAULT_CPOS_BASE_URL: 'https://cpos.example.jp',
   KASAN_CPOS_FAKE_ORG: ORG,
   RATE_LIMIT_ENABLED: 'false',
+  // ingest-pdf テストは「エンドポイントの配線」を見る目的。サーバOCR(poppler+tesseract)に依存
+  // させず高速・決定的にするため無効化（OCR本体は別途 OCR ユニットで検証）。
+  KASAN_DISABLE_SERVER_OCR: '1',
 };
 
 let passed = 0;

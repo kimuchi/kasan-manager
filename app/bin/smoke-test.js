@@ -16,7 +16,8 @@ import {
   mergeDemoTenantFacts,
   buildEvidenceChecklist,
 } from '../src/services/dsl.js';
-import { analyzeText, calculateConfidence, buildEvidence } from '../src/services/receipt-pdf.js';
+import { analyzeText, calculateConfidence, buildEvidence, runExtraction } from '../src/services/receipt-pdf.js';
+import { ocrAvailable, resetOcrAvailabilityCache } from '../src/services/ocr.js';
 import {
   judgeRequirement,
   judgeKasan,
@@ -1706,6 +1707,30 @@ await test('CPOS: facility.regionClass=2 (number) でも文字列化されて通
   const r = normalizeCposAnalysisPayload(payload);
   assert.equal(r.facility.regionClass, '2');
   validateAnalysisSource(r);
+});
+
+await test('OCR: KASAN_DISABLE_SERVER_OCR=1 なら ocrAvailable()=false（決定的）', async () => {
+  const prev = process.env.KASAN_DISABLE_SERVER_OCR;
+  process.env.KASAN_DISABLE_SERVER_OCR = '1';
+  resetOcrAvailabilityCache();
+  assert.equal(await ocrAvailable(), false);
+  if (prev === undefined) delete process.env.KASAN_DISABLE_SERVER_OCR;
+  else process.env.KASAN_DISABLE_SERVER_OCR = prev;
+  resetOcrAvailabilityCache();
+});
+
+await test('受領PDF: デジタルテキストは ocr_applied=false でそのまま加算抽出', async () => {
+  // OCR は無効化して決定的に（テキスト入力なので元々OCRは走らないが二重に固定）
+  const prev = process.env.KASAN_DISABLE_SERVER_OCR;
+  process.env.KASAN_DISABLE_SERVER_OCR = '1';
+  resetOcrAvailabilityCache();
+  const txt = path.join(PROJECT_ROOT, 'tests/fixtures/tsusho_receipt_sample_text.txt');
+  const r = await runExtraction({ office: 'pro', service: 'tsusho_kaigo', sampleTextPath: txt });
+  assert.equal(r.ocr_applied, false);
+  assert.ok(Object.keys(r.evidence.evidence[0].current_kasan_counts).length >= 3);
+  if (prev === undefined) delete process.env.KASAN_DISABLE_SERVER_OCR;
+  else process.env.KASAN_DISABLE_SERVER_OCR = prev;
+  resetOcrAvailabilityCache();
 });
 
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);

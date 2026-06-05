@@ -11,6 +11,10 @@ RUN npm ci --omit=dev
 
 FROM node:20-alpine AS runtime
 
+# スキャン(画像)PDFのサーバOCR用: poppler(pdftoppm) でページ画像化し tesseract(日本語) で文字認識する。
+# 未導入でもデジタルPDFは pdf-parse で動作（OCRは自動スキップ）。KASAN_DISABLE_SERVER_OCR=1 で無効化可。
+RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-jpn
+
 WORKDIR /workspace
 
 # regulatory_master / schemas / config はマスタとして読み込む。docs は /docs/* で配信。

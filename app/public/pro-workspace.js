@@ -289,17 +289,15 @@ async function walkEntry(entry, out, depth = 0) {
   }
 }
 
-// 取り込み: PDF はサーバで解析（コンソール版と同等・pdf-parse）、それ以外はブラウザ内で解析。
-// OCR チェック時のみ、スキャンPDF対応のため PDF もブラウザ（tesseract.js）で解析する
-// （コンソール版は OCR を行わないため、OCR が必要な場合の経路としてブラウザを使う）。
+// 取り込み: PDF は常にサーバで解析（デジタルは pdf-parse、スキャンはサーバOCR）。
+// Excel/CSV/画像はブラウザ内で解析（画像のOCRはチェックボックスで制御）。
 async function ingest(files) {
   const ocr = $('pw-ocr').checked;
   const all = [...files].filter((f) => f && f.name);
   const pdfs = all.filter((f) => /\.pdf$/i.test(f.name));
   const nonPdf = all.filter((f) => !/\.pdf$/i.test(f.name));
-  if (!ocr && pdfs.length) await ingestPdfsToServer(pdfs);
-  const browserFiles = ocr ? all : nonPdf; // OCR時はPDFもブラウザ
-  if (browserFiles.length) await ingestInBrowser(browserFiles, ocr);
+  if (pdfs.length) await ingestPdfsToServer(pdfs);
+  if (nonPdf.length) await ingestInBrowser(nonPdf, ocr);
 }
 
 function appendFileRow(name, label) {
