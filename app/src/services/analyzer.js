@@ -273,6 +273,7 @@ export async function analyzeOffice({
   // 6. Gemini で augment
   let geminiResult = null;
   let geminiError = null;
+  let geminiErrorTransient = false;
   if (useGemini) {
     try {
       const master = await loadServiceMaster(service);
@@ -297,6 +298,8 @@ export async function analyzeOffice({
       };
     } catch (err) {
       geminiError = err.message || String(err);
+      geminiErrorTransient = Boolean(err.transient);
+      console.warn('[analyzer] Gemini 補完に失敗（決定的判定は返します）:', geminiError);
     }
   }
 
@@ -313,5 +316,6 @@ export async function analyzeOffice({
     markdown,
     gemini: geminiResult,
     gemini_error: geminiError,
+    gemini_error_transient: geminiErrorTransient,
   };
 }

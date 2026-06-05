@@ -1934,5 +1934,17 @@ await test('PR-3: 手入力(manual_quick_input)は clear でも billable_now に
   assert.equal(judgeResult.classification_summary.billable_now, 0);
 });
 
+// ── Gemini 503 等の一時的エラー判定（補完失敗で全体を落とさないため）─────
+await test('Gemini: 503/overloaded/429 は transient と判定、400/401 は非transient', async () => {
+  const { isTransientGeminiError } = await import('../src/services/gemini.js');
+  assert.equal(isTransientGeminiError({ status: 503, message: 'high demand' }), true);
+  assert.equal(isTransientGeminiError(new Error('[503 Service Unavailable] This model is currently experiencing high demand.')), true);
+  assert.equal(isTransientGeminiError(new Error('model is overloaded')), true);
+  assert.equal(isTransientGeminiError({ status: 429, message: 'rate limit' }), true);
+  assert.equal(isTransientGeminiError(new Error('ETIMEDOUT')), true);
+  assert.equal(isTransientGeminiError({ status: 400, message: 'invalid argument' }), false);
+  assert.equal(isTransientGeminiError(new Error('[401] API key not valid')), false);
+});
+
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
 if (failed > 0) process.exit(1);

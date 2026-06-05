@@ -382,7 +382,18 @@ async function runAnalyze({ includeGemini }) {
       if (json.gemini && json.gemini.analysis) {
         renderGeminiResult(json.gemini, json.service);
       } else if (json.gemini_error) {
-        showError(`Gemini 補完に失敗しました: ${json.gemini_error}`);
+        // AI補完は補助情報。失敗しても上の「判定結果」は有効なので、全体失敗に見える赤エラーにはしない。
+        hide('#error-section');
+        const head = json.gemini_error_transient
+          ? 'AI補完は一時的な高負荷のため利用できませんでした。少し時間をおいて「AI補完を含める」で再実行できます。'
+          : 'AI補完は利用できませんでした。';
+        $('#result-summary').innerHTML =
+          '<div style="padding:.75rem 1rem;border-left:4px solid #d9a300;background:#fff8e6;border-radius:6px;">' +
+          `⚠️ ${escapeHtml(head)}` +
+          '<br><span class="hint">下の「判定結果」は通常どおり利用できます（加算判定・不足データの提案はAIに依存しません）。</span>' +
+          `<details class="raw-toggle"><summary>エラー詳細</summary><code>${escapeHtml(json.gemini_error)}</code></details>` +
+          '</div>';
+        show('#result-section');
       } else if (json.gemini && !json.gemini.analysis) {
         $('#result-summary').textContent = 'Gemini 応答を JSON として解釈できませんでした。';
         show('#result-section');
