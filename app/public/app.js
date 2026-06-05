@@ -54,30 +54,10 @@ const appConfig = {
   current_id_token: null,
 };
 
-// Firebase Auth の SDK は遅延ロード（ESM CDN）
+// P2: CPOS 一本化により Firebase Auth は廃止。SDK の遅延ロード（外部CDN）は行わない。
+// 認証は CPOS（/api/auth/cpos/start）＋ セッション cookie に統一。残骸の誤用を防ぐため無効化スタブにする。
 async function loadFirebaseSdk() {
-  if (appConfig.firebase_loaded) return window.__kasanFirebase;
-  if (!appConfig.firebase_web_config) throw new Error('Firebase 設定が読み込まれていません');
-  const [{ initializeApp }, authMod] = await Promise.all([
-    import('https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js'),
-  ]);
-  const app = initializeApp(appConfig.firebase_web_config);
-  const auth = authMod.getAuth(app);
-  authMod.setPersistence(auth, authMod.browserLocalPersistence).catch(() => {});
-  const mod = {
-    app,
-    auth,
-    GoogleAuthProvider: authMod.GoogleAuthProvider,
-    signInWithPopup: authMod.signInWithPopup,
-    signInWithEmailAndPassword: authMod.signInWithEmailAndPassword,
-    createUserWithEmailAndPassword: authMod.createUserWithEmailAndPassword,
-    signOut: authMod.signOut,
-    onAuthStateChanged: authMod.onAuthStateChanged,
-  };
-  window.__kasanFirebase = mod;
-  appConfig.firebase_loaded = true;
-  return mod;
+  throw new Error('Firebase 認証は廃止されました（CPOS ログインに一本化）。');
 }
 
 // CSRF / Firebase ID トークン付きで JSON を送る fetch ラッパー
@@ -186,11 +166,9 @@ async function initStatusPill() {
       appConfig.cpos_default_url = json.cpos.default_base_url || null;
       appConfig.cpos_not_ready_message = json.cpos.not_ready_message || null;
     }
-    // Firebase Auth 設定（クライアント設定が来ていれば有効）
-    if (json.auth?.firebase_enabled && json.auth?.web_config) {
-      appConfig.firebase_enabled = true;
-      appConfig.firebase_web_config = json.auth.web_config;
-    }
+    // P2: CPOS 一本化により Firebase Auth は使用しない（サーバも web_config を送らない）。
+    // 残骸が誤って有効化されないよう、ここでは firebase を有効化しない。
+    appConfig.firebase_enabled = false;
   } catch (err) {
     pill.classList.add('error');
     text.textContent = '接続エラー';
@@ -507,7 +485,22 @@ function renderJudge(judge, markdown, service) {
   `;
 
   const s = judge.summary || {};
-  $('#judge-summary').innerHTML = `
+  // P1-6: 実務判定サマリ（請求可否ベースの安全な6分類）を優先表示
+  const cs = judge.classification_summary || null;
+  const practical = cs
+    ? `
+    <div class="summary-grid">
+      ${summaryTile('✅ 請求OK', cs.billable_now || 0, 'ok')}
+      ${summaryTile('⚠️ 算定中だが証跡未確認', cs.claimed_evidence_risk || 0, 'warn')}
+      ${summaryTile('🟡 あと一歩', cs.almost_ready || 0, 'warn')}
+      ${summaryTile('📥 追加データ必要', cs.needs_more_data || 0, 'mute')}
+      ${summaryTile('❌ 非推奨/対象外', cs.not_recommended || 0, 'err')}
+      ${summaryTile('🚫 対象外', cs.not_applicable || 0, 'mute')}
+    </div>
+    <p class="hint">「請求OK」は要件・証跡が確認できたものだけ。算定中でも要件未確認は「証跡未確認」に入ります。</p>
+    <details class="raw-toggle"><summary>内部判定の内訳（参考）</summary>`
+    : '';
+  $('#judge-summary').innerHTML = `${practical}
     <div class="summary-grid">
       ${summaryTile('✅ 取得済/要件クリア', (s.clear || []).length, 'ok')}
       ${summaryTile('⏸ 確認待ち', (s.waiting || []).length, 'warn')}
@@ -517,22 +510,37 @@ function renderJudge(judge, markdown, service) {
       ${(s.claimed_but_requirements_unknown || []).length ? summaryTile('💰❔ 算定中（未確認）', (s.claimed_but_requirements_unknown || []).length, 'warn') : ''}
     </div>
     <p class="hint">全${judge.kasan_count}加算中、取得可能性が高い加算は <strong>${(s.waiting || []).length + (s.clear || []).length}件</strong></p>
-  `;
+  ${cs ? '</details>' : ''}`;
 
   const tableEl = $('#judge-table-wrap');
+  const PRACTICAL_LABEL = {
+    billable_now: '✅ 請求OK',
+    claimed_evidence_risk: '⚠️ 証跡未確認',
+    almost_ready: '🟡 あと一歩',
+    needs_more_data: '📥 追加データ必要',
+    not_recommended: '❌ 非推奨/対象外',
+    not_applicable: '🚫 対象外',
+    ai_general_candidate: '🤖 AI一般提案',
+  };
+  const classification = judge.classification || {};
   const rows = Object.entries(judge.judgements || {}).map(([k, j]) => {
     const algLabel = ALG_LABEL[j.algorithm_judgement] || j.algorithm_judgement;
     const dsl = (judge.dsl_results || {})[k] || {};
     const dslLabel = dslStatusLabel(dsl.status);
     const route = (dsl.satisfied_route || []).join(' / ') || '-';
     const missing = (dsl.missing_evidence || []).join(', ') || '-';
+    const c = classification[k] || {};
+    const practical = PRACTICAL_LABEL[c.user_visible_bucket] || '-';
+    const nextData = (c.next_required_data || [])[0] || '-';
     return `
       <tr>
         <td><strong>${escapeHtml(j.name)}</strong><br><code>${escapeHtml(k)}</code></td>
+        <td>${escapeHtml(practical)}</td>
+        <td>${escapeHtml(c.confidence || '-')}</td>
         <td>${escapeHtml(algLabel)}</td>
         <td>${escapeHtml(unitText(j))}</td>
         <td>${escapeHtml(dslLabel)}</td>
-        <td>${escapeHtml(route)}</td>
+        <td>${escapeHtml(nextData)}</td>
         <td>${escapeHtml(missing)}</td>
       </tr>
     `;
@@ -541,9 +549,9 @@ function renderJudge(judge, markdown, service) {
   tableEl.innerHTML = `
     <table class="judge-table">
       <thead>
-        <tr><th>加算</th><th>判定</th><th>単位</th><th>DSL評価</th><th>達成ルート</th><th>不足証跡</th></tr>
+        <tr><th>加算</th><th>実務判定</th><th>信頼度</th><th>内部判定</th><th>単位</th><th>DSL評価</th><th>次に必要なデータ</th><th>不足証跡</th></tr>
       </thead>
-      <tbody>${rows || '<tr><td colspan="6">対象加算なし</td></tr>'}</tbody>
+      <tbody>${rows || '<tr><td colspan="8">対象加算なし</td></tr>'}</tbody>
     </table>
   `;
 
