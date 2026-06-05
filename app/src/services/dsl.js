@@ -91,6 +91,9 @@ export function evaluateCondition(node, facts, mappingUnverified = false) {
     return {
       status: 'blocked_by_missing_evidence',
       label,
+      fact: factPath,
+      op,
+      target: value,
       missing: [factPath],
       actual: factVal,
     };
@@ -118,9 +121,97 @@ export function evaluateCondition(node, facts, mappingUnverified = false) {
   return {
     status: ok ? 'clear' : 'not_clear',
     label,
+    fact: factPath,
+    op,
+    target: value,
     actual: factVal,
     missing: [],
   };
+}
+
+// =====================================================================
+// 達成度（あと何%/何で加算がとれるか）算出
+// 元の ref ターミナルでは hand-authored な tenant_status.inquiry の
+// current/target で「現状X% / 目標Y%」を表示していた。Web/pro 経路では
+// その inquiry が無いため、DSL が各 condition で持っている actual と
+// しきい値 value から gap を機械的に算出して同等の情報を出せるようにする。
+// =====================================================================
+const NUMERIC_GAP_OPS = new Set(['>=', '>', '<=', '<']);
+
+// 単一 condition 結果から「あと何で届くか」を算出。数値しきい値の条件のみ対象。
+export function computeConditionGap(cond) {
+  if (!cond || !NUMERIC_GAP_OPS.has(cond.op)) return null;
+  const { target, actual } = cond;
+  if (typeof target !== 'number' || typeof actual !== 'number') return null;
+  const isRatio = target > 0 && target <= 1 && actual >= 0 && actual <= 1;
+  let shortfall;
+  let achievement;
+  if (cond.op === '>=' || cond.op === '>') {
+    // 下限要件: actual がしきい値以上で達成
+    shortfall = target - actual;
+    achievement = target > 0 ? actual / target : actual >= target ? 1 : 0;
+  } else {
+    // 上限要件 (<= / <): actual がしきい値以下で達成
+    shortfall = actual - target;
+    achievement = actual > 0 ? Math.min(target, actual) / actual : 1;
+  }
+  return {
+    fact: cond.fact,
+    label: cond.label,
+    op: cond.op,
+    target,
+    actual,
+    kind: isRatio ? 'ratio' : 'value',
+    shortfall: Math.max(0, shortfall),
+    achievement: Math.max(0, Math.min(1, achievement)),
+    met: cond.status === 'clear' || shortfall <= 0,
+  };
+}
+
+// 評価済みノードツリーを辿り、加算1件の「達成度」と「あと一歩の不足数値」を集計する。
+// - all(AND): 全条件が必要。達成度は数値条件の最小値、gap は未達条件をすべて集約。
+// - any(OR): 1つ達成すれば可。最も達成度の高い（＝最短の）ルートを採用。
+// 戻り値: { achievement: number|null, gaps: [gap], blockers: [label] }
+//   achievement=null は「数値で測れない（情報不足・カテゴリ要件のみ）」を意味する。
+export function collectRequirementProgress(nodeResult) {
+  function walk(r) {
+    if (r && r.all_children) {
+      const kids = r.all_children.map(walk);
+      if (r.operator === 'any') {
+        let best = null;
+        for (const k of kids) {
+          const ka = k.achievement == null ? -1 : k.achievement;
+          const ba = best == null || best.achievement == null ? -1 : best.achievement;
+          if (best == null || ka > ba) best = k;
+        }
+        if (!best || best.achievement === 1) return { achievement: 1, gaps: [], blockers: [] };
+        return { achievement: best.achievement, gaps: best.gaps, blockers: best.blockers };
+      }
+      // all
+      const determinate = kids.filter((k) => typeof k.achievement === 'number');
+      const achievement = determinate.length ? Math.min(...determinate.map((k) => k.achievement)) : null;
+      const gaps = [];
+      const blockers = [];
+      for (const k of kids) {
+        if (k.achievement === 1) continue;
+        gaps.push(...k.gaps);
+        blockers.push(...k.blockers);
+      }
+      return { achievement, gaps, blockers };
+    }
+    // leaf condition
+    if (r && r.status === 'clear') return { achievement: 1, gaps: [], blockers: [] };
+    const gap = computeConditionGap(r);
+    if (gap) return { achievement: gap.achievement, gaps: gap.met ? [] : [gap], blockers: [] };
+    if (r && r.status === 'not_clear') {
+      return { achievement: null, gaps: [], blockers: r.label ? [r.label] : [] };
+    }
+    // blocked_by_missing_evidence / blocked_by_unverified_mapping / unknown → 数値で測れない
+    return { achievement: null, gaps: [], blockers: [] };
+  }
+  const res = walk(nodeResult);
+  res.gaps = (res.gaps || []).slice().sort((a, b) => a.shortfall - b.shortfall);
+  return res;
 }
 
 function aggregateNode(childResults, operator) {
@@ -290,6 +381,9 @@ export function evaluateRequirementLogic(logic, facts, itemMeta) {
   const finalNotes = [...notes, DEFAULT_DISCLAIMER];
   if (mappingHeld.length) finalNotes.push(MAPPING_DEPENDENT_HOLD_NOTE);
 
+  // 「あと何%/何で加算がとれるか」を機械的に算出（最短ルートの未達数値要件）
+  const progress = collectRequirementProgress(result);
+
   return {
     status: result.status,
     logic_status: logicStatus,
@@ -298,6 +392,7 @@ export function evaluateRequirementLogic(logic, facts, itemMeta) {
     failed_conditions: failed,
     missing_evidence: [...missing].sort(),
     mapping_held_conditions: mappingHeld,
+    progress,
     notes: finalNotes,
   };
 }

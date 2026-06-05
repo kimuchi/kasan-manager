@@ -66,6 +66,97 @@ function joinPercent(v, digits = 1) {
   return `${(v * 100).toFixed(digits)}%`;
 }
 
+function fmtNum(v) {
+  if (v == null) return '-';
+  if (typeof v !== 'number') return String(v);
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+}
+
+// 達成度の母数になる利用者数（割合 gap を「あと約N名」に換算するため）
+function usersTotalOf(result) {
+  const ud = result.user_summary_display || {};
+  if (typeof ud.users_total === 'number' && ud.users_total > 0) return ud.users_total;
+  const ev = result.evidence || {};
+  if (typeof ev.total_users_estimated === 'number' && ev.total_users_estimated > 0) {
+    return ev.total_users_estimated;
+  }
+  return null;
+}
+
+// 1件の数値 gap を「現状X / 目標Y → あとZ」の日本語に整形
+function formatGapLine(gap, usersTotal) {
+  if (gap.kind === 'ratio') {
+    let line =
+      `現状 ${joinPercent(gap.actual)} / 目標 ${joinPercent(gap.target)} → ` +
+      `**あと ${(gap.shortfall * 100).toFixed(1)}ポイント**`;
+    // 利用者ベースの割合なら、分母固定の概算で「あと約N名」を補足
+    if (typeof gap.fact === 'string' && gap.fact.startsWith('user_summary.') && usersTotal) {
+      const needed = Math.max(
+        1,
+        Math.ceil(gap.target * usersTotal) - Math.round(gap.actual * usersTotal),
+      );
+      line += `（対象者${usersTotal}名ベースで約${needed}名相当）`;
+    }
+    return line;
+  }
+  return `現状 ${fmtNum(gap.actual)} / 目標 ${fmtNum(gap.target)} → **あと ${fmtNum(gap.shortfall)}**`;
+}
+
+// すでに取得済み（現在算定中・要件クリア・対象外）の加算は「あと一歩」表示から除外する
+const ALREADY_OBTAINED_OR_NA = new Set(['currently_claimed', 'clear', 'not_applicable']);
+
+// 「あと一歩で取得できる加算（達成度）」セクションを描画する。
+// いま算定していない加算のうち、数値要件まであと少しのものを達成度つきで列挙する。
+function renderGapSection(L, result) {
+  const dslResults = result.dsl_results || {};
+  const usersTotal = usersTotalOf(result);
+  const rows = [];
+  for (const [kasanKey, dsl] of Object.entries(dslResults)) {
+    const progress = dsl.progress;
+    if (!progress || !(progress.gaps || []).length) continue; // 数値で「あと一歩」が出るものだけ
+    const j = (result.judgements || {})[kasanKey] || {};
+    if (ALREADY_OBTAINED_OR_NA.has(j.algorithm_judgement)) continue; // 現在算定中/取得済は除外
+    rows.push({
+      name: j.name || kasanKey,
+      unit: unitText(j),
+      achievement: progress.achievement,
+      gaps: progress.gaps,
+      blockers: progress.blockers || [],
+    });
+  }
+  // 達成度の高い順（＝あと少しの順）に並べる
+  rows.sort((a, b) => (b.achievement ?? 0) - (a.achievement ?? 0));
+
+  L.push('## 🎢 あと一歩で取得できる加算（達成度）');
+  L.push('');
+  L.push(
+    '> いま算定していない加算のうち、確認済みの**数値要件まであと何ポイント／何名・何単位で届くか**を表示します。',
+  );
+  L.push(
+    '> 達成度は数値要件のみから機械的に算出した目安です。算定可否を保証するものではありません（書類・配置・地域要件は別途確認）。',
+  );
+  L.push('');
+  if (!rows.length) {
+    L.push(
+      '（数値要件で「あと一歩」の加算は見つかりませんでした。情報不足の加算は下部の不足証跡チェックリストをご確認ください）',
+    );
+    L.push('');
+    return;
+  }
+  for (const r of rows) {
+    const pctStr = typeof r.achievement === 'number' ? `${(r.achievement * 100).toFixed(0)}%` : '—';
+    L.push(`- **${r.name}**（${r.unit}） — 達成度 **${pctStr}**`);
+    for (const g of r.gaps) {
+      const lead = g.label || g.fact || '数値要件';
+      L.push(`    - ${lead}: ${formatGapLine(g, usersTotal)}`);
+    }
+    if (r.blockers.length) {
+      L.push(`    - ほか、別途確認が必要な要件: ${r.blockers.slice(0, 3).join(' / ')}`);
+    }
+  }
+  L.push('');
+}
+
 const COMPLETENESS_LABEL = {
   complete: '✅ 完全',
   partial: '🟡 一部',
@@ -313,6 +404,9 @@ export function renderMarkdown(result) {
     L.push('');
   }
 
+  // あと一歩で取得できる加算（達成度・あと何%/何名）— 現在算定中の加算は除外
+  renderGapSection(L, result);
+
   L.push('## 🎯 すぐ確認すべき項目 TOP5');
   L.push('');
   const actions = top5Actions(result);
@@ -547,8 +641,8 @@ export function renderMarkdown(result) {
       '> 本結果は算定可否を法的に保証するものではありません。算定可否の最終確認は事業所資料・届出状況・自治体確認が必要です。',
     );
     L.push('');
-    L.push('| 加算 | PDF検出 | 要件評価 | 達成ルート | 不足証跡 | 注意 |');
-    L.push('|---|---|---|---|---|---|');
+    L.push('| 加算 | PDF検出 | 要件評価 | 達成度 | 達成ルート | 不足証跡 | 注意 |');
+    L.push('|---|---|---|---|---|---|---|');
     for (const [kasanKey, dsl] of Object.entries(show)) {
       const j = (result.judgements || {})[kasanKey] || {};
       const kasanName = j.name || kasanKey;
@@ -559,6 +653,10 @@ export function renderMarkdown(result) {
           ? '算定中の推定'
           : '未検出';
       const dslLabel = DSL_LABEL[dsl.status] || dsl.status;
+      const ach =
+        dsl.progress && typeof dsl.progress.achievement === 'number'
+          ? `${(dsl.progress.achievement * 100).toFixed(0)}%`
+          : '-';
       const route = (dsl.satisfied_route || []).join(' / ') || '-';
       const missing = (dsl.missing_evidence || []).join(', ') || '-';
       const held = dsl.mapping_held_conditions || [];
@@ -567,7 +665,9 @@ export function renderMarkdown(result) {
         : (dsl.notes || []).some((n) => n.includes('pattern_based_unverified'))
         ? 'ℹ️ pattern_based_unverified'
         : '-';
-      L.push(`| ${kasanName} | ${pdfState} | ${dslLabel} | ${route} | ${missing} | ${noteCell} |`);
+      L.push(
+        `| ${kasanName} | ${pdfState} | ${dslLabel} | ${ach} | ${route} | ${missing} | ${noteCell} |`,
+      );
     }
     L.push('');
     L.push(
