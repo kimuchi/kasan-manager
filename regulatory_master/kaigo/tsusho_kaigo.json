@@ -268,6 +268,8 @@
     "kobetsu_kinou_I_i": {
       "name": "個別機能訓練加算Ⅰ(イ)",
       "short_name": "機能訓練Ⅰイ",
+      "official_interpretation_note": "具体的な配置時間は公式Q&A・通知で確認。AI本文では『サービス提供時間帯を通じて』と断定しない。",
+      "source_status": "needs_review_until_official_text_attached",
       "unit_per_day": 56,
       "service_codes": [
         "155051"
@@ -569,6 +571,8 @@
     "kagakuteki_kaigo": {
       "name": "科学的介護推進体制加算",
       "short_name": "LIFE加算",
+      "source_status": "needs_review",
+      "ai_output_policy": "frequency_must_not_be_stated_without_source",
       "unit_per_month": 40,
       "service_codes": [
         "156361"
@@ -740,6 +744,11 @@
     "nyuyoku_II": {
       "name": "入浴介助加算Ⅱ",
       "short_name": "入浴Ⅱ",
+      "eligible_evaluator_roles": {
+        "source_status": "needs_review",
+        "roles": [],
+        "note": "公式通知確認後に職種を確定。AIは『居宅訪問・浴室環境評価が必要』までに留める。"
+      },
       "unit_per_day": 55,
       "service_codes": [
         "155302"

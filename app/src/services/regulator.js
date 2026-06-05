@@ -73,6 +73,15 @@ export function summarizeKasansForPrompt(master) {
         `- [${key}] ${k.name}（${unit} ${unitType}）`,
         `  要件: ${reqText}`,
       ];
+      // PR-5: 公式根拠未確認の項目は AI に具体値・職種・配置時間・頻度を断定させない
+      if (k.source_status && k.source_status !== 'checked') {
+        lines.push(`  ⚠️ 根拠未確認(source_status=${k.source_status}): 具体的な配置時間・頻度・職種・割合を断定しないこと`);
+      }
+      if (k.ai_output_policy) lines.push(`  ⚠️ AI出力ポリシー: ${k.ai_output_policy}`);
+      if (k.official_interpretation_note) lines.push(`  注記: ${k.official_interpretation_note}`);
+      if (k.eligible_evaluator_roles && k.eligible_evaluator_roles.source_status === 'needs_review') {
+        lines.push(`  注記: 評価者の職種は未確定（${k.eligible_evaluator_roles.note || '公式通知確認後に確定'}）`);
+      }
       if (tips) lines.push(`  ヒント: ${tips}`);
       if (k.hourei_konkyo) lines.push(`  根拠: ${k.hourei_konkyo}`);
       return lines.join('\n');
