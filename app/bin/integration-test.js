@@ -159,6 +159,37 @@ async function main() {
       assert.equal(a.j.resultJson.service, 'tsusho_kaigo');
     });
 
+    await check('ドラフト: PDFをサーバ解析して反映（ingest-pdf / multipart）', async () => {
+      const { readFileSync } = await import('node:fs');
+      const buf = readFileSync(new URL('../../tests/fixtures/tsusho_receipt_sample.pdf', import.meta.url));
+      // 正常系: serviceKey 付きドラフトに PDF を送る → ok + ingested に該当ファイル
+      const c = await api('POST', '/api/drafts', { serviceKey: 'tsusho_kaigo', serviceMonth: '2026-04' });
+      const fd = new FormData();
+      fd.append('pdf', new Blob([buf], { type: 'application/pdf' }), 'tsusho_receipt_sample.pdf');
+      fd.append('serviceKey', 'tsusho_kaigo');
+      const r = await fetch(`${BASE}/api/drafts/${c.j.draft.id}/ingest-pdf`, {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrf, cookie },
+        body: fd,
+      });
+      const j = await r.json().catch(() => ({}));
+      assert.equal(r.status, 200, JSON.stringify(j));
+      assert.equal(j.ok, true, JSON.stringify(j));
+      assert.equal(j.draft.id, c.j.draft.id);
+      assert.ok(Array.isArray(j.ingested) && j.ingested.length === 1, JSON.stringify(j.ingested));
+      assert.equal(j.ingested[0].file, 'tsusho_receipt_sample.pdf');
+      // ガード: serviceKey 不明のドラフトでは 400 service_required
+      const c2 = await api('POST', '/api/drafts', {});
+      const fd2 = new FormData();
+      fd2.append('pdf', new Blob([buf], { type: 'application/pdf' }), 'x.pdf');
+      const r2 = await fetch(`${BASE}/api/drafts/${c2.j.draft.id}/ingest-pdf`, {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrf, cookie },
+        body: fd2,
+      });
+      assert.equal(r2.status, 400);
+    });
+
     await check('履歴: /api/analyses が保存済み解析を返す', async () => {
       const { j } = await api('GET', '/api/analyses');
       assert.ok(j.jobs.length >= 1);

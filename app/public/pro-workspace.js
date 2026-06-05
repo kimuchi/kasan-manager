@@ -76,6 +76,31 @@ async function api(path, { method = 'GET', body = null } = {}) {
   return json;
 }
 
+// multipart（生ファイル送信）用。content-type はブラウザに任せる（boundary 自動付与のため）。
+async function apiForm(path, formData) {
+  const headers = {};
+  if (state.csrfToken) headers[state.csrfHeader] = state.csrfToken;
+  const res = await fetch(path, {
+    method: 'POST',
+    headers,
+    body: formData,
+    credentials: 'same-origin',
+  });
+  let json = {};
+  try {
+    json = await res.json();
+  } catch {
+    /* noop */
+  }
+  if (!res.ok) {
+    const err = new Error(json.message || json.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.payload = json;
+    throw err;
+  }
+  return json;
+}
+
 // ---------------- 起動 ----------------
 init();
 
@@ -264,27 +289,93 @@ async function walkEntry(entry, out, depth = 0) {
   }
 }
 
-// 取り込み（解析 → collected に蓄積）
+// 取り込み: PDF はサーバで解析（コンソール版と同等・pdf-parse）、それ以外はブラウザ内で解析。
+// OCR チェック時のみ、スキャンPDF対応のため PDF もブラウザ（tesseract.js）で解析する
+// （コンソール版は OCR を行わないため、OCR が必要な場合の経路としてブラウザを使う）。
 async function ingest(files) {
   const ocr = $('pw-ocr').checked;
+  const all = [...files].filter((f) => f && f.name);
+  const pdfs = all.filter((f) => /\.pdf$/i.test(f.name));
+  const nonPdf = all.filter((f) => !/\.pdf$/i.test(f.name));
+  if (!ocr && pdfs.length) await ingestPdfsToServer(pdfs);
+  const browserFiles = ocr ? all : nonPdf; // OCR時はPDFもブラウザ
+  if (browserFiles.length) await ingestInBrowser(browserFiles, ocr);
+}
+
+function appendFileRow(name, label) {
   const list = $('pw-files');
+  const li = document.createElement('li');
+  const n = document.createElement('span');
+  n.textContent = name;
+  const b = document.createElement('span');
+  b.className = `pw-badge ${label.cls}`;
+  b.textContent = label.text;
+  li.append(n, b);
+  list.appendChild(li);
+  return li;
+}
+
+// ブラウザ内解析（Excel/CSV/画像、OCR時はPDFも）→ collected に蓄積
+async function ingestInBrowser(files, ocr) {
   await processFilesInto(files, state.collected, {
     ocr,
-    onProgress: (name, label) => {
-      const li = document.createElement('li');
-      const n = document.createElement('span');
-      n.textContent = name;
-      const b = document.createElement('span');
-      b.className = `pw-badge ${label.cls}`;
-      b.textContent = label.text;
-      li.append(n, b);
-      list.appendChild(li);
-    },
+    onProgress: (name, label) => appendFileRow(name, label),
   });
   const c = state.collected;
   $('pw-collected-note').textContent =
     `未追加の取り込み: レセプト${c.receiptTexts.length}・利用者集計${c.userSummaries.length}・職員集計${c.staffSummaries.length}` +
     (c.detectedServiceKey ? `（推定: ${c.detectedServiceKey}）` : '');
+}
+
+// レセプトPDF をサーバへ送って解析（pdf-parse）→ ドラフトへ即反映。生PDFはサーバに保存しない。
+async function ingestPdfsToServer(pdfs) {
+  const serviceKey = $('pw-service').value || state.collected.detectedServiceKey || state.draft?.serviceKey;
+  if (!serviceKey) {
+    for (const f of pdfs) {
+      appendFileRow(f.name, { text: 'サービス種別を選択してください（PDFはサーバ解析）', cls: 'warn' });
+    }
+    flash($('pw-draft-msg'), 'PDFのサーバ解析にはサービス種別の選択が必要です。プルダウンで選んでください。');
+    return;
+  }
+  let draft;
+  try {
+    draft = await ensureDraft();
+  } catch (err) {
+    flash($('pw-draft-msg'), `エラー: ${err.message}`);
+    return;
+  }
+  const rows = pdfs.map((f) => appendFileRow(f.name, { text: 'サーバ解析中…', cls: 'ok' }));
+  const fd = new FormData();
+  for (const f of pdfs) fd.append('pdf', f, f.name);
+  fd.append('serviceKey', serviceKey);
+  if ($('pw-month').value) fd.append('serviceMonth', $('pw-month').value);
+  try {
+    const r = await apiForm(`/api/drafts/${draft.id}/ingest-pdf`, fd);
+    state.draft = r.draft;
+    const byName = new Map((r.ingested || []).map((it) => [it.file, it]));
+    pdfs.forEach((f, i) => {
+      const badge = rows[i].querySelector('.pw-badge');
+      const it = byName.get(f.name);
+      if (!it) return;
+      if (it.error) {
+        badge.textContent = `失敗: ${it.error}`;
+        badge.className = 'pw-badge warn';
+        return;
+      }
+      const warn = (it.warnings || []).length ? `・注意: ${it.warnings.join(' / ')}` : '';
+      badge.textContent = `サーバ解析 → 加算${it.kasanDetected}種を検出（ドラフト反映済）${warn}`;
+      badge.className = `pw-badge ${it.kasanDetected ? 'ok' : 'warn'}`;
+    });
+    renderDraftSummary();
+    flash($('pw-draft-msg'), 'PDFをサーバで解析し、ドラフトに反映しました。');
+  } catch (err) {
+    for (const row of rows) {
+      const badge = row.querySelector('.pw-badge');
+      badge.textContent = `失敗: ${err.message}`;
+      badge.className = 'pw-badge warn';
+    }
+    flash($('pw-draft-msg'), `PDFのサーバ解析でエラー: ${err.message}`);
+  }
 }
 
 async function ensureDraft() {

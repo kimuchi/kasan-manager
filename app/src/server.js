@@ -510,6 +510,64 @@ app.post('/api/drafts/:id/merge', heavyLimiter, requireAuth, async (req, res) =>
     storeError(res, err);
   }
 });
+// レセプトPDF をサーバ側で解析してドラフトへ反映する（ターミナル import_receipt_pdf 相当）。
+// 生PDF はメモリ上で pdf-parse のテキスト抽出に使うだけで保存しない（OCR は行わない＝コンソール版と同等）。
+// 抽出した加算件数（current_kasan_counts）は mergeDraftData で匿名化のうえ draft.claimEvidence に合算する。
+app.post(
+  '/api/drafts/:id/ingest-pdf',
+  heavyLimiter,
+  requireAuth,
+  upload.fields([{ name: 'pdf', maxCount: 10 }]),
+  async (req, res) => {
+    try {
+      const doc = await loadOwned(getDraft, req.params.id, req);
+      if (!doc) return res.status(404).json({ ok: false, error: 'not_found' });
+      const files = req.files?.pdf || [];
+      if (!files.length) return res.status(400).json({ ok: false, error: 'no_pdf' });
+      let data = doc.data || {};
+      const serviceKey = String(req.body?.serviceKey || data.serviceKey || '').trim() || null;
+      if (!serviceKey) {
+        return res.status(400).json({
+          ok: false,
+          error: 'service_required',
+          message: 'PDFのサーバ解析にはサービス種別が必要です。種別を選択してください。',
+        });
+      }
+      const serviceMonth = data.serviceMonth || req.body?.serviceMonth || null;
+      const ingested = [];
+      for (const f of files) {
+        try {
+          const { evidence } = await runExtraction({
+            office: data.facilityId || 'pro',
+            service: serviceKey,
+            pdfBuffer: f.buffer,
+            sourceName: f.originalname,
+          });
+          data = mergeDraftData(data, {
+            serviceKey,
+            serviceMonth,
+            claimEvidence: evidence,
+            fileTypeCounts: { receipt: 1 },
+            warnings: ['Pro: レセプトPDFをサーバ解析（pdf-parse / 生PDFは非保存）'],
+          });
+          const e = Array.isArray(evidence?.evidence) ? evidence.evidence[0] : null;
+          ingested.push({
+            file: f.originalname,
+            kasanDetected: e ? Object.keys(e.current_kasan_counts || {}).length : 0,
+            totalUsers: e?.total_users_estimated ?? null,
+            warnings: e?.warnings || [],
+          });
+        } catch (err) {
+          ingested.push({ file: f.originalname, error: err.message || 'PDF解析に失敗しました' });
+        }
+      }
+      const saved = await updateDraft(req.params.id, data);
+      res.json({ ok: true, draft: flattenDoc(saved), ingested });
+    } catch (err) {
+      storeError(res, err);
+    }
+  },
+);
 app.delete('/api/drafts/:id', requireAuth, async (req, res) => {
   try {
     const doc = await loadOwned(getDraft, req.params.id, req);

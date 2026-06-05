@@ -284,11 +284,11 @@
           <h3 class="result-h3">② 書類を取り込む（フォルダ・ドラッグ&ドロップ・少しずつ追加OK）</h3>
           <div id="pw-drop" class="pw-drop">
             <p>📁 ここに <strong>ファイルやフォルダをドラッグ&ドロップ</strong>、またはクリックして選択</p>
-            <p class="hint">PDF / Excel / CSV / 画像。複数回に分けて追加できます。生ファイルは送られません。</p>
+            <p class="hint"><strong>レセプトPDFはサーバで解析</strong>します（生PDFは保存しません）。Excel / CSV / 画像はブラウザ内で処理し送信しません。複数回に分けて追加できます。</p>
           </div>
           <div class="cta-buttons" style="margin-top:8px;">
             <button type="button" id="pw-pick-folder" class="ghost-btn">📁 フォルダを選ぶ</button>
-            <label class="hint"><input type="checkbox" id="pw-ocr" /> スキャンPDF・画像をOCRで読む（低速）</label>
+            <label class="hint"><input type="checkbox" id="pw-ocr" /> スキャンPDF・画像をブラウザOCRで読む（低速 / 通常のPDFはサーバ解析）</label>
           </div>
           <input type="file" id="pw-file-input" multiple class="hidden"
             accept=".pdf,.xlsx,.xls,.csv,.tsv,.png,.jpg,.jpeg,.tif,.tiff" />
