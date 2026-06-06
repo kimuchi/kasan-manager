@@ -58,7 +58,7 @@ export class CposClient {
     return headers;
   }
 
-  async _fetch(path, { method = 'GET', params = null, body = null, timeoutMs = null } = {}) {
+  async _fetch(path, { method = 'GET', params = null, body = null, timeoutMs = null, headers = {} } = {}) {
     const url = new URL(this.baseUrl + path);
     if (params) {
       for (const [k, v] of Object.entries(params)) {
@@ -66,13 +66,17 @@ export class CposClient {
         url.searchParams.set(k, String(v));
       }
     }
+    const requestHeaders = this._headers({
+      ...(body ? { 'content-type': 'application/json' } : {}),
+      ...headers,
+    });
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs ?? this.timeoutMs);
     let res;
     try {
       res = await fetch(url, {
         method,
-        headers: this._headers(body ? { 'content-type': 'application/json' } : {}),
+        headers: requestHeaders,
         body: body ? JSON.stringify(body) : undefined,
         signal: ctrl.signal,
       });
@@ -139,6 +143,17 @@ export class CposClient {
   // 現行 CPOS の cookie セッション情報（外部アプリ運用では使わないが互換のため残す）
   async getAuthMe() {
     return this._fetch('/api/auth/me');
+  }
+
+  // CPOS 共通ログインゲートウェイ後、ブラウザから加算マネージャ callback に届いた
+  // cpos_session cookie を CPOS /api/auth/me にサーバ間転送して本人確認する。
+  // 注意: このクライアントは token なし（null）で生成すること。App Token を付けると CPOS が
+  // Bearer を優先し、ユーザーではなく App Token として扱う恐れがある。
+  async getAuthMeWithCookie(cookieHeader) {
+    if (!cookieHeader) {
+      throw new CposApiError(401, 'cpos_session cookie がありません', { requestPath: '/api/auth/me' });
+    }
+    return this._fetch('/api/auth/me', { headers: { Cookie: cookieHeader } });
   }
 
   async getPlatformFacilities() {

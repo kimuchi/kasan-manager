@@ -11,8 +11,12 @@
 
 ```
 Browser (/pro)
-  └─ 「CPOS でログイン」→ /api/auth/cpos/start → CPOS 同意 → /api/auth/cpos/callback
-       → 加算マネージャが kasan_session cookie(AES-GCM, HttpOnly) を発行
+  └─ 「CPOS でログイン」→ /api/auth/cpos/start
+       【gateway（既定）】→ CPOS /api/auth/login?next=<callback?state> → Google ログイン
+            → CPOS が cpos_session を .care-planning.co.jp に発行 → 加算マネージャ callback
+            → 加算マネージャが cpos_session を CPOS /api/auth/me に転送して本人確認
+       【connect（旧/任意）】→ CPOS /api/apps/kasan/connect?redirect_uri=<callback> → code 交換
+       → いずれも 加算マネージャが kasan_session cookie(AES-GCM, HttpOnly) を発行
   └─ 以降の API は kasan_session で認証（req.user に organizationId/role/allowedFacilityIds）
         │
         ▼
@@ -39,6 +43,8 @@ CPOS API
 | `KASAN_CPOS_APP_TOKEN` | **必須** | CPOS `/app-tokens` で発行したアプリ用 App Token |
 | `KASAN_CPOS_APP_CLIENT_ID` | 任意 | ログ突合用のアプリ識別（既定 `kasan`） |
 | `KASAN_PUBLIC_BASE_URL` | 任意 | OAuth コールバックの公開 URL（未指定は host 推定） |
+| `KASAN_CPOS_AUTH_FLOW` | 任意 | `gateway`（既定, `/api/auth/login?next=...`）か `connect`（旧 `/api/apps/kasan/connect`）。gateway は CPOS 側の `redirect_uri` 許可登録が不要 |
+| `KASAN_CPOS_SESSION_COOKIE_NAME` | 任意 | CPOS のセッション cookie 名（既定 `cpos_session`）。gateway で `/api/auth/me` 確認に転送 |
 | `KASAN_ADMIN_EMAILS` | 任意 | 管理者 email（CPOS `role=admin` への override） |
 | `KASAN_CPOS_FAKE` | 任意 | `1` で開発用 Fake CPOS（本番は未設定） |
 | `KASAN_COOKIE_SECURE` / `KASAN_COOKIE_SAMESITE` | 任意 | 本番は `true` / `Lax` |
@@ -53,8 +59,16 @@ App Token の推奨 scope: `app-data:kasan:read` `app-data:kasan:write` `users:r
 
 1. CPOS 管理コンソールで加算マネージャをアプリ（`appId=kasan`）として登録。
 2. `/app-tokens` で上記 scope を持つ App Token を発行 → `KASAN_CPOS_APP_TOKEN` に設定。
-3. （ユーザーログインを使う場合）CPOS 側に外部アプリ用の受け渡し API を実装
-   （`ref/KASAN_APP_API_ADDITIONS.md` B1）。未実装の間は `KASAN_CPOS_FAKE=1` で動作確認できます。
+3. ユーザーログイン:
+   - **gateway（既定・推奨）**: CPOS 側の追加実装は不要。CPOS 共通ログインゲートウェイ
+     `/api/auth/login?next=...` と、CPOS env の `ALLOWED_ORIGIN_SUFFIXES=.care-planning.co.jp` /
+     `AUTH_COOKIE_DOMAIN=.care-planning.co.jp` を利用する。**アプリ個別の `redirect_uri` 許可登録は不要**
+     （`invalid_redirect_uri` を回避）。加算マネージャは `next` で戻った後、`cpos_session` を
+     `/api/auth/me` に転送して本人確認する。加算マネージャは同じ親ドメイン配下（例
+     `kasan.care-planning.co.jp`）に置くこと（cookie 共有のため）。
+   - **connect（旧・任意）**: `KASAN_CPOS_AUTH_FLOW=connect` のときのみ。CPOS 側に B1 受け渡し API
+     （`ref/KASAN_APP_API_ADDITIONS.md` B1）と、`redirect_uri` の完全一致許可が必要。
+   - 未実装/未接続の間は `KASAN_CPOS_FAKE=1` で動作確認できます。
 
 ---
 

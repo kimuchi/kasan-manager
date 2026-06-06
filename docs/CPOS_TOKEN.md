@@ -19,6 +19,12 @@
 A. サーバ管理者が CPOS アプリ連携（App Token・CPOS URL・セッション鍵）を設定する必要があります。
    管理者向けの設定は [CPOS_INTEGRATION.md](./CPOS_INTEGRATION.md) を参照してください。
 
+**Q. ログイン時に `invalid_redirect_uri`（redirect_uri が不正または未許可です）と出る**
+A. 既定の認証方式（`gateway`）では起きません。これは旧 `connect` 方式（`/api/apps/kasan/connect`）で
+   CPOS 側に redirect_uri の完全一致許可が無いときに出ます。管理者は `KASAN_CPOS_AUTH_FLOW=gateway`
+   （既定）になっているか、加算マネージャが CPOS と同じ親ドメイン配下（例 `kasan.care-planning.co.jp`）
+   に置かれているかを確認してください。`/api/health` の `auth.cpos_auth_flow` で現在の方式を確認できます。
+
 **Q. 何が保存されますか？**
 A. 氏名・被保険者番号などの個人情報は保存しません。サーバ側で匿名化・要約した「件数・比率・
    フラグ」だけを CPOS の `app-data` に保存します。従業員名簿も氏名を持たず職種別の集計だけを保存します。

@@ -83,6 +83,8 @@ CPOS を使っていない会社でも、加算マネージャから CPOS 上に
 | `KASAN_DEFAULT_CPOS_BASE_URL` | ✅ | CPOS のベース URL |
 | `KASAN_CPOS_APP_TOKEN` | ✅ | `/app-tokens` で発行したアプリ用 App Token |
 | `KASAN_PUBLIC_BASE_URL` | 任意 | OAuth コールバックの公開 URL（未指定は host 推定） |
+| `KASAN_CPOS_AUTH_FLOW` | 任意 | `gateway`（既定）/ `connect`。gateway は CPOS の redirect_uri 許可登録が不要 |
+| `KASAN_CPOS_SESSION_COOKIE_NAME` | 任意 | CPOS セッション cookie 名（既定 `cpos_session`） |
 | `KASAN_ADMIN_EMAILS` | 任意 | 管理者 email（CPOS role=admin への override） |
 | `KASAN_CPOS_FAKE` | 任意 | `1` で開発用 Fake CPOS |
 

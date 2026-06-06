@@ -19,7 +19,7 @@ export const APP_ID = 'kasan';
 let cached = null;
 
 // 開発・結合テスト用: KASAN_CPOS_FAKE=1 でプロセス内 Fake CPOS を使う（本番では使わない）。
-function isFakeMode() {
+export function isFakeMode() {
   return process.env.KASAN_CPOS_FAKE === '1';
 }
 

@@ -1946,5 +1946,72 @@ await test('Gemini: 503/overloaded/429 は transient と判定、400/401 は非t
   assert.equal(isTransientGeminiError(new Error('[401] API key not valid')), false);
 });
 
+// ── CPOS 認証フロー（ゲートウェイ方式） ───────────────────
+await test('CPOS auth: 既定フローは gateway', async () => {
+  const { cposAuthFlow } = await import('../src/services/cpos/app-auth.js');
+  const orig = process.env.KASAN_CPOS_AUTH_FLOW;
+  delete process.env.KASAN_CPOS_AUTH_FLOW;
+  try {
+    assert.equal(cposAuthFlow(), 'gateway');
+  } finally {
+    if (orig !== undefined) process.env.KASAN_CPOS_AUTH_FLOW = orig;
+  }
+});
+
+await test('CPOS auth: gateway の開始URLは /api/auth/login?next=...(state入り・redirect_uri無し)', async () => {
+  const { buildCposStartUrl } = await import('../src/services/cpos/app-auth.js');
+  const orig = process.env.KASAN_CPOS_AUTH_FLOW;
+  delete process.env.KASAN_CPOS_AUTH_FLOW;
+  try {
+    const u = new URL(
+      buildCposStartUrl({
+        redirectUri: 'https://kasan.care-planning.co.jp/api/auth/cpos/callback',
+        state: 'abc123',
+        baseUrl: 'https://os.care-planning.co.jp',
+      }),
+    );
+    assert.equal(u.pathname, '/api/auth/login');
+    assert.equal(u.searchParams.has('redirect_uri'), false, 'gateway では redirect_uri を使わない');
+    const next = u.searchParams.get('next');
+    assert.ok(next, 'next が無い');
+    const nextUrl = new URL(next);
+    assert.equal(nextUrl.pathname, '/api/auth/cpos/callback');
+    assert.equal(nextUrl.searchParams.get('state'), 'abc123');
+  } finally {
+    if (orig !== undefined) process.env.KASAN_CPOS_AUTH_FLOW = orig;
+  }
+});
+
+await test('CPOS auth: connect 明示時は /api/apps/kasan/connect?redirect_uri&state', async () => {
+  const { buildCposStartUrl } = await import('../src/services/cpos/app-auth.js');
+  const orig = process.env.KASAN_CPOS_AUTH_FLOW;
+  process.env.KASAN_CPOS_AUTH_FLOW = 'connect';
+  try {
+    const u = new URL(
+      buildCposStartUrl({
+        redirectUri: 'https://kasan.care-planning.co.jp/api/auth/cpos/callback',
+        state: 'abc123',
+        baseUrl: 'https://os.care-planning.co.jp',
+      }),
+    );
+    assert.equal(u.pathname, '/api/apps/kasan/connect');
+    assert.equal(u.searchParams.get('redirect_uri'), 'https://kasan.care-planning.co.jp/api/auth/cpos/callback');
+    assert.equal(u.searchParams.get('state'), 'abc123');
+  } finally {
+    if (orig === undefined) delete process.env.KASAN_CPOS_AUTH_FLOW;
+    else process.env.KASAN_CPOS_AUTH_FLOW = orig;
+  }
+});
+
+await test('CPOS auth: CPOSへ転送する cookie は cpos_session のみ（kasan_session を送らない）', async () => {
+  const { pickRawCookiePair } = await import('../src/services/cpos/app-auth.js');
+  const req = { headers: { cookie: 'kasan_session=aaa; cpos_session=bbb; other=ccc' } };
+  assert.equal(pickRawCookiePair(req, 'cpos_session'), 'cpos_session=bbb');
+  assert.equal(pickRawCookiePair(req, 'missing'), null);
+  // base64 の '=' を含む値でもペア全体を返す
+  const req2 = { headers: { cookie: 'cpos_session=ey.Jh==; x=1' } };
+  assert.equal(pickRawCookiePair(req2, 'cpos_session'), 'cpos_session=ey.Jh==');
+});
+
 console.log(`\n結果: ${passed} 件成功 / ${failed} 件失敗`);
 if (failed > 0) process.exit(1);

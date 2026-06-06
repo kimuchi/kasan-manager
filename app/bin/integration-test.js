@@ -116,6 +116,59 @@ async function main() {
       assert.equal(j.isAdmin, true);
     });
 
+    await check('health: cpos_auth_flow が gateway', () => {
+      assert.equal(hj.auth.cpos_auth_flow, 'gateway');
+    });
+
+    await check('cpos-auth(gateway): start→/api/auth/login?next=, callback で kasan_session 発行', async () => {
+      // 1) start: 302 で CPOS 共通ログインゲートウェイへ。state cookie も発行される。
+      const startRes = await fetch(`${BASE}/api/auth/cpos/start`, { redirect: 'manual' });
+      assert.equal(startRes.status, 302, 'start は 302');
+      const loc = startRes.headers.get('location');
+      assert.ok(loc && loc.includes('/api/auth/login'), `gateway へ飛んでいない: ${loc}`);
+      assert.ok(!loc.includes('/api/apps/'), 'connect へ飛んでいる（gateway のはず）');
+      const next = new URL(loc).searchParams.get('next');
+      assert.ok(next, 'next が無い');
+      const state = new URL(next).searchParams.get('state');
+      assert.ok(state, 'state が next に乗っていない');
+      const startCookies = startRes.headers.getSetCookie();
+      const statePair = startCookies.map((c) => c.split(';')[0]).find((c) => c.startsWith('kasan_oauth_state='));
+      assert.ok(statePair, 'state cookie が無い');
+
+      // 2) callback: code 無し + cpos_session cookie + state → kasan_session 発行 → /pro
+      const cbRes = await fetch(`${BASE}/api/auth/cpos/callback?state=${encodeURIComponent(state)}`, {
+        redirect: 'manual',
+        headers: { cookie: `${statePair}; cpos_session=fake-cpos-session` },
+      });
+      assert.equal(cbRes.status, 302, `callback は 302 のはず (got ${cbRes.status})`);
+      assert.equal(cbRes.headers.get('location'), '/pro');
+      const cbCookies = cbRes.headers.getSetCookie();
+      assert.ok(cbCookies.some((c) => c.startsWith('kasan_session=')), 'kasan_session が発行されていない');
+    });
+
+    await check('cpos-auth(gateway): cpos_session が無い callback は 401', async () => {
+      const startRes = await fetch(`${BASE}/api/auth/cpos/start`, { redirect: 'manual' });
+      const next = new URL(startRes.headers.get('location')).searchParams.get('next');
+      const state = new URL(next).searchParams.get('state');
+      const statePair = startRes.headers
+        .getSetCookie()
+        .map((c) => c.split(';')[0])
+        .find((c) => c.startsWith('kasan_oauth_state='));
+      const cbRes = await fetch(`${BASE}/api/auth/cpos/callback?state=${encodeURIComponent(state)}`, {
+        redirect: 'manual',
+        headers: { cookie: statePair }, // cpos_session 無し
+      });
+      assert.equal(cbRes.status, 401, 'cpos_session 無しは 401');
+    });
+
+    await check('cpos-auth: state 不一致の callback は 400', async () => {
+      const cbRes = await fetch(`${BASE}/api/auth/cpos/callback?state=wrong-state`, {
+        redirect: 'manual',
+        headers: { cookie: 'cpos_session=fake-cpos-session' },
+      });
+      assert.equal(cbRes.status, 400);
+    });
+
     let facilityId;
     await check('施設プロフィール: 保存→一覧', async () => {
       const { j } = await api('POST', '/api/profiles/facilities', {

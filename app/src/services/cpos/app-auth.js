@@ -12,13 +12,15 @@
 import crypto from 'node:crypto';
 
 import { sealCookie, unsealCookieDetailed, isSessionSecretConfigured } from '../../utils/cookie-seal.js';
-import { defaultBaseUrl } from './client.js';
-import { APP_ID, getAppCposClient, isAppCposConfigured } from './app-context.js';
+import { CposClient, defaultBaseUrl } from './client.js';
+import { APP_ID, getAppCposClient, isAppCposConfigured, isFakeMode } from './app-context.js';
 import { getEntitlement } from './store.js';
 import { isAdminEmail } from '../admin-emails.js';
 
 export const SESSION_COOKIE_NAME = 'kasan_session';
 const STATE_COOKIE_NAME = 'kasan_oauth_state';
+// CPOS が .care-planning.co.jp に発行するセッション cookie 名（ゲートウェイ方式で本人確認に転送）
+const CPOS_SESSION_COOKIE_NAME = process.env.KASAN_CPOS_SESSION_COOKIE_NAME || 'cpos_session';
 const SESSION_MAX_AGE_SEC = 12 * 60 * 60; // 12 時間
 const STATE_MAX_AGE_SEC = 10 * 60; // 10 分
 
@@ -26,7 +28,8 @@ export function isCposLoginEnabled() {
   return isSessionSecretConfigured() && isAppCposConfigured();
 }
 
-// ───────── 認可開始（B1 connect への URL） ─────────
+// ───────── 認可開始 ─────────
+// 旧方式: CPOS の B1 connect（redirect_uri 許可リストに依存）。CPOS 側に許可実装があるときだけ使う。
 export function buildConnectUrl({ redirectUri, state, baseUrl = defaultBaseUrl() }) {
   if (!baseUrl) throw new Error('cpos_base_url_unset');
   const u = new URL(`${baseUrl.replace(/\/+$/, '')}/api/apps/${encodeURIComponent(APP_ID)}/connect`);
@@ -35,11 +38,75 @@ export function buildConnectUrl({ redirectUri, state, baseUrl = defaultBaseUrl()
   return u.toString();
 }
 
+// 新方式（既定）: CPOS 共通ログインゲートウェイ /api/auth/login?next=...。
+// CPOS の ALLOWED_ORIGIN_SUFFIXES=.care-planning.co.jp に依存するため redirect_uri 許可登録が不要。
+export function buildLoginGatewayUrl({ nextUrl, baseUrl = defaultBaseUrl() }) {
+  if (!baseUrl) throw new Error('cpos_base_url_unset');
+  if (!nextUrl) throw new Error('next_url_unset');
+  const u = new URL(`${baseUrl.replace(/\/+$/, '')}/api/auth/login`);
+  u.searchParams.set('next', nextUrl);
+  return u.toString();
+}
+
+// 認証フローの切り替え。既定は 'gateway'（connect にすると invalid_redirect_uri が再発しうる）。
+export function cposAuthFlow() {
+  return process.env.KASAN_CPOS_AUTH_FLOW || 'gateway';
+}
+
+// 開始 URL を構築（flow に応じて gateway / connect を出し分け）。
+export function buildCposStartUrl({ redirectUri, state, baseUrl = defaultBaseUrl() }) {
+  const flow = cposAuthFlow();
+  if (flow === 'connect') {
+    return buildConnectUrl({ redirectUri, state, baseUrl });
+  }
+  // gateway: state は next（= callback URL）のクエリに載せて戻してもらう
+  const nextUrl = new URL(redirectUri);
+  nextUrl.searchParams.set('state', state);
+  return buildLoginGatewayUrl({ nextUrl: nextUrl.toString(), baseUrl });
+}
+
 export function newState() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-// ───────── code → セッション ─────────
+// CPOS へ転送してよい cookie は cpos_session だけ。kasan_session 等は送らない。
+export function pickRawCookiePair(req, name) {
+  const header = req.headers?.cookie;
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) continue;
+    if (trimmed.slice(0, eq) === name) return trimmed; // "cpos_session=..." をそのまま返す
+  }
+  return null;
+}
+
+// ───────── CPOS identity → セッション（共通） ─────────
+async function buildSessionFromCposIdentity({ user, organizationId, allowedFacilityIds = null }) {
+  if (!user?.id || !organizationId) {
+    const e = new Error('invalid_cpos_identity');
+    e.statusCode = 502;
+    throw e;
+  }
+  let ent = { status: 'none', expiresAt: null };
+  try {
+    ent = await getEntitlement({ organizationId, userId: user.id });
+  } catch {
+    /* エンタイトルメント取得失敗時は free 扱い */
+  }
+  const planTier = ent.status === 'active' ? 'paid' : 'free';
+  const session = buildSessionPayload({
+    user,
+    organizationId,
+    allowedFacilityIds,
+    planTier,
+    planExpiresAt: ent.expiresAt || null,
+  });
+  return { session, user, organizationId };
+}
+
+// ───────── code → セッション（旧 connect 方式の互換） ─────────
 export async function loginWithCode(code) {
   const c = getAppCposClient();
   if (!c) {
@@ -48,26 +115,49 @@ export async function loginWithCode(code) {
     throw e;
   }
   const r = await c.exchangeAppSessionCode(APP_ID, code); // { user, organizationId, allowedFacilityIds, expiresIn }
-  if (!r?.user?.id || !r.organizationId) {
-    const e = new Error('invalid_exchange_response');
+  return buildSessionFromCposIdentity({
+    user: r?.user,
+    organizationId: r?.organizationId,
+    allowedFacilityIds: r?.allowedFacilityIds || null,
+  });
+}
+
+// ───────── cpos_session cookie → セッション（ゲートウェイ方式・本命） ─────────
+export async function loginWithCposCookie(req) {
+  const cookiePair = pickRawCookiePair(req, CPOS_SESSION_COOKIE_NAME);
+  if (!cookiePair) {
+    const e = new Error(
+      `${CPOS_SESSION_COOKIE_NAME} cookie が見つかりません。CPOS側の AUTH_COOKIE_DOMAIN=.care-planning.co.jp / AUTH_COOKIE_SAMESITE=Lax を確認してください。`,
+    );
+    e.statusCode = 401;
+    throw e;
+  }
+  const baseUrl = defaultBaseUrl();
+  if (!baseUrl) {
+    const e = new Error('cpos_base_url_unset');
+    e.statusCode = 503;
+    throw e;
+  }
+  // 本番は token なしクライアント（Bearer を付けない）。Fake モードはプロセス内 Fake を使う。
+  const c = isFakeMode() ? getAppCposClient() : new CposClient({ baseUrl, token: null });
+  const me = await c.getAuthMeWithCookie(cookiePair);
+  const orgId = me?.organizationId || me?.user?.organizationId || me?.organization?.id || null;
+  if (!me || me.ok === false || !me.user?.id || !orgId) {
+    const e = new Error('CPOS /api/auth/me のレスポンスが不正です');
     e.statusCode = 502;
     throw e;
   }
-  let ent = { status: 'none', expiresAt: null };
-  try {
-    ent = await getEntitlement({ organizationId: r.organizationId, userId: r.user.id });
-  } catch {
-    /* エンタイトルメント取得失敗時は free 扱い */
-  }
-  const planTier = ent.status === 'active' ? 'paid' : 'free';
-  const session = buildSessionPayload({
-    user: r.user,
-    organizationId: r.organizationId,
-    allowedFacilityIds: r.allowedFacilityIds || null,
-    planTier,
-    planExpiresAt: ent.expiresAt || null,
+  return buildSessionFromCposIdentity({
+    user: {
+      id: me.user.id,
+      email: me.user.email || null,
+      name: me.user.name || null,
+      role: me.user.role || 'staff',
+    },
+    organizationId: orgId,
+    // 現行 CPOS /api/auth/me が allowedFacilityIds を返さない場合は null（＝制限なし扱い）。
+    allowedFacilityIds: me.allowedFacilityIds || me.user?.allowedFacilityIds || null,
   });
-  return { session, user: r.user, organizationId: r.organizationId };
 }
 
 export function buildSessionPayload({ user, organizationId, allowedFacilityIds, planTier, planExpiresAt }) {

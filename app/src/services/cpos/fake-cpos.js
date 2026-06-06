@@ -46,6 +46,26 @@ export class FakeCpos {
   async getAuthMe() {
     return { user: this.user, organizationId: this.organizationId };
   }
+  // ゲートウェイ方式（cpos_session cookie 転送）の本人確認。実 CPOS /api/auth/me 互換の形で返す。
+  async getAuthMeWithCookie(cookieHeader) {
+    if (!cookieHeader) {
+      const e = new Error('cpos_session cookie がありません');
+      e.statusCode = 401;
+      throw e;
+    }
+    return {
+      ok: true,
+      authMethod: 'session',
+      organizationId: this.organizationId,
+      user: {
+        id: this.user.id,
+        email: this.user.email || null,
+        name: this.user.name || null,
+        role: this.user.role || 'staff',
+      },
+      allowedFacilityIds: this.allowedFacilityIds,
+    };
+  }
   async getPlatformFacilities() {
     return {
       facilities: [{ id: 'fac_a', name: 'デイサービスほっと（Fake）', serviceTypeCodes: ['15'] }],

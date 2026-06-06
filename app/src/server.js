@@ -49,12 +49,14 @@ import { hydrateSecretsFromManager } from './services/secrets.js';
 import { authMiddleware, requireAuth, requirePaid, requireAdmin } from './middleware/auth.js';
 import {
   isCposLoginEnabled,
-  buildConnectUrl,
+  buildCposStartUrl,
+  cposAuthFlow,
   newState,
   setStateCookie,
   verifyStateCookie,
   clearStateCookie,
   loginWithCode,
+  loginWithCposCookie,
   setSessionCookie,
   clearSessionCookie,
 } from './services/cpos/app-auth.js';
@@ -200,6 +202,8 @@ app.get('/api/health', (req, res) => {
       // ログインは CPOS 一本化。これが true のとき「CPOS でログイン」を表示する。
       cpos_login_enabled: isCposLoginEnabled(),
       provider: 'cpos',
+      // 'gateway'(既定, /api/auth/login?next=...) か 'connect'(旧 /api/apps/kasan/connect) か
+      cpos_auth_flow: cposAuthFlow(),
     },
     persistence: {
       // 保存バックエンドは CPOS app-data に一本化。
@@ -260,7 +264,9 @@ app.get('/api/auth/cpos/start', (req, res) => {
   try {
     const state = newState();
     setStateCookie(res, state);
-    const url = buildConnectUrl({ redirectUri: cposCallbackRedirectUri(req), state });
+    // 既定は CPOS 共通ログインゲートウェイ（/api/auth/login?next=...）。
+    // KASAN_CPOS_AUTH_FLOW=connect のときだけ旧 /api/apps/kasan/connect を使う。
+    const url = buildCposStartUrl({ redirectUri: cposCallbackRedirectUri(req), state });
     res.redirect(url);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -271,18 +277,28 @@ app.get('/api/auth/cpos/start', (req, res) => {
 app.get('/api/auth/cpos/callback', async (req, res) => {
   const code = String(req.query?.code || '');
   const state = String(req.query?.state || '');
-  if (!code || !verifyStateCookie(req, state)) {
+  // state 検証は code の有無に関係なく必須（第三者の cpos_session 流用で勝手にセッションを張られないため）
+  if (!verifyStateCookie(req, state)) {
     clearStateCookie(res);
     return res.status(400).send('ログインに失敗しました（state 不一致）。お手数ですが再度お試しください。');
   }
   clearStateCookie(res);
   try {
-    const { session } = await loginWithCode(code);
-    setSessionCookie(res, session);
+    // gateway 方式: code 無し → cpos_session cookie + CPOS /api/auth/me で本人確認
+    // connect 方式: code あり → 旧 exchange 経路（互換）
+    const result = code ? await loginWithCode(code) : await loginWithCposCookie(req);
+    setSessionCookie(res, result.session);
     res.redirect('/pro');
   } catch (err) {
     const status = err.statusCode || 500;
-    res.status(status).send(`CPOS ログインに失敗しました: ${err.message}`);
+    let msg = `CPOS ログインに失敗しました: ${err.message}`;
+    if (status === 401) {
+      msg =
+        'CPOSログイン後のセッションCookieを確認できませんでした。CPOS側の AUTH_COOKIE_DOMAIN=.care-planning.co.jp、AUTH_COOKIE_SAMESITE=Lax、AUTH_SECURE_COOKIE=true を確認してください。';
+    } else if (status === 502) {
+      msg = 'CPOSセッションを検証できませんでした。CPOSに再ログインしてから、もう一度お試しください。';
+    }
+    res.status(status).send(msg);
   }
 });
 
